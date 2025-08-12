@@ -7,6 +7,7 @@ def check_modem_registration(port="/dev/ttyUSB2", baudrate=115200, timeout=30, m
     Checks if the modem is registered on the network using AT+CEREG? command.
     Returns True if registered within max_wait seconds, else False.
     """
+    time.sleep(5) 
     ser = serial.Serial()
     ser.port = port
     ser.baudrate = baudrate
