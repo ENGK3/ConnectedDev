@@ -142,6 +142,13 @@ def sbc_connect(serial_connection: serial.Serial):
 def sbc_disconnect(serial_connection: serial.Serial):
     serial_connection.close()
     print(f"Disconnected from SBC on port {serial_connection.port}")
+        # Start switch_mon.sh as a detached background process
+    script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "switch_mon.sh")
+    try:
+        subprocess.Popen(["/bin/bash", script_path], start_new_session=True)
+        print(f"Started {script_path} as a detached background process.")
+    except Exception as e:
+        print(f"Failed to start {script_path}: {e}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Serial SBC dialer")
@@ -161,3 +168,4 @@ if __name__ == "__main__":
         sbc_place_call(args.number, serial_connection, verbose=args.verbose)
 
     sbc_disconnect(serial_connection)
+

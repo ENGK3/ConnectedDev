@@ -1,0 +1,13 @@
+[Unit]
+Description=Switch Monitor Script
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/mnt/data/switch_mon.sh
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+
+#/etc/systemd/system/switch_mon.service this will be the location of this file.
