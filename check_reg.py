@@ -2,6 +2,22 @@ import serial
 import time
 import sys
 
+
+def sbc_cmd(cmd: str, serial_connection: serial.Serial, verbose: bool) -> str:
+    """
+    Send a command to the SBC and return the response.
+    """
+    if verbose:
+        print(f"Sending command: {cmd.strip()}")
+    serial_connection.write(cmd.encode())
+    
+    #response = serial_connection.read(serial_connection.in_waiting or 1)
+    response = serial_connection.readline()
+    response = serial_connection.readline()  # Read the response
+    if verbose:
+        print(f"Response: {response.decode().strip()}")
+    return response.decode().strip()
+
 def check_modem_registration(port="/dev/ttyUSB2", baudrate=115200, timeout=30, max_wait=300):
     """
     Checks if the modem is registered on the network using AT+CEREG? command.
@@ -15,21 +31,25 @@ def check_modem_registration(port="/dev/ttyUSB2", baudrate=115200, timeout=30, m
     ser.xonxoff = False
     try:
         ser.open()
-        ser.write(b"ATE0\r")
-        ser.readline()
-        ser.readline()
+        
     except Exception as e:
         print(f"Failed to open serial port: {e}")
         return False
 
+    print(f"Opened serial port: {port}")
+    sbc_cmd("ATE0\r", ser, verbose=True)  # Disable echo
+    sbc_cmd("AT+CMEE=2\r", ser, verbose=True)  # Enable verbose error messages
+    sbc_cmd("AT+CEREG=2\r", ser, verbose=True)
     start_time = time.time()
     while time.time() - start_time < max_wait:
         try:
-            ser.write(b"AT+CEREG?\r")
-            response = ser.readline().decode(errors="ignore").strip()
+            print("Querying modem registration status...")
+            response = sbc_cmd("AT+CEREG?\r", ser, verbose=True)
+            print(f"Modem response: {response}")
             # Read until we get a line with +CEREG:
             while response and not response.startswith("+CEREG:"):
-                response = ser.readline().decode(errors="ignore").strip()
+                response = sbc_cmd("AT+CEREG?\r", ser, verbose=True)
+                print(f"Modem response: {response}")
             if response.startswith("+CEREG:"):
                 # +CEREG: <n>,<stat>[,...]
                 # stat: 1=registered (home), 5=registered (roaming)
@@ -44,14 +64,17 @@ def check_modem_registration(port="/dev/ttyUSB2", baudrate=115200, timeout=30, m
                         print(f"Modem not registered yet: stat={stat}")
             time.sleep(2)
             print(f"Waiting again {response}")
+
         except Exception as e:
             print(f"Error querying modem: {e}")
             time.sleep(5)
     ser.close()
     print("Registration timeout.")
+    aplay1 = ["aplay", "-D", "hw:sgtl5000audio,0", "-f", "S16_LE", "-r", "16000", "/mnt/data/sounds/ENU00456.wav"]
     return False
 
 if __name__ == "__main__":
-    result = check_modem_registration()
+    result = check_modem_registration(port="/dev/ttyUSB2", baudrate=115200, timeout=10, max_wait=30)  #check_modem_registration()
     print(result)
     sys.exit(0 if result else 1)
+ 
