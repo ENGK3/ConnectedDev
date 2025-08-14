@@ -1,6 +1,7 @@
 [Unit]
 Description=Switch Monitor Script
-After=network.target
+After=network.target dev-ttyUSB2.device
+Requires=dev-ttyUSB2.device
 
 [Service]
 Type=simple
