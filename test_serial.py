@@ -4,6 +4,9 @@ import argparse
 import subprocess
 import signal
 import os
+import logging
+from pathlib import Path
+import logging.handlers
 
 def sbc_cmd(cmd: str, serial_connection: serial.Serial, verbose: bool) -> str:
     """
@@ -12,10 +15,9 @@ def sbc_cmd(cmd: str, serial_connection: serial.Serial, verbose: bool) -> str:
     if verbose:
         print(f"Sending command: {cmd.strip()}")
     serial_connection.write(cmd.encode())
-    
-    #response = serial_connection.read(serial_connection.in_waiting or 1)
     response = serial_connection.readline()
     response = serial_connection.readline()  # Read the response
+
     if verbose:
         print(f"Response: {response.decode().strip()}")
     return response.decode().strip()
@@ -39,7 +41,6 @@ def start_audio_bridge():
 
     # Return the PIDs of the aplay processes (since arecord will exit if aplay is killed)
     return (p1_aplay.pid, p2_aplay.pid)
-    # return (p1_aplay.pid)
 
 def terminate_pids(pid_list):
     """
@@ -50,7 +51,7 @@ def terminate_pids(pid_list):
             # Send SIGTERM first
             os.kill(pid, signal.SIGTERM)
         except Exception as e:
-            print(f"Failed to terminate PID {pid}: {e}")
+            logging.error(f"Failed to terminate PID {pid}: {e}")
 
 def sbc_config_call(serial_connection: serial.Serial, verbose: bool):
 
@@ -73,47 +74,48 @@ def sbc_config_call(serial_connection: serial.Serial, verbose: bool):
         sbc_cmd(cmd, serial_connection, verbose)
 
 
-def sbc_place_call(number: str, modem: serial.Serial, verbose: bool = True):
-
+def sbc_place_call(number: str, modem: serial.Serial, verbose: bool = True) -> bool:
     sbc_config_call(modem, verbose)
-
     sbc_cmd(f"ATD{number};\r", modem, verbose)  # Place the call
-
-    # now wait for connection and check for errors
-
-    # When the following are seen on the serial port.
-    # "+CIEV: callsetup,3" and "+CIEV: callsetup,0"
-    # the call got connected. 
-
-    # When the "NO CARRIER" is seen the call has been Terminated
-
     audio_pids = None
+    start_time = time.time()
+    timeout = 30  # 30 second timeout
+    call_connected = False
+
     while True:
+        # Check for timeout
+        if time.time() - start_time > timeout:
+            logging.warning("Call connection timeout after 30 seconds")
+            sbc_cmd("AT+CHUP\r", modem, verbose)
+            if audio_pids:
+                terminate_pids(audio_pids)
+                logging.info("Audio bridge terminated due to timeout.")
+            return False
+
         response = modem.readline().decode().strip()
-        print(f"Waiting for call response: {response}")
-        
+        logging.info(f"Waiting for call response: {response}")
         if "+CIEV: call,1" in response:
-            print("Call connected successfully.")
-            #sbc_cmd("AT#ADSPC=6\r", modem)  # Connect the audio.
-            # Start audio bridge here
+            logging.info("Call connected successfully.")
             audio_pids = start_audio_bridge()
-            print(f"Audio bridge started with PIDs: {audio_pids}")
+            logging.info(f"Audio bridge started with PIDs: {audio_pids}")
+            call_connected = True
+
         elif "+CIEV: call,0" in response:
-            print("Call setup Terminated.")
+            logging.info("Call setup Terminated.")
             sbc_cmd("AT#ADSPC=0\r", modem, verbose)  # Connect the audio
             sbc_cmd("AT+CHUP\r", modem, verbose)
-            # Terminate audio bridge if running
             if audio_pids:
                 terminate_pids(audio_pids)
-                print("Audio bridge terminated.")
+                logging.info("Audio bridge terminated.")
+            return call_connected
+
         elif "NO CARRIER" in response:
-            print("Call terminated")
+            logging.info("Call terminated")
             sbc_cmd("AT+CHUP\r", modem, verbose)
-            # Terminate audio bridge if running
             if audio_pids:
                 terminate_pids(audio_pids)
-                print("Audio bridge terminated.")
-            break
+                logging.info("Audio bridge terminated.")
+            return call_connected
         time.sleep(0.5)  # Avoid busy waiting
 
 
@@ -129,43 +131,77 @@ def sbc_connect(serial_connection: serial.Serial):
         serial_connection.write(b"ATE0\r")
         response = serial_connection.readline()
         response = serial_connection.readline()
-        print(f"SBC connected successfully?: {response.decode().strip()}")  
+        print(f"SBC connected successfully?: {response.decode().strip()}")
         print(serial_connection.is_open)
-        
+
 
     except Exception as e:
-        print(f"Failed to connect to SBC: {e}")
-
+        logging.error(f"Failed to connect to SBC: {e}")
     return serial_connection.is_open
 
+def start_reg_again(serial_connection: serial.Serial):
+    logging.info("Starting registration process again")
+    sbc_cmd("AT+COPS=2\r", serial_connection, verbose=True)
+    sbc_cmd("AT+COPS=0\r", serial_connection, verbose=True)
+
+
+def check_registration(serial_connection: serial.Serial):
+    response =  sbc_cmd("AT+CEREG?\r", serial_connection, verbose=True)
+    if response.startswith("+CEREG:"):
+        parts = response.split(",")
+        if len(parts) > 1:
+            stat = parts[1].strip()
+            if stat in ["1", "5"]:
+                logging.info(f"Modem registered: stat={stat}")
+                return True
+            else:
+                logging.info(f"Modem not registered yet: stat={stat}")
+                start_reg_again(serial_connection)
+
+    return False
 
 def sbc_disconnect(serial_connection: serial.Serial):
     serial_connection.close()
-    print(f"Disconnected from SBC on port {serial_connection.port}")
-        # Start switch_mon.sh as a detached background process
-    script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "switch_mon.sh")
+    logging.info(f"Disconnected from SBC on port {serial_connection.port}")
+    # Start switch_mon.sh as a detached background process
+    script_path = "/mnt/data/switch_mon.sh"
     try:
         subprocess.Popen(["/bin/bash", script_path], start_new_session=True)
-        print(f"Started {script_path} as a detached background process.")
+        logging.info(f"Started {script_path} as a detached background process.")
     except Exception as e:
-        print(f"Failed to start {script_path}: {e}")
+        logging.error(f"Failed to start {script_path}: {e}")
 
 if __name__ == "__main__":
+    # Set up logging to syslog
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s %(levelname)-8s %(message)s',
+                        datefmt='%m-%d %H:%M',
+                        filename="./calls.log",
+                        filemode='w')
+
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s:%(levelname)-8s %(message)s',datefmt='%H:%M:%S ')
+    console.setFormatter(formatter)
+    logging.getLogger('').addHandler(console)
+
+
     parser = argparse.ArgumentParser(description="Serial SBC dialer")
     parser.add_argument("-n", "--number", type=str, help="Phone number to dial",
-                        default="9723256826")
-    parser.add_argument("-v", "--verbose", type=bool, default=False, help="Enable verbose output")
+                        default="9723507770")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output")
     args = parser.parse_args()
 
     serial_connection = serial.Serial()
     if sbc_connect(serial_connection):
+        logging.info(f"Ready to dial number: {args.number}")
+        call_success = sbc_place_call(args.number, serial_connection, verbose=args.verbose)
+        if call_success:
+            logging.info("Call completed successfully")
+        else:
+            logging.warning("Call failed or timed out")
 
-        print(f"Ready to dial number: {args.number}")
-        # Add dial logic here if needed, e.g.:
-        # serial_connection.write(f'ATD{args.number};\r'.encode())
-        # response = serial_connection.readline()
-        # print(f"Dial response: {response.decode().strip()}")
-        sbc_place_call(args.number, serial_connection, verbose=args.verbose)
+    Path('/tmp/setup').touch()
 
     sbc_disconnect(serial_connection)
 
