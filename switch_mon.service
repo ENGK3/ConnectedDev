@@ -5,11 +5,24 @@ Requires=dev-ttyUSB2.device
 
 [Service]
 Type=simple
+WorkingDirectory=/mnt/data
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ExecStartPre=/bin/sleep 3
+# This was causing problems.
+#ExecStartPre=/bin/bash -c 'pkill -f "gpiomon.*gpiochip1.*24" || true'
 ExecStart=/mnt/data/switch_mon.sh
-Restart=on-failure
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Resource limits and security
+LimitNOFILE=1024
+PrivateTmp=false
+PrivateDevices=false
 
 [Install]
 WantedBy=multi-user.target
 
-#/etc/systemd/system/switch_mon.service this will be the location of this file.
+# /etc/systemd/system/switch_mon.service this will be the location of this file.
+
