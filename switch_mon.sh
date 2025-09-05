@@ -3,7 +3,7 @@
 # Set proper working directory
 cd /mnt/data
 
-script_to_run=/mnt/data/switch_detect_fixed.sh
+script_to_run=/mnt/data/switch_detect.sh
 
 echo "Script to run is $script_to_run"
 echo ""
