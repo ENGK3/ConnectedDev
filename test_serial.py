@@ -87,10 +87,6 @@ def sbc_place_call(number: str, modem: serial.Serial, verbose: bool = True) -> b
         # Check for timeout
         if (time.time() - start_time > timeout) and call_connected is False:
             logging.warning("Call connection timeout after 30 seconds")
-            sbc_cmd("AT+CHUP\r", modem, verbose)
-            if audio_pids:
-                terminate_pids(audio_pids)
-                logging.info("Audio bridge terminated due to timeout.")
             break
 
         response = modem.readline().decode().strip()
@@ -103,23 +99,17 @@ def sbc_place_call(number: str, modem: serial.Serial, verbose: bool = True) -> b
 
         elif "+CIEV: call,0" in response:
             logging.info("Call setup Terminated.")
-            #sbc_cmd("AT#ADSPC=0\r", modem, verbose)  # Disconnect the audio
-            sbc_cmd("AT+CHUP\r", modem, verbose)
-            if audio_pids:
-                terminate_pids(audio_pids)
-                logging.info("Audio bridge terminated.")
             break  # Exit the loop but don't return yet
 
         elif "NO CARRIER" in response:
             logging.info("Call terminated")
-            #sbc_cmd("AT#ADSPC=0\r", modem, verbose)  # Disconnect the audio
-            sbc_cmd("AT+CHUP\r", modem, verbose)
-            if audio_pids:
-                terminate_pids(audio_pids)
-                logging.info("Audio bridge terminated.")
             break  # Exit the loop but don't return yet
         time.sleep(0.5)  # Avoid busy waiting
 
+    sbc_cmd("AT+CHUP\r", modem, verbose)
+    if audio_pids:
+        terminate_pids(audio_pids)
+        logging.info("Audio bridge terminated.")
     return call_connected  # Return the connection status after loop exits
 
 
