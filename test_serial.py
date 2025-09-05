@@ -67,6 +67,7 @@ def sbc_config_call(serial_connection: serial.Serial, verbose: bool):
         "AT+CEREG=2\r",
         "AT+CLVL=0\r",
         "AT+CMER=2,0,0,2\r",
+        "AT#ADSPC=6\r",
         "AT+CIND=0,0,1,0,1,1,1,1,0,1,0\r"
     ]
 
@@ -96,14 +97,13 @@ def sbc_place_call(number: str, modem: serial.Serial, verbose: bool = True) -> b
         logging.info(f"Waiting for call response: {response}")
         if "+CIEV: call,1" in response:
             logging.info("Call connected successfully.")
-            sbc_cmd("AT#ADSPC=6\r", modem, verbose)  # Connect the audio on modem side
             audio_pids = start_audio_bridge()
             logging.info(f"Audio bridge started with PIDs: {audio_pids}")
             call_connected = True
 
         elif "+CIEV: call,0" in response:
             logging.info("Call setup Terminated.")
-            sbc_cmd("AT#ADSPC=0\r", modem, verbose)  # Disconnect the audio
+            #sbc_cmd("AT#ADSPC=0\r", modem, verbose)  # Disconnect the audio
             sbc_cmd("AT+CHUP\r", modem, verbose)
             if audio_pids:
                 terminate_pids(audio_pids)
@@ -112,7 +112,7 @@ def sbc_place_call(number: str, modem: serial.Serial, verbose: bool = True) -> b
 
         elif "NO CARRIER" in response:
             logging.info("Call terminated")
-            sbc_cmd("AT#ADSPC=0\r", modem, verbose)  # Disconnect the audio
+            #sbc_cmd("AT#ADSPC=0\r", modem, verbose)  # Disconnect the audio
             sbc_cmd("AT+CHUP\r", modem, verbose)
             if audio_pids:
                 terminate_pids(audio_pids)
