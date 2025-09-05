@@ -179,7 +179,7 @@ if __name__ == "__main__":
     # Set up logging to syslog
     logging.basicConfig(level=logging.DEBUG,
                         format='%(asctime)s %(levelname)-8s %(message)s',
-                        datefmt='%m-%d %H:%M',
+                        datefmt='%m-%d %H:%M:%S',
                         filename="/mnt/data/calls.log",
                         filemode='a+')
 
