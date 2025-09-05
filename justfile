@@ -1,16 +1,17 @@
 
-#target := "172.20.10.123"
-target := "172.27.17.9"
+target := "172.20.10.123"
+#target := "172.27.17.9"
 
 
 service:
     scp switch_mon.service  root@{{target}}:/mnt/data/switch_mon.service
     scp microcom.alias  root@{{target}}:/mnt/data/microcom.alias
+    scp 99-ignore-modemmanager.rules root@{{target}}:/mnt/data/99-ignore-modemmanager.rules
 
-leds: 
+leds:
     scp led*.sh  root@{{target}}:/mnt/data/.
 
-switch: 
+switch:
     scp switch_detect.sh  root@{{target}}:/mnt/data/switch_detect.sh
     scp switch_mon.sh  root@{{target}}:/mnt/data/switch_mon.sh
 
