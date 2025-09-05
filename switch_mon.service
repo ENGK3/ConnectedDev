@@ -5,7 +5,7 @@ Requires=dev-ttyUSB2.device
 
 [Service]
 Type=simple
-ExecStartPre=/bin/sleep 30
+ExecStartPre=/bin/sleep 3
 ExecStart=/mnt/data/switch_mon.sh
 Restart=on-failure
 
