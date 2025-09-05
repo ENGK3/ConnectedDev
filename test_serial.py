@@ -13,13 +13,13 @@ def sbc_cmd(cmd: str, serial_connection: serial.Serial, verbose: bool) -> str:
     Send a command to the SBC and return the response.
     """
     if verbose:
-        print(f"Sending command: {cmd.strip()}")
+        logging.info(f"Sending command: {cmd.strip()}")
     serial_connection.write(cmd.encode())
     response = serial_connection.readline()
     response = serial_connection.readline()  # Read the response
 
     if verbose:
-        print(f"Response: {response.decode().strip()}")
+        logging.info(f"Response: {response.decode().strip()}")
     return response.decode().strip()
 
 def start_audio_bridge():
@@ -65,8 +65,8 @@ def sbc_config_call(serial_connection: serial.Serial, verbose: bool):
         "AT+CMEE=2\r",
         "AT#AUSBC=1\r",
         "AT+CEREG=2\r",
-        "AT#ADSPC=6\r",
         "AT+CLVL=0\r",
+        "AT+CMER=2,0,0,2\r",
         "AT+CIND=0,0,1,0,1,1,1,1,0,1,0\r"
     ]
 
@@ -96,27 +96,31 @@ def sbc_place_call(number: str, modem: serial.Serial, verbose: bool = True) -> b
         logging.info(f"Waiting for call response: {response}")
         if "+CIEV: call,1" in response:
             logging.info("Call connected successfully.")
+            sbc_cmd("AT#ADSPC=6\r", modem, verbose)  # Connect the audio on modem side
             audio_pids = start_audio_bridge()
             logging.info(f"Audio bridge started with PIDs: {audio_pids}")
             call_connected = True
 
         elif "+CIEV: call,0" in response:
             logging.info("Call setup Terminated.")
-            sbc_cmd("AT#ADSPC=0\r", modem, verbose)  # Connect the audio
+            sbc_cmd("AT#ADSPC=0\r", modem, verbose)  # Disconnect the audio
             sbc_cmd("AT+CHUP\r", modem, verbose)
             if audio_pids:
                 terminate_pids(audio_pids)
                 logging.info("Audio bridge terminated.")
-            return call_connected
+            break  # Exit the loop but don't return yet
 
         elif "NO CARRIER" in response:
             logging.info("Call terminated")
+            sbc_cmd("AT#ADSPC=0\r", modem, verbose)  # Disconnect the audio
             sbc_cmd("AT+CHUP\r", modem, verbose)
             if audio_pids:
                 terminate_pids(audio_pids)
                 logging.info("Audio bridge terminated.")
-            return call_connected
+            break  # Exit the loop but don't return yet
         time.sleep(0.5)  # Avoid busy waiting
+
+    return call_connected  # Return the connection status after loop exits
 
 
 def sbc_connect(serial_connection: serial.Serial):
@@ -176,7 +180,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG,
                         format='%(asctime)s %(levelname)-8s %(message)s',
                         datefmt='%m-%d %H:%M',
-                        filename="./calls.log",
+                        filename="/mnt/data/calls.log",
                         filemode='a+')
 
     console = logging.StreamHandler()
