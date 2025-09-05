@@ -85,13 +85,13 @@ def sbc_place_call(number: str, modem: serial.Serial, verbose: bool = True) -> b
 
     while True:
         # Check for timeout
-        if time.time() - start_time > timeout:
+        if (time.time() - start_time > timeout) and call_connected is False:
             logging.warning("Call connection timeout after 30 seconds")
             sbc_cmd("AT+CHUP\r", modem, verbose)
             if audio_pids:
                 terminate_pids(audio_pids)
                 logging.info("Audio bridge terminated due to timeout.")
-            return False
+            break
 
         response = modem.readline().decode().strip()
         logging.info(f"Waiting for call response: {response}")
