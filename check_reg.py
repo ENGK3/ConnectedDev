@@ -82,7 +82,7 @@ if __name__ == "__main__":
                         format='%(asctime)s %(levelname)-8s %(message)s',
                         datefmt='%m-%d %H:%M',
                         filename="./registration.log",
-                        filemode='w')
+                        filemode='a')
 
     console = logging.StreamHandler()
     console.setLevel(logging.INFO)
