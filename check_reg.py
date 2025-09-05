@@ -81,8 +81,8 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG,
                         format='%(asctime)s %(levelname)-8s %(message)s',
                         datefmt='%m-%d %H:%M',
-                        filename="./registration.log",
-                        filemode='a')
+                        filename="./calls.log",
+                        filemode='a+')
 
     console = logging.StreamHandler()
     console.setLevel(logging.INFO)
