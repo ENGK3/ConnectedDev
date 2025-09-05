@@ -81,7 +81,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG,
                         format='%(asctime)s %(levelname)-8s %(message)s',
                         datefmt='%m-%d %H:%M',
-                        filename="./calls.log",
+                        filename="/mnt/data/calls.log",
                         filemode='a+')
 
     console = logging.StreamHandler()
