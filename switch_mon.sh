@@ -34,7 +34,7 @@ if [ ! -e /tmp/setup ]; then
 	fi
 fi
 
-/mnt/data/led_red.sh ON
+/mnt/data/led_red.sh OFF
 /mnt/data/led_green.sh ON
 /mnt/data/led_blue.sh OFF
 
