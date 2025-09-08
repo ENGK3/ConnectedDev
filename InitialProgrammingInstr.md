@@ -212,3 +212,22 @@ ci_hdrc ci_hdrc.1: USB bus 1 deregistered
 reboot: Power down
 ```
 
+Once the machine has been booted again, the ALSA mixer needs to be "adjusted".
+The items to check for in the ALSA mixer tool are as follows.
+
+```
+alsactl --file /mnt/data/asound.state restore
+alsactl store
+```
+
+The settings can be tested with the following command
+```
+aplay -D plughw:1,0 /mnt/data/sounds/ENU00209.wav
+```
+The tool alsamixer can be used to tweak the sound card settings as necessary.
+BUT be sure to do an
+```
+alsactl store
+```
+afterwards to make sure you have the settings saved.
+
