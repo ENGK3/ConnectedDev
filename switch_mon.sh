@@ -46,7 +46,7 @@ while true; do
     echo "Starting GPIO monitor..."
 
     # Use timeout to prevent hanging
-    timeout 3600 gpiomon --falling-edge --num-events=1 gpiochip1 24
+    gpiomon --falling-edge --num-events=1 gpiochip1 24
     gpio_exit_code=$?
 
     if [ $gpio_exit_code -eq 0 ]; then
@@ -54,10 +54,10 @@ while true; do
         $script_to_run
         # Don't restart automatically here - let systemd handle restarts
         break
-    elif [ $gpio_exit_code -eq 124 ]; then
-        echo "GPIO monitor timed out after 1 hour, restarting..."
-        cleanup_gpio
-        continue
+    # elif [ $gpio_exit_code -eq 124 ]; then
+    #     echo "GPIO monitor timed out after 1 hour, restarting..."
+    #     cleanup_gpio
+    #     continue
     else
         echo "GPIO monitor failed with exit code $gpio_exit_code"
         sleep 5
