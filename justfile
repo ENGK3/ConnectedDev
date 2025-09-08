@@ -1,5 +1,6 @@
 
-target := "172.20.10.123"
+#target := "172.20.10.123"
+target := "172.20.10.137"
 #target := "172.27.17.9"
 
 
@@ -15,8 +16,11 @@ switch:
     scp switch_detect.sh  root@{{target}}:/mnt/data/switch_detect.sh
     scp switch_mon.sh  root@{{target}}:/mnt/data/switch_mon.sh
 
+sounds:
+    scp -r sounds  root@{{target}}:/mnt/data/.
+
 modem:
     scp test_serial.py  root@{{target}}:/mnt/data/test_serial.py
     scp check_reg.py  root@{{target}}:/mnt/data/check_reg.py
 
-push: modem switch leds service
+push: modem switch leds service sounds
