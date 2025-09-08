@@ -46,7 +46,7 @@ while true; do
     echo "Starting GPIO monitor..."
 
     # Use timeout to prevent hanging
-    gpiomon --falling-edge --num-events=1 gpiochip1 24
+    gpiomon --bias=pull-up --falling-edge --num-events=1 gpiochip1 24
     gpio_exit_code=$?
 
     if [ $gpio_exit_code -eq 0 ]; then
