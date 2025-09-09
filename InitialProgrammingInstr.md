@@ -225,9 +225,19 @@ The settings can be tested with the following command
 aplay -D plughw:1,0 /mnt/data/sounds/ENU00209.wav
 ```
 The tool alsamixer can be used to tweak the sound card settings as necessary.
-BUT be sure to do an
+BUT be sure to do a
 ```
 alsactl store
 ```
 afterwards to make sure you have the settings saved.
 
+
+**NOTE** The script /mnt/data/switch_dected.sh can be edited to specify a number to dial.
+Currently the number dialed is that of the EDC (9723507770) which is the default number of the
+place_call.py script.
+The following line can be changed to change the number dialed.
+```
+python3 /mnt/data/place_call.py -v
+#should be change like the line below to dial a NON EDC number.
+python3 /mnt/data/place_call.py -n 1112223333 -v
+```
