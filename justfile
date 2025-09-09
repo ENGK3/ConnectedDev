@@ -1,4 +1,3 @@
-
 #target := "172.20.10.123"
 target := "172.20.10.137"
 #target := "172.27.17.9"
@@ -20,7 +19,7 @@ sounds:
     scp -r sounds  root@{{target}}:/mnt/data/.
 
 modem:
-    scp test_serial.py  root@{{target}}:/mnt/data/test_serial.py
+    scp place_call.py  root@{{target}}:/mnt/data/place_call.py
     scp check_reg.py  root@{{target}}:/mnt/data/check_reg.py
 
 push: modem switch leds service sounds
