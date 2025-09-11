@@ -93,7 +93,6 @@ Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
 
 At this point there should be a network information on the SBC. On the SBC console,
 ```
-root@ccimx6sbc:~# ifconfig
 root@ccimx6sbc:~# ifconfig eth0
 eth0      Link encap:Ethernet  HWaddr 00:04:F3:3D:A6:3E
           inet addr:172.20.10.137  Bcast:172.20.10.255  Mask:255.255.255.0
@@ -148,6 +147,8 @@ On the SBC console. The linux partition is mounted read-only so it needs to be r
 be able to update the Kernel.
 
 ```
+umount /mnt/linux
+mount /dev/mmcblk0p1 /mnt/linux
 
 mv /mnt/linux/zImage-ccimx6sbc.bin /mnt/linux/zImage-ccimx6sbc.bin.orig
 mv /lib/modules/5.15.71-dey-dey /lib/modules/old-5.15.71-dey-dey
@@ -164,11 +165,14 @@ This key is not known by any other names.
 Are you sure you want to continue connecting (yes/no/[fingerprint])?
 Warning: Permanently added '172.20.10.137' (RSA) to the list of known hosts.
 zImage                                        100% 7470KB   3.9MB/s   00:01
+
+scp digi-modules-5_15_71.tar.gz root@172.20.10.137:/lib/modules
+digi-modules-5_15_71.tar.gz                   100% 1604KB   2.9MB/s   00:00
 ```
 
 Then back on the SBC console, unzip the modules that match the Kernel.
 ```
-cd /lib/moudules
+cd /lib/modules
 tar -xzv --strip-components=3 -f digi-modules-5_15_71.tar.gz
 rm -rf digi-modules-5_15_71.tar.gz
 ```
@@ -212,6 +216,10 @@ ci_hdrc ci_hdrc.1: USB bus 1 deregistered
 reboot: Power down
 ```
 
+Unplug the USB OTG cable that was connected to the Linux VM.
+If this is not done, the system console will not return on the reboot because it is being re-routed over the USB.
+
+Plug in the device again.
 Once the machine has been booted again, the ALSA mixer needs to be "adjusted".
 The items to check for in the ALSA mixer tool are as follows.
 
@@ -219,10 +227,16 @@ The items to check for in the ALSA mixer tool are as follows.
 alsactl --file /mnt/data/asound.state restore
 alsactl store
 ```
+Note - there might be the following output from the restore command.
+```
+alsa-lib ../../../alsa-lib-1.2.6.1/src/ucm/main.c:1412:(snd_use_case_mgr_open) error: failed to import hw:0 use case configuration -2
+alsa-lib ../../../alsa-lib-1.2.6.1/src/ucm/main.c:1412:(snd_use_case_mgr_open) error: failed to import hw:1 use case configuration -2
+```
+
 
 The settings can be tested with the following command
 ```
-aplay -D plughw:1,0 /mnt/data/sounds/ENU00209.wav
+aplay -D plughw:1,0 /mnt/data/sounds/S0000304.wav
 ```
 The tool alsamixer can be used to tweak the sound card settings as necessary.
 BUT be sure to do a
