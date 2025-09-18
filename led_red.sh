@@ -2,7 +2,7 @@
 
 # Red LED is on GPIO 18 on gpiochip4 on the Gateworks board GW7200.
 CHIP=4
-GPIO=18
+GPIO=26
 
 if [[ "$1" == "ON" ]]; then
     echo "Turning RED LED ON"
