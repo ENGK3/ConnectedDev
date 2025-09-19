@@ -27,20 +27,41 @@ def start_audio_bridge():
     Start the two audio bridge shell commands as background processes.
     Returns a tuple of their PIDs (pid1, pid2).
     """
-    cmd1 = ["arecord", "-D", "hw:CARD=LE910C1NF,0", "-f", "S16_LE", "-r", "16000"]
-    cmd2 = ["arecord", "-D", "hw:sgtl5000audio,0",  "-f", "S16_LE", "-r", "16000"]
-    aplay1 = ["aplay", "-D", "hw:sgtl5000audio,0", "-f", "S16_LE", "-r", "16000"]
-    aplay2 = ["aplay", "-D", "hw:CARD=LE910C1NF,0",  "-f", "S16_LE", "-r", "16000"]
+    # First pipeline:
+    # arecord -D hw:CARD=LE910C1NF,0 -r 16000 -f S16_LE -c 1 |
+    # sox -t raw -r 16000 -e signed -b 16 -c 1 - -r 48000 -t wav - |
+    # aplay -D hw:CARD=SGTL5000Card,0 -r 48000
+
+    arecord1 = ["arecord", "-D", "hw:CARD=LE910C1NF,0", "-r", "16000", "-f", "S16_LE", "-c", "1"]
+    sox1 = [
+        "sox", "-t", "raw", "-r", "16000", "-e", "signed", "-b", "16", "-c", "1", "-", "-r", "48000", "-t", "wav", "-"
+    ]
+    aplay1 = ["aplay", "-D", "hw:CARD=SGTL5000Card,0", "-r", "48000"]
+
+    # Second pipeline:
+    # arecord -D hw:CARD=SGTL5000Card,0 -r 48000 -f S16_LE -c 1 |
+    # sox -t raw -r 48000 -e signed -b 16 -c 1 - -r 16000 -t wav - |
+    # aplay -D hw:CARD=LE910C1NF,0 -r 16000 -c 2
+
+    arecord2 = ["arecord", "-D", "hw:CARD=SGTL5000Card,0", "-r", "48000", "-f", "S16_LE", "-c", "1"]
+    sox2 = [
+        "sox", "-t", "raw", "-r", "48000", "-e", "signed", "-b", "16", "-c", "1", "-", "-r", "16000", "-t", "wav", "-"
+    ]
+    aplay2 = ["aplay", "-D", "hw:CARD=LE910C1NF,0", "-r", "16000", "-c", "2"]
 
     # Start first pipeline
-    p1_arecord = subprocess.Popen(cmd1, stdout=subprocess.PIPE)
-    p1_aplay = subprocess.Popen(aplay1, stdin=p1_arecord.stdout)
-    # Start second pipeline
-    p2_arecord = subprocess.Popen(cmd2, stdout=subprocess.PIPE)
-    p2_aplay = subprocess.Popen(aplay2, stdin=p2_arecord.stdout)
+    p1_arecord = subprocess.Popen(arecord1, stdout=subprocess.PIPE)
+    p1_sox = subprocess.Popen(sox1, stdin=p1_arecord.stdout, stdout=subprocess.PIPE)
+    p1_aplay = subprocess.Popen(aplay1, stdin=p1_sox.stdout)
 
-    # Return the PIDs of the aplay processes (since arecord will exit if aplay is killed)
-    return (p1_aplay.pid, p2_aplay.pid)
+    # Start second pipeline
+    p2_arecord = subprocess.Popen(arecord2, stdout=subprocess.PIPE)
+    p2_sox = subprocess.Popen(sox2, stdin=p2_arecord.stdout, stdout=subprocess.PIPE)
+    p2_aplay = subprocess.Popen(aplay2, stdin=p2_sox.stdout)
+
+    # Return the PIDs of the aplay and sox processes for both pipelines
+    # Order: (p1_aplay, p1_sox, p2_aplay, p2_sox)
+    return (p1_aplay.pid, p1_sox.pid, p2_aplay.pid, p2_sox.pid)
 
 def terminate_pids(pid_list):
     """
@@ -158,17 +179,20 @@ def sbc_disconnect(serial_connection: serial.Serial):
     serial_connection.close()
     logging.info(f"Disconnected from SBC on port {serial_connection.port}")
 
+
 if __name__ == "__main__":
-    # Set up logging to syslog
+    # Set up logging to syslog with milliseconds in timestamp
+
     logging.basicConfig(level=logging.DEBUG,
-                        format='%(asctime)s %(levelname)-8s %(message)s',
+                        format='%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s',
                         datefmt='%m-%d %H:%M:%S',
                         filename="/mnt/data/calls.log",
                         filemode='a+')
 
     console = logging.StreamHandler()
     console.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s:%(levelname)-8s %(message)s',datefmt='%H:%M:%S ')
+    formatter = logging.Formatter('%(asctime)s.%(msecs)03d:%(levelname)-8s %(message)s', datefmt='%H:%M:%S')
+    formatter.default_msec_format = '%s.%03d'
     console.setFormatter(formatter)
     logging.getLogger('').addHandler(console)
 
