@@ -11,6 +11,9 @@
 /dts-v1/;
 /plugin/;
 
+&uart3 {
+	status = "disabled";
+};
 
 &gpio5 {
         pinctrl-names = "default";
@@ -18,12 +21,7 @@
         gpio-line-names = "", "", "", "", "", "", "", "", "", "",
                           "", "", "", "", "", "",
                           "", "", "", "", "", "", "", "", "", "",
-                          "btn_red_led", "extra-io";
-};
-
-
-&uart3 {
-        status = "disabled";
+			  "btn_red_led", "extra-io";
 };
 
 
@@ -38,8 +36,8 @@
          */
         pinctrl_gpio5_hog: gpio5hoggrp {
                 fsl,pins = <
-                        MX8MM_IOMUXC_UART3_RXD_GPIO5_IO26             0x140
-                        MX8MM_IOMUXC_UART3_TXD_GPIO5_IO27             0x140
+			MX8MM_IOMUXC_UART3_RXD_GPIO5_IO26             0x140
+			MX8MM_IOMUXC_UART3_TXD_GPIO5_IO27             0x140
                 >;
         };
 };
