@@ -4,6 +4,7 @@
 #target := "172.20.10.141"
 #target := "172.20.10.98"
 target := "172.20.10.71"   # Gateworks Target
+#target := "172.27.17.22"
 
 #nuser := "root"
 nuser := "alanh"
