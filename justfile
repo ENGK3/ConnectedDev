@@ -9,6 +9,12 @@ target := "172.20.10.71"   # Gateworks Target
 #nuser := "root"
 nuser := "alanh"
 
+pulse:
+    scp setup_audio_routing.sh  {{nuser}}@{{target}}:/mnt/data/pulse/setup_audio_routing.sh
+    scp setup_telit_routing.sh  {{nuser}}@{{target}}:/mnt/data/pulse/setup_telit_routing.sh
+    scp teardown_audio_routing.sh  {{nuser}}@{{target}}:/mnt/data/pulse/tear_down_audio_routing.sh
+    scp teardown_telit_routing.sh  {{nuser}}@{{target}}:/mnt/data/pulse/teardown_telit_routing.sh
+
 service:
     scp switch_mon.service  {{nuser}}@{{target}}:/mnt/data/switch_mon.service
     scp microcom.alias  {{nuser}}@{{target}}:/mnt/data/microcom.alias
@@ -33,4 +39,4 @@ modem:
     scp place_call.py  {{nuser}}@{{target}}:/mnt/data/place_call.py
     scp check_reg.py  {{nuser}}@{{target}}:/mnt/data/check_reg.py
 
-push: modem switch leds service sounds boot
+push: modem switch leds service sounds boot pulse
