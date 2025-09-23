@@ -114,8 +114,8 @@ def sbc_place_call(number: str, modem: serial.Serial, verbose: bool = True) -> b
         logging.info(f"Waiting for call response: {response}")
         if "+CIEV: call,1" in response:
             logging.info("Call connected successfully.")
-            audio_pids = start_audio_bridge()
-            logging.info(f"Audio bridge started with PIDs: {audio_pids}")
+            # audio_pids = start_audio_bridge()
+            # logging.info(f"Audio bridge started with PIDs: {audio_pids}")
             call_connected = True
 
         elif "+CIEV: call,0" in response:
