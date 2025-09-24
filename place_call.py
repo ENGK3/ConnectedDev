@@ -34,21 +34,26 @@ def start_audio_bridge():
         "source=alsa_input.usb-Android_LE910C1-NF_0123456789ABCDEF-04.mono-fallback",
         "sink=alsa_output.platform-sound.stereo-fallback",
         "rate=48000",
-        "latency_msec=50"]
+        "latency_msec=80"]
 
     # SGTL5000Card → LE910C1
     sgtl_to_telit_cmd = ["pactl", "load-module", "module-loopback",
         "source=alsa_input.platform-sound.stereo-fallback",
         "sink=alsa_output.usb-Android_LE910C1-NF_0123456789ABCDEF-04.mono-fallback",
-        "latency_msec=50"]
+        "latency_msec=80"]
 
-    # Start both loopbacks and get their module IDs
-    telit_to_sgtl = subprocess.check_output(telit_to_sgtl_cmd).decode().strip()
-    logging.info(f"Loopbacks loaded - LE910C1 → SGTL5000Card: {telit_to_sgtl}")
+    try:
+        # Start both loopbacks and get their module IDs
+        telit_to_sgtl = subprocess.check_output(telit_to_sgtl_cmd).decode().strip()
+        logging.info(f"Loopbacks loaded - LE910C1 → SGTL5000Card: {telit_to_sgtl}")
 
-    sgtl_to_telit = subprocess.check_output(sgtl_to_telit_cmd).decode().strip()
+        sgtl_to_telit = subprocess.check_output(sgtl_to_telit_cmd).decode().strip()
+        logging.info(f"Loopbacks loaded - SGTL5000Card → LE910C1: {sgtl_to_telit}")
 
-    logging.info(f"Loopbacks loaded - SGTL5000Card → LE910C1: {sgtl_to_telit}")
+    except subprocess.CalledProcessError as e:
+        logging.info(f"Command failed with return code {e.returncode}")
+        logging.info(f"Command: {e.cmd}")
+        logging.info(f"Output (if captured): {e.output}")
 
     return (telit_to_sgtl, sgtl_to_telit)
 
