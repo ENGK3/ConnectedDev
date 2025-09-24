@@ -44,9 +44,11 @@ def start_audio_bridge():
 
     # Start both loopbacks and get their module IDs
     telit_to_sgtl = subprocess.check_output(telit_to_sgtl_cmd).decode().strip()
+    logging.info(f"Loopbacks loaded - LE910C1 → SGTL5000Card: {telit_to_sgtl}")
+
     sgtl_to_telit = subprocess.check_output(sgtl_to_telit_cmd).decode().strip()
 
-    logging.info(f"Loopbacks loaded - LE910C1 → SGTL5000Card: {telit_to_sgtl}, SGTL5000Card → LE910C1: {sgtl_to_telit}")
+    logging.info(f"Loopbacks loaded - SGTL5000Card → LE910C1: {sgtl_to_telit}")
 
     return (telit_to_sgtl, sgtl_to_telit)
 
