@@ -42,18 +42,18 @@ def start_audio_bridge():
         "sink=alsa_output.usb-Android_LE910C1-NF_0123456789ABCDEF-04.mono-fallback",
         "latency_msec=80"]
 
-    try:
-        # Start both loopbacks and get their module IDs
-        telit_to_sgtl = subprocess.check_output(telit_to_sgtl_cmd).decode().strip()
-        logging.info(f"Loopbacks loaded - LE910C1 → SGTL5000Card: {telit_to_sgtl}")
+    # try:
+    #     # Start both loopbacks and get their module IDs
+    telit_to_sgtl = subprocess.check_output(telit_to_sgtl_cmd).decode().strip()
+    logging.info(f"Loopbacks loaded - LE910C1 → SGTL5000Card: {telit_to_sgtl}")
 
-        sgtl_to_telit = subprocess.check_output(sgtl_to_telit_cmd).decode().strip()
-        logging.info(f"Loopbacks loaded - SGTL5000Card → LE910C1: {sgtl_to_telit}")
+    sgtl_to_telit = subprocess.check_output(sgtl_to_telit_cmd).decode().strip()
+    logging.info(f"Loopbacks loaded - SGTL5000Card → LE910C1: {sgtl_to_telit}")
 
-    except subprocess.CalledProcessError as e:
-        logging.info(f"Command failed with return code {e.returncode}")
-        logging.info(f"Command: {e.cmd}")
-        logging.info(f"Output (if captured): {e.output}")
+    # except subprocess.CalledProcessError as e:
+    #     logging.info(f"Command failed with return code {e.returncode}")
+    #     logging.info(f"Command: {e.cmd}")
+    #     logging.info(f"Output (if captured): {e.output}")
 
     return (telit_to_sgtl, sgtl_to_telit)
 
@@ -63,12 +63,23 @@ def terminate_pids(module_ids):
     """
     for module_id in module_ids:
         try:
-            subprocess.run(["pactl", "unload-module", str(module_id)], check=True)
-            logging.info(f"Unloaded PulseAudio module {module_id}")
+            # Get the module list first
+            result = subprocess.run(["pactl", "list", "modules", "short"],
+                                 capture_output=True, text=True, check=True)
+
+            # Check each line for our module ID and loopback
+            module_exists = any(line.startswith(f"{module_id}\tmodule-loopback")
+                              for line in result.stdout.splitlines())
+
+            if module_exists:
+                subprocess.run(["pactl", "unload-module", str(module_id)], check=True)
+                logging.info(f"Unloaded PulseAudio loopback module {module_id}")
+            else:
+                logging.info(f"Loopback module {module_id} not found or already unloaded")
         except subprocess.CalledProcessError as e:
-            logging.error(f"Failed to unload module {module_id}: {e}")
+            logging.error(f"Failed to unload loopback module {module_id}: {e}")
         except Exception as e:
-            logging.error(f"Unexpected error unloading module {module_id}: {e}")
+            logging.error(f"Unexpected error with loopback module {module_id}: {e}")
 
 def sbc_config_call(serial_connection: serial.Serial, verbose: bool):
 
