@@ -72,7 +72,7 @@ def check_modem_registration(port="/dev/ttyUSB2", baudrate=115200, timeout=30, m
             time.sleep(5)
     ser.close()
     logging.warning("Registration timeout.")
-    aplay1 = ["aplay", "-D", "hw:sgtl5000audio,0", "-f", "S16_LE", "-r", "16000", "/mnt/data/sounds/ENU00456.wav"]
+    aplay1 = ["aplay", "-D", "hw:SGTL5000Card,0", "/mnt/data/sounds/ENU00456-48k.wav"]
     subprocess.Popen(aplay1, start_new_session=True)
     return False
 
