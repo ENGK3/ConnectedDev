@@ -7,12 +7,14 @@ target := "172.20.10.71"   # Gateworks Target
 #target := "172.27.17.22"
 
 #nuser := "root"
-nuser := "alanh"
+nuser := "kuser"
 
 pulse:
+    scp daemon.conf  {{nuser}}@{{target}}:/mnt/data/pulse/daemon.conf
+    scp pulseaudio.service {{nuser}}@{{target}}:/mnt/data/pulse/pulseaudio.service
     scp setup_audio_routing.sh  {{nuser}}@{{target}}:/mnt/data/pulse/setup_audio_routing.sh
     scp setup_telit_routing.sh  {{nuser}}@{{target}}:/mnt/data/pulse/setup_telit_routing.sh
-    scp teardown_audio_routing.sh  {{nuser}}@{{target}}:/mnt/data/pulse/tear_down_audio_routing.sh
+    scp teardown_audio_routing.sh  {{nuser}}@{{target}}:/mnt/data/pulse/teardown_audio_routing.sh
     scp teardown_telit_routing.sh  {{nuser}}@{{target}}:/mnt/data/pulse/teardown_telit_routing.sh
 
 service:
