@@ -38,7 +38,7 @@ The following packages need to be added to the filesystem on the Gatework module
 Be sure there is a functioning network interface before attempting to complete the following commands.
 
 ```base
-apt-get install alsa-utils python3-serial microcom sox
+apt-get install alsa-utils python3-serial microcom sox pulseaudio
 ```
 
 ## Push Pool phone scripts
@@ -47,15 +47,23 @@ To be able to push the pool phone scripts to the Gateworks board a user needs to
 created
 
 ```bash
-adduser nuser
+adduser kuser
 ```
 
 And create the user with a password. REMEMBER the password.
 
+This user on the target needs to have some additional permissions granted.
+These are for accessing the modem and gpios and provides some additional security since
+the application is not being run as root.
+
+```bash
+usermod -aG dialout,audio,plugdev  kuser
+```
+
 To facilitate the copying of files,
 
 ```bash
- ssh-copy-id nuser@172.20.10.71
+ ssh-copy-id kuser@172.20.10.71
 ```
 
 On the Gatworks target create the "/mnt/data/" directory.
@@ -161,4 +169,13 @@ cpp -nostdinc -I include -I arch -undef -x assembler-with-cpp \
 
 dtc -@ -i include/ -I dts -O dtb -o imx8mm-venice-gw7xxx-0x-gpio.dtbo \
   imx8mm-venice-gw7xxx-0x-gpio.dts.tmp
+```
+
+## Sound file conversions
+
+The following needs to be performed on any sound files that are needed from the
+original Kings III recordings to be able to use them with the GW16157 audio interface.
+
+```bash
+sox input.wav -r 48000 output.wav
 ```
