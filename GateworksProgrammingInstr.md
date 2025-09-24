@@ -177,5 +177,6 @@ The following needs to be performed on any sound files that are needed from the
 original Kings III recordings to be able to use them with the GW16157 audio interface.
 
 ```bash
-sox input.wav -r 48000 output.wav
+sox input.wav output.wav rate -v 48000
+done
 ```
