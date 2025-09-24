@@ -9,8 +9,9 @@ WorkingDirectory=/mnt/data
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ExecStartPre=/bin/sleep 3
 # This was causing problems.
-#ExecStartPre=/bin/bash -c 'pkill -f "gpiomon.*gpiochip1.*24" || true'
+#ExecStartPre=/bin/bash -c 'pkill -f "gpiomon.*gpiochip0.*7" || true'
 ExecStart=/mnt/data/switch_mon.sh
+User=kuser
 Restart=always
 RestartSec=5
 StandardOutput=journal
