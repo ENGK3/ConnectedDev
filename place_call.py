@@ -24,55 +24,44 @@ def sbc_cmd(cmd: str, serial_connection: serial.Serial, verbose: bool) -> str:
 
 def start_audio_bridge():
     """
-    Start the two audio bridge shell commands as background processes.
-    Returns a tuple of their PIDs (pid1, pid2).
+    Start the audio bridge using PulseAudio loopback modules.
+    Returns a tuple of the module IDs.
     """
-    # First pipeline:
-    # arecord -D hw:CARD=LE910C1NF,0 -r 16000 -f S16_LE -c 1 |
-    # sox -t raw -r 16000 -e signed -b 16 -c 1 - -r 48000 -t wav - |
-    # aplay -D hw:CARD=SGTL5000Card,0 -r 48000
+    # Setup PulseAudio loopbacks for audio routing
 
-    arecord1 = ["arecord", "-D", "hw:CARD=LE910C1NF,0", "-r", "16000", "-f", "S16_LE", "-c", "1"]
-    sox1 = [
-        "sox", "-t", "raw", "-r", "16000", "-e", "signed", "-b", "16", "-c", "1", "-", "-r", "48000", "-t", "wav", "-"
-    ]
-    aplay1 = ["aplay", "-D", "hw:CARD=SGTL5000Card,0", "-r", "48000"]
+    # LE910C1 → SGTL5000Card
+    telit_to_sgtl_cmd = ["pactl", "load-module", "module-loopback",
+        "source=alsa_input.usb-Android_LE910C1-NF_0123456789ABCDEF-04.mono-fallback",
+        "sink=alsa_output.platform-sound.stereo-fallback",
+        "rate=48000",
+        "latency_msec=50"]
 
-    # Second pipeline:
-    # arecord -D hw:CARD=SGTL5000Card,0 -r 48000 -f S16_LE -c 1 |
-    # sox -t raw -r 48000 -e signed -b 16 -c 1 - -r 16000 -t wav - |
-    # aplay -D hw:CARD=LE910C1NF,0 -r 16000 -c 2
+    # SGTL5000Card → LE910C1
+    sgtl_to_telit_cmd = ["pactl", "load-module", "module-loopback",
+        "source=alsa_input.platform-sound.stereo-fallback",
+        "sink=alsa_output.usb-Android_LE910C1-NF_0123456789ABCDEF-04.mono-fallback",
+        "latency_msec=50"]
 
-    arecord2 = ["arecord", "-D", "hw:CARD=SGTL5000Card,0", "-r", "48000", "-f", "S16_LE", "-c", "1"]
-    sox2 = [
-        "sox", "-t", "raw", "-r", "48000", "-e", "signed", "-b", "16", "-c", "1", "-", "-r", "16000", "-t", "wav", "-"
-    ]
-    aplay2 = ["aplay", "-D", "hw:CARD=LE910C1NF,0", "-r", "16000", "-c", "2"]
+    # Start both loopbacks and get their module IDs
+    telit_to_sgtl = subprocess.check_output(telit_to_sgtl_cmd).decode().strip()
+    sgtl_to_telit = subprocess.check_output(sgtl_to_telit_cmd).decode().strip()
 
-    # Start first pipeline
-    p1_arecord = subprocess.Popen(arecord1, stdout=subprocess.PIPE)
-    p1_sox = subprocess.Popen(sox1, stdin=p1_arecord.stdout, stdout=subprocess.PIPE)
-    p1_aplay = subprocess.Popen(aplay1, stdin=p1_sox.stdout)
+    logging.info(f"Loopbacks loaded - LE910C1 → SGTL5000Card: {telit_to_sgtl}, SGTL5000Card → LE910C1: {sgtl_to_telit}")
 
-    # Start second pipeline
-    p2_arecord = subprocess.Popen(arecord2, stdout=subprocess.PIPE)
-    p2_sox = subprocess.Popen(sox2, stdin=p2_arecord.stdout, stdout=subprocess.PIPE)
-    p2_aplay = subprocess.Popen(aplay2, stdin=p2_sox.stdout)
+    return (telit_to_sgtl, sgtl_to_telit)
 
-    # Return the PIDs of the aplay and sox processes for both pipelines
-    # Order: (p1_aplay, p1_sox, p2_aplay, p2_sox)
-    return (p1_aplay.pid, p1_sox.pid, p2_aplay.pid, p2_sox.pid)
-
-def terminate_pids(pid_list):
+def terminate_pids(module_ids):
     """
-    Terminate the processes with the given list of PIDs.
+    Unload the PulseAudio loopback modules with the given module IDs.
     """
-    for pid in pid_list:
+    for module_id in module_ids:
         try:
-            # Send SIGTERM first
-            os.kill(pid, signal.SIGTERM)
+            subprocess.run(["pactl", "unload-module", str(module_id)], check=True)
+            logging.info(f"Unloaded PulseAudio module {module_id}")
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Failed to unload module {module_id}: {e}")
         except Exception as e:
-            logging.error(f"Failed to terminate PID {pid}: {e}")
+            logging.error(f"Unexpected error unloading module {module_id}: {e}")
 
 def sbc_config_call(serial_connection: serial.Serial, verbose: bool):
 
@@ -114,8 +103,8 @@ def sbc_place_call(number: str, modem: serial.Serial, verbose: bool = True) -> b
         logging.info(f"Waiting for call response: {response}")
         if "+CIEV: call,1" in response:
             logging.info("Call connected successfully.")
-            # audio_pids = start_audio_bridge()
-            # logging.info(f"Audio bridge started with PIDs: {audio_pids}")
+            audio_pids = start_audio_bridge()
+            logging.info(f"Audio bridge Module IDs: {audio_pids}")
             call_connected = True
 
         elif "+CIEV: call,0" in response:
