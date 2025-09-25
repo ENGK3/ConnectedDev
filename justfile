@@ -3,8 +3,8 @@
 #target := "172.27.17.9"
 #target := "172.20.10.141"
 #target := "172.20.10.98"
-target := "172.20.10.71"   # Gateworks Target
-#target := "172.27.17.22"
+#target := "172.20.10.71"   # Gateworks Target
+target := "172.27.17.39"
 
 #nuser := "root"
 nuser := "kuser"
@@ -24,7 +24,7 @@ service:
     scp config_sys.sh {{nuser}}@{{target}}:/mnt/data/config_sys.sh
 
 boot:
-    scp imx8mm-venice-gw7xxx-0x-gw16157.dtbo  {{nuser}}@{{target}}:/mnt/data/imx8mm-venice-gw7xxx-0x-gw16157.dtbo
+    scp imx8mm-venice-gw7xxx-0x-gpio.dtbo  {{nuser}}@{{target}}:/mnt/data/imx8mm-venice-gw7xxx-0x-gpio.dtbo
 
 leds:
     scp led*.sh  {{nuser}}@{{target}}:/mnt/data/.

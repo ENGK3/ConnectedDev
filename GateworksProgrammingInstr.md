@@ -90,7 +90,7 @@ Note: For this to work the HOST machine needs to have the tool "just" installed.
 ## Configuring the system to perform the Pool phone function.
 
 ```bash
-cp imx8mm-venice-gw7xxx-0x-gw16157.dtbo /boot/.
+cp imx8mm-venice-gw7xxx-0x-gpio.dtbo /boot/.
 
 reboot
 ```
