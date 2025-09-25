@@ -5,21 +5,17 @@ cp /mnt/data/pulse/daemon.conf /etc/pulse/daemon.conf
 
 mkdir -p /home/kuser/.config/systemd/user
 cp /mnt/data/pulse/pulseaudio.service /home/kuser/.config/systemd/user/pulseaudio.service
+# Everything under kuser needs to be owned by kuser.
+# IF not when doing the "systemctl --user enable pulseaudio.service" it will fail.
+chown -R kuser:kuser /home/kuser/.config
 
-# systemctl stop weston.service
-# systemctl disable weston.service
-# systemctl stop connectcore-demo-server.service
-# systemctl disable connectcore-demo-server.service
+touch /mnt/data/calls.log
+chmod ugo+w /mnt/data/calls.log
+
+loginctl enable-linger kuser
 
 systemctl daemon-reload
 systemctl enable switch_mon.service
+
 # This must be done a kuser.
 #systemctl --user enable pulseaudio.service
-
-
-# Remount the /mnt/linux to be able to write to it.
-# umount /mnt/linux
-# mount /dev/mmcblk0p1 /mnt/linux
-
-# mv /mnt/linux/zImage-ccimx6sbc.bin /mnt/linux/zImage-ccimx6sbc.bin.orig
-# mv /lib/modules/5.15.71-dey-dey /lib/modules/old-5.15.71-dey-dey
