@@ -7,9 +7,9 @@ Requires=dev-ttyUSB2.device
 Type=simple
 WorkingDirectory=/mnt/data
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-Environment=XDG_RUNTIME_DIR=/run/user/1001
-Environment=PULSE_RUNTIME_PATH=/run/user/1001/pulse
-Environment=PULSE_SERVER=unix:/run/user/1001/pulse/native
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=PULSE_RUNTIME_PATH=/run/user/1000/pulse
+Environment=PULSE_SERVER=unix:/run/user/1000/pulse/native
 ExecStartPre=/bin/sleep 3
 # This was causing problems.
 #ExecStartPre=/bin/bash -c 'pkill -f "gpiomon.*gpiochip0.*7" || true'
