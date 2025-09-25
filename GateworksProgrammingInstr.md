@@ -7,6 +7,9 @@ It will allow the system console to be presented to the PC as a serial port. The
 
 ## Connectivity
 
+Connect the USB/Serial/JTAG debugger cable for the system console and let the board boot normally the first time.
+Login with root.
+
 If the ethernet interface doesn't come up and get an ip address.
 
 ```bash
@@ -38,6 +41,7 @@ The following packages need to be added to the filesystem on the Gatework module
 Be sure there is a functioning network interface before attempting to complete the following commands.
 
 ```base
+apt update
 apt-get install alsa-utils python3-serial microcom sox pulseaudio
 ```
 
@@ -70,7 +74,9 @@ On the Gatworks target create the "/mnt/data/" directory.
 
 ```bash
 mkdir /mnt/data
-chmod ugo+w /mnt/data
+mkdir -p /mnt/data/sounds
+mkdir -p /mnt/data/pulse
+chmod ugo+w /mnt/data  /mnt/data/sounds  /mnt/data/pulse
 ```
 
 The push the scripts.
@@ -78,6 +84,8 @@ The push the scripts.
 ```bash
 just push
 ```
+
+Note: For this to work the HOST machine needs to have the tool "just" installed.
 
 ## Configuring the system to perform the Pool phone function.
 
@@ -96,6 +104,8 @@ saveenv
 boot
 ```
 
+## System Setup
+
 Once the target has completed the boot process, the following script can be run to
 set up the service for the pool phone application.
 
@@ -106,6 +116,34 @@ snd_soc_fsl_sai
 snd_soc_sgtl5000
 snd_soc_simple_card
 ```
+
+
+
+The following commands are in the file /mnt/data/config_sys.sh. This script can be executed on the
+terminal of the target.
+
+```bash
+cp /mnt/data/99-ignore-modemmanager.rules  /etc/udev/rules.d/99-ignore-modemmanager.rules
+cp /mnt/data/switch_mon.service /etc/systemd/system/switch_mon.service
+
+cp /mnt/data/pulse/daemon.conf /etc/pulse/daemon.conf
+
+mkdir -p /home/kuser/.config/systemd/user
+cp /mnt/data/pulse/pulseaudio.service /home/kuser/.config/systemd/user/pulseaudio.service
+chown -R kuser:kuser /home/kuser/.config
+
+touch /mnt/data/calls.log
+chmod ugo+w /mnt/data/calls.log
+
+systemctl daemon-reload
+systemctl enable switch_mon.service
+
+# This must be done a kuser.
+#systemctl --user enable pulseaudio.service
+```
+
+**NOTE:** The last part needs to be executed by the "kuser"
+
 
 ## DTS Overlay
 
