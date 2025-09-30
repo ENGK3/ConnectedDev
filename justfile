@@ -2,9 +2,9 @@
 #target := "172.20.10.137"
 #target := "172.27.17.9"
 #target := "172.20.10.141"
-#target := "172.20.10.98"
+target := "172.20.10.93"
 #target := "172.20.10.71"   # Gateworks Target
-target := "172.27.17.39"
+#target := "172.27.17.39"
 
 #nuser := "root"
 nuser := "kuser"
@@ -42,3 +42,7 @@ modem:
     scp check_reg.py  {{nuser}}@{{target}}:/mnt/data/check_reg.py
 
 push: modem switch leds service sounds boot pulse
+
+pkg:
+    rm -f GW-Pool-Setup.tgz
+    tar -zcvf GW-Pool-Setup.tgz sounds/* *.py *.sh *.service *.dtbo *.conf 99* *.alias
