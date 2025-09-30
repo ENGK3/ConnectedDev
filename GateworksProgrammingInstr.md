@@ -109,7 +109,7 @@ boot
 Once the target has completed the boot process, the following script can be run to
 set up the service for the pool phone application.
 
-The following needs to be added to the /etc/modules-list.d/modules.config file.
+The following needs to be added to the /etc/modules-load.d/modules.config file.
 
 ```bash
 snd_soc_fsl_sai
