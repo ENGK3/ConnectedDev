@@ -2,9 +2,9 @@
 #target := "172.20.10.137"
 #target := "172.27.17.9"
 #target := "172.20.10.141"
-target := "172.20.10.93"
-#target := "172.20.10.71"   # Gateworks Target
-#target := "172.27.17.39"
+#target := "172.20.10.93"
+target := "172.20.10.246"   # Gateworks Target
+#target := "172.27.17.6"
 
 #nuser := "root"
 nuser := "kuser"
@@ -40,6 +40,7 @@ sounds:
 modem:
     scp place_call.py  {{nuser}}@{{target}}:/mnt/data/place_call.py
     scp check_reg.py  {{nuser}}@{{target}}:/mnt/data/check_reg.py
+    scp voip_call_rerouting.py  {{nuser}}@{{target}}:/mnt/data/voip_call_rerouting.py
 
 push: modem switch leds service sounds boot pulse
 
