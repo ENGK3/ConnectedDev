@@ -40,9 +40,12 @@ sounds:
 modem:
     scp place_call.py  {{nuser}}@{{target}}:/mnt/data/place_call.py
     scp check_reg.py  {{nuser}}@{{target}}:/mnt/data/check_reg.py
-    scp voip_call_rerouting.py  {{nuser}}@{{target}}:/mnt/data/voip_call_rerouting.py
 
-push: modem switch leds service sounds boot pulse
+voip:
+    scp voip_call_rerouting.py  {{nuser}}@{{target}}:/mnt/data/voip_call_rerouting.py
+    scp EDC_packet.py  {{nuser}}@{{target}}:/mnt/data/EDC_packet.py
+
+push: modem switch leds service sounds boot pulse voip
 
 pkg:
     rm -f GW-Pool-Setup.tgz
