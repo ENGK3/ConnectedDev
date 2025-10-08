@@ -123,6 +123,9 @@ def sbc_config_call(serial_connection: serial.Serial, verbose: bool):
         "AT+CMEE=2\r",
         "AT#AUSBC=1\r",
         "AT+CEREG=2\r",
+        # "AT+CREG?\r",
+        # "AT+CPIN?\r",
+        # "AT+CEREG?\r",
         "AT+CLVL=0\r",
         "AT+CMER=2,0,0,2\r",
         "AT#ADSPC=6\r",
@@ -133,7 +136,7 @@ def sbc_config_call(serial_connection: serial.Serial, verbose: bool):
         sbc_cmd(cmd, serial_connection, verbose)
 
 
-def sbc_place_call(number: str, modem: serial.Serial, verbose: bool = True) -> bool:
+def sbc_place_call(number: str, modem: serial.Serial, verbose: bool = True, no_audio_routing: bool = False) -> bool:
     sbc_config_call(modem, verbose)
     sbc_cmd(f"ATD{number};\r", modem, verbose)  # Place the call
     audio_pids = None
@@ -151,8 +154,11 @@ def sbc_place_call(number: str, modem: serial.Serial, verbose: bool = True) -> b
         logging.info(f"Waiting for call response: {response}")
         if "+CIEV: call,1" in response:
             logging.info("Call connected successfully.")
-            audio_pids = start_audio_bridge()
-            logging.info(f"Audio bridge Module IDs: {audio_pids}")
+            if not no_audio_routing:
+                audio_pids = start_audio_bridge()
+                logging.info(f"Audio bridge Module IDs: {audio_pids}")
+            else:
+                logging.info("Audio routing disabled - no audio bridge started")
             call_connected = True
 
         elif "+CIEV: call,0" in response:
@@ -165,7 +171,7 @@ def sbc_place_call(number: str, modem: serial.Serial, verbose: bool = True) -> b
         time.sleep(0.5)  # Avoid busy waiting
 
     sbc_cmd("AT+CHUP\r", modem, verbose)
-    if audio_pids:
+    if audio_pids and not no_audio_routing:
         terminate_pids(audio_pids)
         logging.info("Audio bridge terminated.")
     return call_connected  # Return the connection status after loop exits
@@ -238,12 +244,13 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--number", type=str, help="Phone number to dial",
                         default="9723507770")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output")
+    parser.add_argument("-r", "--no-audio-routing", action="store_true", help="Disable audio re-routing (establish call only)")
     args = parser.parse_args()
 
     serial_connection = serial.Serial()
     if sbc_connect(serial_connection):
         logging.info(f"Ready to dial number: {args.number}")
-        call_success = sbc_place_call(args.number, serial_connection, verbose=args.verbose)
+        call_success = sbc_place_call(args.number, serial_connection, verbose=args.verbose, no_audio_routing=args.no_audio_routing)
         if call_success:
             logging.info("Call completed successfully")
         else:
