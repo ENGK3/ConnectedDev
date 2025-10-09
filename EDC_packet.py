@@ -16,6 +16,22 @@ DEFAULT_RESPONSE_TIMEOUT = 30  # seconds
 AT_COMMAND_TIMEOUT = 5  # seconds for AT command responses
 SOCKET_CONNECT_TIMEOUT = 30  # seconds for socket connection
 
+# --- Network check utility ---
+def check_network_status(serial_connection: serial.Serial, verbose: bool = False) -> None:
+    """
+    Check and log network registration and signal quality before sending data.
+    Sends AT+CREG?, AT+CGREG?, and AT+CSQ to the modem and logs the results.
+    """
+    try:
+        creg = sbc_cmd("AT+CREG?\r", serial_connection, verbose=verbose)
+        cgreg = sbc_cmd("AT+CGREG?\r", serial_connection, verbose=verbose)
+        csq = sbc_cmd("AT+CSQ\r", serial_connection, verbose=verbose)
+        logging.info(f"Network registration (AT+CREG?): {creg.strip()}")
+        logging.info(f"GPRS registration (AT+CGREG?): {cgreg.strip()}")
+        logging.info(f"Signal quality (AT+CSQ): {csq.strip()}")
+    except Exception as e:
+        logging.error(f"Error checking network status: {e}")
+
 
 def sbc_cmd(cmd: str, serial_connection: serial.Serial,
             timeout: float = AT_COMMAND_TIMEOUT,
@@ -219,12 +235,14 @@ def configure_modem_tcp(serial_connection: serial.Serial,
 
         # Activate context if not already active
         if not context_active:
+
+            # Don't fool with the APN settings. Most carriers auto-configure.
             # Define PDP context (if not already defined)
             # Most carriers auto-configure, but we'll set a generic APN
-            response = sbc_cmd(f'AT+CGDCONT={context_id},"IP","nxtgenphone"\r',
-                             serial_connection, verbose=verbose)
-            if "OK" not in response:
-                logging.warning("Could not set PDP context definition (may already be set)")
+            # response = sbc_cmd(f'AT+CGDCONT={context_id},"IPV4V6","nxtgenphone"\r',
+            #                  serial_connection, verbose=verbose)
+            # if "OK" not in response:
+            #     logging.warning("Could not set PDP context definition (may already be set)")
 
             # Activate PDP context
             logging.info(f"Activating PDP context {context_id}...")
@@ -242,8 +260,19 @@ def configure_modem_tcp(serial_connection: serial.Serial,
                           serial_connection, verbose=verbose)
 
         # Extended configuration - TCP parameters
+        # AT#SCFGEXT=<socketId>,<srMode>,<recvDataMode>,<keepalive>,<listenAutoRsp>,<sendDataMode>
+        # srMode=2: Enable all socket ring unsolicited messages (CRITICAL for command mode)
+        # This enables #SRING notifications when data arrives
         response = sbc_cmd("AT#SCFGEXT=1,2,0,30,0,0\r",
                           serial_connection, verbose=verbose)
+
+        # Enable unsolicited socket event reporting
+        # AT#E2SLRI=<enable>: Enable Socket Listen Ring Indicator
+        # This ensures we get #SRING URCs when data arrives
+        response = sbc_cmd("AT#E2SLRI=1\r",
+                          serial_connection, verbose=verbose)
+        if "OK" not in response:
+            logging.warning("Could not enable E2SLRI (may not be supported on this firmware)")
 
         logging.info("Modem TCP configuration completed successfully")
         return (0, "")
@@ -296,6 +325,8 @@ def send_tcp_packet(hostname: str,
     socket_id = 1  # Use socket ID 1
 
     try:
+        # Check network registration and signal quality before sending data
+        check_network_status(serial_connection, verbose=verbose)
         # Step 1: Configure modem for TCP
         logging.info("Configuring modem for TCP communication...")
         error_code, error_msg = configure_modem_tcp(serial_connection, verbose=verbose)
@@ -376,54 +407,79 @@ def send_tcp_packet(hostname: str,
         # Step 5: Read response with timeout
         logging.info(f"Waiting for response (timeout: {timeout}s)...")
 
-        # Query socket for received data
-        # AT#SRECV=<socketId>,<maxByte>
-        response = sbc_cmd(f"AT#SRECV={socket_id},1500\r",
-                          serial_connection,
-                          timeout=timeout,
-                          verbose=verbose)
-
+        # In command mode, we need to wait for the #SRING URC (unsolicited result code)
+        # which indicates data has arrived. The data may be included in the URC itself
+        # for small responses, or we may need to use AT#SRECV to retrieve it.
         received_data = ""
-        if "#SRECV:" in response:
-            # Parse response: #SRECV: <socketId>,<datalen>
-            # Followed by the actual data
-            lines = response.split('\n')
-            for i, line in enumerate(lines):
-                if line.startswith("#SRECV:"):
-                    # Extract data length
-                    parts = line.split(',')
-                    if len(parts) >= 2:
-                        try:
-                            data_len = int(parts[1].strip())
-                            if data_len > 0 and i + 1 < len(lines):
-                                # Next line(s) contain the data
-                                received_data = '\n'.join(lines[i+1:])
-                                # Trim to expected length
-                                received_data = received_data[:data_len]
-                        except ValueError:
-                            pass
+        start_time = time.time()
+        sring_line = ""
+
+        # Wait for #SRING notification or timeout
+        logging.info("Waiting for incoming data notification (#SRING)...")
+        while (time.time() - start_time) < timeout:
+            if serial_connection.in_waiting > 0:
+                line = serial_connection.readline().decode('utf-8', errors='ignore').strip()
+                if verbose:
+                    logging.debug(f"Received: {line}")
+
+                # Check for #SRING: <socketId>,<dataLen>[,<data>] or SRING: <socketId>,<dataLen>[,<data>]
+                if line.startswith("#SRING:") or line.startswith("SRING:"):
+                    sring_line = line
+                    logging.info(f"Data arrival notification received: {line}")
                     break
+            time.sleep(0.1)
 
-        if not received_data:
-            # Try alternative method - enter data mode and read
-            logging.info("No data via AT#SRECV, trying data mode...")
-            response = sbc_cmd(f"AT#SSEND={socket_id}\r",
-                             serial_connection,
-                             timeout=timeout,
-                             verbose=verbose)
+        if sring_line:
+            # Parse #SRING format: SRING: <socketId>,<dataLen>[,<data>]
+            # or #SRING: <socketId>,<dataLen>[,<data>]
+            # If data is small enough, it may be included directly in the URC
 
-            # In some firmware versions, data arrives automatically
-            # Try reading for a short period
-            start_time = time.time()
-            data_buffer = []
-            while (time.time() - start_time) < min(timeout, 5):
-                if serial_connection.in_waiting > 0:
-                    chunk = serial_connection.read(serial_connection.in_waiting)
-                    data_buffer.append(chunk.decode('utf-8', errors='ignore'))
-                time.sleep(0.1)
+            # Remove the prefix
+            if sring_line.startswith("#SRING:"):
+                parts = sring_line[7:].strip()  # Remove "#SRING:"
+            else:
+                parts = sring_line[6:].strip()  # Remove "SRING:"
 
-            if data_buffer:
-                received_data = ''.join(data_buffer)
+            # Split by comma
+            sring_parts = parts.split(',', 2)  # Split into at most 3 parts
+
+            if len(sring_parts) >= 3:
+                # Data is included in the SRING notification
+                data_len = int(sring_parts[1].strip())
+                received_data = sring_parts[2].strip()
+                logging.info(f"Data retrieved from #SRING notification: '{received_data}' ({data_len} bytes)")
+            elif len(sring_parts) >= 2:
+                # Data not included, need to retrieve with AT#SRECV
+                data_len = int(sring_parts[1].strip())
+                logging.info(f"#SRING indicates {data_len} bytes available, retrieving with AT#SRECV...")
+
+                response = sbc_cmd(f"AT#SRECV={socket_id},1500\r",
+                                  serial_connection,
+                                  timeout=5,
+                                  verbose=verbose)
+
+                if "#SRECV:" in response:
+                    # Parse response: #SRECV: <socketId>,<datalen>
+                    # Followed by the actual data
+                    lines = response.split('\n')
+                    for i, line in enumerate(lines):
+                        if line.startswith("#SRECV:"):
+                            # Extract data length
+                            recv_parts = line.split(',')
+                            if len(recv_parts) >= 2:
+                                try:
+                                    recv_len = int(recv_parts[1].strip())
+                                    if recv_len > 0 and i + 1 < len(lines):
+                                        # Next line(s) contain the data
+                                        received_data = '\n'.join(lines[i+1:])
+                                        # Trim to expected length
+                                        received_data = received_data[:recv_len]
+                                        logging.info(f"Retrieved {recv_len} bytes of data via AT#SRECV")
+                                except ValueError:
+                                    pass
+                            break
+        else:
+            logging.warning("No #SRING notification received within timeout period")
 
         # Step 6: Close socket
         logging.info("Closing socket...")
