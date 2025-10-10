@@ -12,16 +12,34 @@ import re
 def sbc_cmd(cmd: str, serial_connection: serial.Serial, verbose: bool) -> str:
     """
     Send a command to the SBC and return the response.
+    Handles unsolicited responses that may come between echo and OK.
     """
     if verbose:
         logging.info(f"Sending command: {cmd.strip()}")
     serial_connection.write(cmd.encode())
-    response = serial_connection.readline()
-    response = serial_connection.readline()  # Read the response
+
+    # Read echo
+    echo = serial_connection.readline()
+
+    # Keep reading until we get OK or ERROR
+    response = ""
+    while True:
+        line = serial_connection.readline().decode().strip()
+        if not line:
+            break
+        if line in ["OK", "ERROR"] or line.startswith("ERROR") or line.startswith("+CME ERROR"):
+            response = line
+            break
+        # Print unsolicited messages like +CIEV: as they arrive
+        if line.startswith("+CIEV:"):
+            logging.info(f"[CIEV] {line}")
+            continue
+        # This might be a real response (like +CEREG:, +CPIN:, etc.)
+        response = line
 
     if verbose:
-        logging.info(f"Response: {response.decode().strip()}")
-    return response.decode().strip()
+        logging.info(f"Response: {response}")
+    return response
 
 def get_pactl_sources():
     try:
@@ -123,13 +141,10 @@ def sbc_config_call(serial_connection: serial.Serial, verbose: bool):
         "AT+CMEE=2\r",
         "AT#AUSBC=1\r",
         "AT+CEREG=2\r",
-        # "AT+CREG?\r",
-        # "AT+CPIN?\r",
-        # "AT+CEREG?\r",
         "AT+CLVL=0\r",
-        "AT+CMER=2,0,0,2\r",
+        "AT+CMER=2,0,0,2\r",  # Enable unsolicited result codes
         "AT#ADSPC=6\r",
-        "AT+CIND=0,0,1,0,1,1,1,1,0,1,0\r"
+        "AT+CIND=0,0,1,0,1,1,1,1,0,1,1\r"
     ]
 
     for cmd in at_cmd_set:
@@ -138,37 +153,53 @@ def sbc_config_call(serial_connection: serial.Serial, verbose: bool):
 
 def sbc_place_call(number: str, modem: serial.Serial, verbose: bool = True, no_audio_routing: bool = False) -> bool:
     sbc_config_call(modem, verbose)
+
+    # Flush any pending data before dialing
+    modem.reset_input_buffer()
+
     sbc_cmd(f"ATD{number};\r", modem, verbose)  # Place the call
     audio_pids = None
     start_time = time.time()
     timeout = 30  # 30 second timeout
     call_connected = False
 
-    while True:
-        # Check for timeout
-        if (time.time() - start_time > timeout) and call_connected is False:
-            logging.warning("Call connection timeout after 30 seconds")
-            break
+    # Set a shorter timeout on the serial port so we can check for overall timeout
+    original_timeout = modem.timeout
+    modem.timeout = 0.5  # Short timeout for readline to allow timeout checking
 
-        response = modem.readline().decode().strip()
-        logging.info(f"Waiting for call response: {response}")
-        if "+CIEV: call,1" in response:
-            logging.info("Call connected successfully.")
-            if not no_audio_routing:
-                audio_pids = start_audio_bridge()
-                logging.info(f"Audio bridge Module IDs: {audio_pids}")
-            else:
-                logging.info("Audio routing disabled - no audio bridge started")
-            call_connected = True
+    try:
+        while True:
+            # Check for timeout FIRST
+            if (time.time() - start_time > timeout) and call_connected is False:
+                logging.warning("Call connection timeout after 30 seconds")
+                break
 
-        elif "+CIEV: call,0" in response:
-            logging.info("Call setup Terminated.")
-            break  # Exit the loop but don't return yet
+            response = modem.readline().decode().strip()
 
-        elif "NO CARRIER" in response:
-            logging.info("Call terminated")
-            break  # Exit the loop but don't return yet
-        time.sleep(0.5)  # Avoid busy waiting
+            # Log ALL responses to see what we're getting
+            if response:  # Only log non-empty responses
+                logging.info(f"Waiting for call response: {response}")
+
+            if "+CIEV: call,1" in response:
+                logging.info("Call connected successfully.")
+                if not no_audio_routing:
+                    audio_pids = start_audio_bridge()
+                    logging.info(f"Audio bridge Module IDs: {audio_pids}")
+                else:
+                    logging.info("Audio routing disabled - no audio bridge started")
+                call_connected = True
+
+            elif "+CIEV: call,0" in response:
+                logging.info("Call setup Terminated.")
+                break  # Exit the loop but don't return yet
+
+            elif "NO CARRIER" in response:
+                logging.info("Call terminated")
+                break  # Exit the loop but don't return yet
+
+    finally:
+        # Restore original timeout
+        modem.timeout = original_timeout
 
     sbc_cmd("AT+CHUP\r", modem, verbose)
     if audio_pids and not no_audio_routing:
