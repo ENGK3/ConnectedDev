@@ -18,7 +18,8 @@ import sys
 import json
 from pathlib import Path
 
-# Baresip TCP control interface settings
+# Baresip settings
+BARESIP_CMD = "/usr/bin/baresip"
 BARESIP_HOST = "localhost"
 BARESIP_PORT = 4444  # Default baresip control port
 
@@ -162,6 +163,65 @@ def connect_to_baresip(host, port, max_retries=10, retry_delay=2):
             else:
                 logging.error(f"Failed to connect to baresip after {max_retries} attempts")
                 return None
+
+
+def start_baresip():
+    """Start baresip as a subprocess
+
+    Returns:
+        Subprocess object if successful, None otherwise
+    """
+    try:
+        logging.info(f"Starting baresip: {BARESIP_CMD}")
+
+        # Start baresip in the background
+        baresip_proc = subprocess.Popen(
+            [BARESIP_CMD],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.PIPE,
+            text=True,
+            bufsize=1  # Line buffered
+        )
+
+        # Give baresip time to start and initialize TCP interface
+        logging.info("Waiting for baresip to initialize...")
+        time.sleep(3)
+
+        # Check if process is still running
+        if baresip_proc.poll() is not None:
+            logging.error("Baresip process terminated unexpectedly during startup")
+            return None
+
+        logging.info("Baresip started successfully")
+        return baresip_proc
+
+    except FileNotFoundError:
+        logging.error(f"Baresip executable not found: {BARESIP_CMD}")
+        return None
+    except Exception as e:
+        logging.error(f"Failed to start baresip: {e}")
+        return None
+
+
+def monitor_baresip_output(proc, stop_event=None):
+    """Monitor baresip stdout/stderr in background thread
+
+    Args:
+        proc: Baresip subprocess
+        stop_event: Threading event to signal when to stop
+    """
+    try:
+        for line in iter(proc.stdout.readline, ''):
+            if stop_event and stop_event.is_set():
+                break
+            if line:
+                line = line.strip()
+                # Log baresip output at debug level
+                if line:
+                    logging.debug(f"[BARESIP OUTPUT] {line}")
+    except Exception as e:
+        logging.debug(f"Baresip output monitor stopped: {e}")
 
 
 def monitor_baresip_socket(sock, phone_number, skip_rerouting=False, stop_event=None):
@@ -316,13 +376,9 @@ def main():
                         help='Phone number to dial (default: 9723507770)')
     parser.add_argument('-r', '--skip-rerouting', action='store_true',
                         help='Skip audio re-routing (pass -r to place_call.py)')
-    parser.add_argument('--host', default=BARESIP_HOST,
-                        help=f'Baresip host (default: {BARESIP_HOST})')
-    parser.add_argument('--port', type=int, default=BARESIP_PORT,
-                        help=f'Baresip TCP port (default: {BARESIP_PORT})')
     args = parser.parse_args()
 
-    logging.info(f"Starting Baresip TCP monitor on {args.host}:{args.port}")
+    logging.info(f"Starting Baresip call monitor")
     logging.info(f"Will dial number: {args.number}")
     if args.skip_rerouting:
         logging.info("Audio re-routing will be skipped (-r flag set)")
@@ -330,12 +386,28 @@ def main():
 
     stop_event = threading.Event()
     sock = None
+    baresip_proc = None
+    output_thread = None
 
     try:
-        # Connect to baresip
-        sock = connect_to_baresip(args.host, args.port)
+        # Start baresip
+        baresip_proc = start_baresip()
+        if not baresip_proc:
+            logging.error("Failed to start baresip. Exiting.")
+            sys.exit(1)
+
+        # Start background thread to monitor baresip output
+        output_thread = threading.Thread(
+            target=monitor_baresip_output,
+            args=(baresip_proc, stop_event),
+            daemon=True
+        )
+        output_thread.start()
+
+        # Connect to baresip TCP interface
+        sock = connect_to_baresip(BARESIP_HOST, BARESIP_PORT)
         if not sock:
-            logging.error("Failed to connect to baresip. Exiting.")
+            logging.error("Failed to connect to baresip TCP interface. Exiting.")
             sys.exit(1)
 
         # Start monitoring in main thread
@@ -357,16 +429,34 @@ def main():
             except Exception as e:
                 logging.warning(f"Error closing socket: {e}")
 
+        # Terminate baresip process
+        if baresip_proc:
+            try:
+                logging.info("Terminating baresip process...")
+                if baresip_proc.stdin:
+                    baresip_proc.stdin.close()
+                baresip_proc.terminate()
+                try:
+                    baresip_proc.wait(timeout=5)
+                    logging.info("Baresip process terminated gracefully.")
+                except subprocess.TimeoutExpired:
+                    logging.warning("Baresip did not terminate, killing it...")
+                    baresip_proc.kill()
+                    baresip_proc.wait()
+            except Exception as e:
+                logging.warning(f"Error terminating baresip: {e}")
+
         logging.info("Shutdown complete.")
 
 
 if __name__ == "__main__":
     # Set up logging to file and console with milliseconds in timestamp
-    logging.basicConfig(level=logging.DEBUG,
+    logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s',
                         datefmt='%m-%d %H:%M:%S',
                         filename="/mnt/data/calls.log",
                         filemode='a+')
+
 
     console = logging.StreamHandler()
     console.setLevel(logging.INFO)
