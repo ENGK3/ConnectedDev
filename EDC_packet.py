@@ -266,14 +266,6 @@ def configure_modem_tcp(serial_connection: serial.Serial,
         response = sbc_cmd("AT#SCFGEXT=1,2,0,30,0,0\r",
                           serial_connection, verbose=verbose)
 
-        # Enable unsolicited socket event reporting
-        # AT#E2SLRI=<enable>: Enable Socket Listen Ring Indicator
-        # This ensures we get #SRING URCs when data arrives
-        response = sbc_cmd("AT#E2SLRI=1\r",
-                          serial_connection, verbose=verbose)
-        if "OK" not in response:
-            logging.warning("Could not enable E2SLRI (may not be supported on this firmware)")
-
         logging.info("Modem TCP configuration completed successfully")
         return (0, "")
 
