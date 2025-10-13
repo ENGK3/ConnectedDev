@@ -70,5 +70,3 @@ This project implements an embedded communication system with the following key 
 - GPIO control for switches and LEDs
 - Docker containerization for cross-compilation
 - Systemd services for background monitoring
-
-
