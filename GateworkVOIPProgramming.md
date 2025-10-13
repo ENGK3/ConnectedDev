@@ -1,10 +1,59 @@
+# Gateworks Venice Programming for VOIP solution
 
-```
-apt-get install baresip asterisk
+The Gateworks setup for the VOIP solution is different than that for the Pool
+configuration. In the VOIP configuration the ethernet port eth0 is used to get Power
+Over Ethernet(POE), and to connect to the POE switch. The second interface will be
+needed to connect to the internet for installing update and packages.
+
+## Setup
+
+To be able to get to the system console on first powering up of the board, the JTAG
+debugger will be needed.
+It will allow the system console to be presented to the PC as a serial port.
+
+## Connectivity
+
+Connect the USB/Serial/JTAG debugger cable for the system console and let the board
+boot normally the first time.
+Login with root.
+
+If the ethernet interface doesn't come up and get an ip address.
+
+```bash
+root@noble-venice:~# ip addr show eth0
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+    link/ether 00:d0:12:07:fa:02 brd ff:ff:ff:ff:ff:ff
+    altname end0
+    inet 172.20.10.71/24 brd 172.20.10.255 scope global dynamic noprefixroute eth0
+       valid_lft 601249sec preferred_lft 525744sec
+    inet6 fe80::d6dd:4eca:da70:827d/64 scope link
+       valid_lft forever preferred_lft forever
 ```
 
-/etc/pulse/default.pa has the following appended.
+The issue the following command
+
+```bash
+dhcpcd eth0
 ```
+
+Similarly for eth1.
+Make sure that eth1 has internet access.
+
+Before running updates for the packages, make sure that the eth0 is disabled, or
+the command below will fail because it will be going to a network interface that does
+not have internet access.
+
+## Packages
+
+```bash
+apt-get install baresip asterisk python3-serial microcom pulseaudio
+```
+
+## Setup and Configuration
+
+The following edits are appended to the '/etc/pulse/default.pa' file.
+
+```bash
 set-card-profile alsa_card.usb-Android_LE910C1-NF_0123456789ABCDEF-04 output:mono-fallback+input:mono-fallback
 set-default-sink alsa_output.usb-Android_LE910C1-NF_0123456789ABCDEF-04.mono-fallback
 set-default-source alsa_input.usb-Android_LE910C1-NF_0123456789ABCDEF-04.mono-fallback
@@ -12,23 +61,25 @@ set-default-source alsa_input.usb-Android_LE910C1-NF_0123456789ABCDEF-04.mono-fa
 
 The dialing script does not need to do any rerouting.
 
-.baresip/config file must have the audio player set as shown below.
+Edit the '.baresip/config' file to have the audio player set as shown below.
 
 audio_driver            pulse
 audio_player            pulse
 audio_source            pulse
 
 .baresip/accounts needs to have the following setup..
-```
+
+```bash
 sip:6003@192.168.80.209;auth_user=6003;auth_pass=unsecurepassword;answermode=auto
 ```
-Note some method of using authentication is needed because this is in the clear.
 
+**NOTE:** some method of using authentication is needed because this is in the clear.
 
-The server needs to know about the extensions in the /etc/asterisk/pjsip.conf file.
+The asterisk server needs to know about the extensions in the '/etc/asterisk/pjsip.conf'
+file.
 An example is shown below.
 
-```
+```bash
 [transport-udp]
 type=transport
 protocol=udp
@@ -75,24 +126,53 @@ remove_existing=yes
 qualify_frequency=180
 ```
 
+**NOTE:** The authentication for the extensions loaded here need to match the
+.baresip/accounts file.
+**NOTE:** The passwords are in the clear!
 
+The asterisk.service configuration needs to be modified to get it to start at boot
+and handle calls.
 
+```bash
+systemctl edit asterisk.service
 
-Note the authentication for the extensions loaded here need to match the .baresip/accounts file.
+# Then add these lines between the ### as explained at the top of the file.
+[Unit]
+Wants=network-online.target
+After=network.target dev-ttyUSB2.device
+Requires=dev-ttyUSB2.device
 
-
-Note we need to get asterisk running at startup.
-
-
-
-As root run the following once the asterisk files are in place.
+[Service]
+ExecStartPre=/bin/sleep 10
 ```
+
+As 'root' run the following once the asterisk files are in place.
+
+```bash
 systemctl enable asterisk
 systemctl start asterisk
 ```
 
+## Push VOIP phone scripts
 
-Setup of Viking phone.
+To be able to push the pool phone scripts to the Gateworks board a user needs to be
+created
+
+```bash
+adduser kuser
+```
+
+And create the user with a password. REMEMBER the password.
+
+This user on the target needs to have some additional permissions granted.
+These are for accessing the modem and gpios and provides some additional security since
+the application is not being run as root.
+
+```bash
+usermod -aG dialout,audio,plugdev  kuser
+```
+
+## Setup of Viking phone
 
 Load the Viking IP Programming V1.5.0 tool.
 On the IP Settings page, the following needs to be set
@@ -103,4 +183,3 @@ Password: <password from setup on Asterisk for this phone>
 
 And on the Phone Settings page, the following needs to be set
 "In-Band Audio Call Progress": Disabled
-
