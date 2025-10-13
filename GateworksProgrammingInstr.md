@@ -3,7 +3,7 @@
 ## Setup
 
 To be able to get to the system console on first powering up of the board, the JTAG debugger will be needed.
-It will allow the system console to be presented to the PC as a serial port. The standard
+It will allow the system console to be presented to the PC as a serial port.
 
 ## Connectivity
 
