@@ -29,4 +29,3 @@ PrivateDevices=false
 WantedBy=multi-user.target
 
 # /etc/systemd/system/switch_mon.service this will be the location of this file.
-
