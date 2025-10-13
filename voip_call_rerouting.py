@@ -1,10 +1,9 @@
+import argparse
+import logging
+import re
 import subprocess
 import threading
-import re
 import time
-import logging
-import argparse
-from pathlib import Path
 
 # Path to baresip binary
 BARESIP_CMD = "/usr/bin/baresip"
@@ -17,6 +16,7 @@ CALL_CLOSED_REGEX = re.compile(r".*terminate call.*", re.IGNORECASE)
 # Command to route audio (example using pactl or custom script)
 # AUDIO_ROUTING_CMD will be constructed in main() with the phone number
 
+
 def get_audio_routing_cmd(phone_number, skip_rerouting=False):
     """Construct the audio routing command with the given phone number
 
@@ -28,6 +28,7 @@ def get_audio_routing_cmd(phone_number, skip_rerouting=False):
     if skip_rerouting:
         cmd.append("-r")
     return cmd
+
 
 def send_baresip_command(command):
     """Send a command to baresip via its FIFO interface
@@ -43,6 +44,7 @@ def send_baresip_command(command):
     except Exception as e:
         logging.error(f"Failed to send command to baresip: {e}")
 
+
 def monitor_baresip_output(proc, phone_number, skip_rerouting=False, stop_event=None):
     """Monitor baresip output and handle incoming calls
 
@@ -55,7 +57,7 @@ def monitor_baresip_output(proc, phone_number, skip_rerouting=False, stop_event=
     call_in_progress = False
     audio_proc = None
 
-    for line in iter(proc.stdout.readline, ''):
+    for line in iter(proc.stdout.readline, ""):
         if stop_event and stop_event.is_set():
             logging.info("Stop event detected. Exiting monitor loop.")
             break
@@ -93,24 +95,37 @@ def monitor_baresip_output(proc, phone_number, skip_rerouting=False, stop_event=
                     audio_proc.terminate()
                     try:
                         audio_proc.wait(timeout=3)
-                    except:
+                    except Exception:
                         audio_proc.kill()
                 call_in_progress = False
                 audio_proc = None
             logging.info("Waiting for next incoming call...")
 
+
 def main():
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Monitor Baresip and route audio calls')
-    parser.add_argument('-n', '--number', default='9723507770',
-                        help='Phone number to dial (default: 9723507770)')
-    parser.add_argument('-r', '--skip-rerouting', action='store_true',
-                        help='Skip audio re-routing (pass -r to place_call.py)')
+    parser = argparse.ArgumentParser(
+        description="Monitor Baresip and route audio calls"
+    )
+    parser.add_argument(
+        "-n",
+        "--number",
+        default="9723507770",
+        help="Phone number to dial (default: 9723507770)",
+    )
+    parser.add_argument(
+        "-r",
+        "--skip-rerouting",
+        action="store_true",
+        help="Skip audio re-routing (pass -r to place_call.py)",
+    )
     args = parser.parse_args()
 
     stop_event = threading.Event()
 
-    logging.info(f"Starting Baresip in continuous mode... Will dial number: {args.number}")
+    logging.info(
+        f"Starting Baresip in continuous mode... Will dial number: {args.number}"
+    )
     logging.info("Press Ctrl+C to exit.")
 
     baresip_proc = subprocess.Popen(
@@ -118,11 +133,13 @@ def main():
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
 
-    monitor_thread = threading.Thread(target=monitor_baresip_output,
-                                     args=(baresip_proc, args.number, args.skip_rerouting, stop_event))
+    monitor_thread = threading.Thread(
+        target=monitor_baresip_output,
+        args=(baresip_proc, args.number, args.skip_rerouting, stop_event),
+    )
     monitor_thread.start()
 
     try:
@@ -154,19 +171,24 @@ def main():
             monitor_thread.join(timeout=5)
             logging.info("Shutdown complete.")
 
+
 if __name__ == "__main__":
     # Set up logging to file and console with milliseconds in timestamp
-    logging.basicConfig(level=logging.DEBUG,
-                        format='%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s',
-                        datefmt='%m-%d %H:%M:%S',
-                        filename="/mnt/data/calls.log",
-                        filemode='a+')
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s",
+        datefmt="%m-%d %H:%M:%S",
+        filename="/mnt/data/calls.log",
+        filemode="a+",
+    )
 
     console = logging.StreamHandler()
     console.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s.%(msecs)03d:%(levelname)-8s %(message)s', datefmt='%H:%M:%S')
-    formatter.default_msec_format = '%s.%03d'
+    formatter = logging.Formatter(
+        "%(asctime)s.%(msecs)03d:%(levelname)-8s %(message)s", datefmt="%H:%M:%S"
+    )
+    formatter.default_msec_format = "%s.%03d"
     console.setFormatter(formatter)
-    logging.getLogger('').addHandler(console)
+    logging.getLogger("").addHandler(console)
 
     main()

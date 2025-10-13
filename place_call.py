@@ -1,19 +1,19 @@
-import serial
-import time
 import argparse
-import subprocess
-import signal
-import os
 import logging
-from pathlib import Path
 import logging.handlers
 import re
+import subprocess
+import time
+from pathlib import Path
 from typing import Tuple
+
+import serial
 
 # Timeout constants
 DEFAULT_RESPONSE_TIMEOUT = 30  # seconds
 AT_COMMAND_TIMEOUT = 5  # seconds for AT command responses
 SOCKET_CONNECT_TIMEOUT = 30  # seconds for socket connection
+
 
 def sbc_cmd(cmd: str, serial_connection: serial.Serial, verbose: bool) -> str:
     """
@@ -25,7 +25,7 @@ def sbc_cmd(cmd: str, serial_connection: serial.Serial, verbose: bool) -> str:
     serial_connection.write(cmd.encode())
 
     # Read echo
-    echo = serial_connection.readline()
+    serial_connection.readline()
 
     # Keep reading until we get OK or ERROR
     response = ""
@@ -33,7 +33,11 @@ def sbc_cmd(cmd: str, serial_connection: serial.Serial, verbose: bool) -> str:
         line = serial_connection.readline().decode().strip()
         if not line:
             break
-        if line in ["OK", "ERROR"] or line.startswith("ERROR") or line.startswith("+CME ERROR"):
+        if (
+            line in ["OK", "ERROR"]
+            or line.startswith("ERROR")
+            or line.startswith("+CME ERROR")
+        ):
             response = line
             break
         # Print unsolicited messages like +CIEV: as they arrive
@@ -48,9 +52,12 @@ def sbc_cmd(cmd: str, serial_connection: serial.Serial, verbose: bool) -> str:
     return response
 
 
-def sbc_cmd_with_timeout(cmd: str, serial_connection: serial.Serial,
-                         timeout: float = AT_COMMAND_TIMEOUT,
-                         verbose: bool = False) -> str:
+def sbc_cmd_with_timeout(
+    cmd: str,
+    serial_connection: serial.Serial,
+    timeout: float = AT_COMMAND_TIMEOUT,
+    verbose: bool = False,
+) -> str:
     """
     Send an AT command to the LE910C1 modem and return the response with timeout.
     This version is used for TCP/data operations that need precise timeout control.
@@ -81,30 +88,44 @@ def sbc_cmd_with_timeout(cmd: str, serial_connection: serial.Serial,
         response_lines = []
         start_time = time.time()
         no_data_count = 0
-        max_no_data_iterations = 10  # Maximum iterations with no data before giving up early
+        max_no_data_iterations = (
+            10  # Maximum iterations with no data before giving up early
+        )
 
         while (time.time() - start_time) < timeout:
             if serial_connection.in_waiting > 0:
                 no_data_count = 0  # Reset counter when we receive data
-                line = serial_connection.readline().decode('utf-8', errors='ignore').strip()
+                line = (
+                    serial_connection.readline()
+                    .decode("utf-8", errors="ignore")
+                    .strip()
+                )
                 if line and line != cmd.strip():
                     response_lines.append(line)
                     if verbose:
                         logging.debug(f"Response line: {line}")
                     # Check for common response terminators
                     # Include '>' for data send prompts
-                    if line in ['OK', 'ERROR', 'CONNECT', '>'] or line.startswith('+CME ERROR') or line.startswith('+CMS ERROR'):
+                    if (
+                        line in ["OK", "ERROR", "CONNECT", ">"]
+                        or line.startswith("+CME ERROR")
+                        or line.startswith("+CMS ERROR")
+                    ):
                         break
             else:
                 no_data_count += 1
-                # If we already have response lines and there's been no data for a while, break early
+                # If we already have response lines and there's been no data for a
+                # while, break early
                 if response_lines and no_data_count > max_no_data_iterations:
                     if verbose:
-                        logging.debug(f"No more data after {no_data_count} iterations, breaking early")
+                        logging.debug(
+                            f"No more data after {no_data_count} iterations, breaking"
+                            " early"
+                        )
                     break
             time.sleep(0.05)
 
-        response = '\n'.join(response_lines)
+        response = "\n".join(response_lines)
 
         if verbose:
             logging.info(f"Full response: {response}")
@@ -116,7 +137,9 @@ def sbc_cmd_with_timeout(cmd: str, serial_connection: serial.Serial,
         serial_connection.timeout = original_timeout
 
 
-def check_network_status(serial_connection: serial.Serial, verbose: bool = False) -> None:
+def check_network_status(
+    serial_connection: serial.Serial, verbose: bool = False
+) -> None:
     """
     Check and log network registration and signal quality before sending data.
     Sends AT+CREG?, AT+CGREG?, and AT+CSQ to the modem and logs the results.
@@ -132,8 +155,9 @@ def check_network_status(serial_connection: serial.Serial, verbose: bool = False
         logging.error(f"Error checking network status: {e}")
 
 
-def get_modem_info(serial_connection: serial.Serial,
-                   verbose: bool = False) -> Tuple[str, str, str]:
+def get_modem_info(
+    serial_connection: serial.Serial, verbose: bool = False
+) -> Tuple[str, str, str]:
     """
     Retrieve modem identification information from the Telit LE910C1.
 
@@ -161,19 +185,20 @@ def get_modem_info(serial_connection: serial.Serial,
         response = sbc_cmd_with_timeout("AT#CCID\r", serial_connection, verbose=False)
         if "#CCID:" in response:
             # Parse: #CCID: 89012345678901234567
-            for line in response.split('\n'):
+            for line in response.split("\n"):
                 if "#CCID:" in line:
-                    iccid = line.split(':')[1].strip()
+                    iccid = line.split(":")[1].strip()
                     break
         else:
             # Try alternative command
-            response = sbc_cmd_with_timeout("AT+ICCID\r", serial_connection, verbose=False)
+            response = sbc_cmd_with_timeout(
+                "AT+ICCID\r", serial_connection, verbose=False
+            )
             if "+ICCID:" in response:
-                for line in response.split('\n'):
+                for line in response.split("\n"):
                     if "+ICCID:" in line:
-                        iccid = line.split(':')[1].strip()
+                        iccid = line.split(":")[1].strip()
                         break
-
 
         if verbose and iccid:
             logging.info("=" * 60)
@@ -184,16 +209,16 @@ def get_modem_info(serial_connection: serial.Serial,
         # Response format: <imei> followed by OK
         response = sbc_cmd_with_timeout("AT+CGSN\r", serial_connection, verbose=False)
         # IMEI is typically 15 digits and appears before OK
-        for line in response.split('\n'):
+        for line in response.split("\n"):
             line = line.strip()
             # IMEI is numeric and 15 digits
             if line.isdigit() and len(line) == 15:
                 imei = line
                 break
             # Sometimes it has additional info, try to extract just the number
-            elif line and line[0].isdigit() and 'OK' not in line:
+            elif line and line[0].isdigit() and "OK" not in line:
                 # Extract just the numeric part
-                numeric_part = ''.join(filter(str.isdigit, line))
+                numeric_part = "".join(filter(str.isdigit, line))
                 if len(numeric_part) == 15:
                     imei = numeric_part
                     break
@@ -206,16 +231,16 @@ def get_modem_info(serial_connection: serial.Serial,
         # Response format: <imsi> followed by OK
         response = sbc_cmd_with_timeout("AT+CIMI\r", serial_connection, verbose=False)
         # IMSI is typically 14-15 digits and appears before OK
-        for line in response.split('\n'):
+        for line in response.split("\n"):
             line = line.strip()
             # IMSI is numeric and 14-15 digits
             if line.isdigit() and len(line) >= 14 and len(line) <= 15:
                 imsi = line
                 break
             # Sometimes it has additional info, try to extract just the number
-            elif line and line[0].isdigit() and 'OK' not in line:
+            elif line and line[0].isdigit() and "OK" not in line:
                 # Extract just the numeric part
-                numeric_part = ''.join(filter(str.isdigit, line))
+                numeric_part = "".join(filter(str.isdigit, line))
                 if len(numeric_part) >= 14 and len(numeric_part) <= 15:
                     imsi = numeric_part
                     break
@@ -226,16 +251,15 @@ def get_modem_info(serial_connection: serial.Serial,
         if verbose:
             logging.info("=" * 60)
 
-
     except Exception as e:
         logging.error(f"Error retrieving modem information: {str(e)}")
 
     return (iccid, imei, imsi)
 
 
-def configure_modem_tcp(serial_connection: serial.Serial,
-                        context_id: int = 1,
-                        verbose: bool = False) -> Tuple[int, str]:
+def configure_modem_tcp(
+    serial_connection: serial.Serial, context_id: int = 1, verbose: bool = False
+) -> Tuple[int, str]:
     """
     Configure the Telit LE910C1 modem for TCP communication.
 
@@ -263,26 +287,32 @@ def configure_modem_tcp(serial_connection: serial.Serial,
         if "OK" not in response:
             return (1, "Modem not responding to AT commands")
 
-        response = sbc_cmd_with_timeout("AT+CMEE=2\r", serial_connection, verbose=verbose)
+        response = sbc_cmd_with_timeout(
+            "AT+CMEE=2\r", serial_connection, verbose=verbose
+        )
         if "OK" not in response:
             return (1, "Modem not responding to CMEE commands")
 
         # Check network registration
-        response = sbc_cmd_with_timeout("AT+CEREG?\r", serial_connection, verbose=verbose)
+        response = sbc_cmd_with_timeout(
+            "AT+CEREG?\r", serial_connection, verbose=verbose
+        )
         if "+CEREG:" in response:
             # Parse registration status
             # Response format: +CEREG: <n>,<stat>[,...]
             # stat: 1=registered home, 5=registered roaming
-            parts = response.split(',')
+            parts = response.split(",")
             if len(parts) >= 2:
-                stat = parts[1].strip().split('\n')[0]
-                if stat not in ['1', '5']:
+                stat = parts[1].strip().split("\n")[0]
+                if stat not in ["1", "5"]:
                     return (2, f"Modem not registered on network (stat={stat})")
         else:
             return (2, "Could not query network registration status")
 
         # Check if context is already active
-        response = sbc_cmd_with_timeout(f"AT#SGACT?\r", serial_connection, verbose=verbose)
+        response = sbc_cmd_with_timeout(
+            "AT#SGACT?\r", serial_connection, verbose=verbose
+        )
         context_active = False
         if f"#SGACT: {context_id},1" in response:
             context_active = True
@@ -290,44 +320,43 @@ def configure_modem_tcp(serial_connection: serial.Serial,
 
         # Activate context if not already active
         if not context_active:
-
-            # Don't fool with the APN settings. Most carriers auto-configure.
-            # Define PDP context (if not already defined)
-            # Most carriers auto-configure, but we'll set a generic APN
-            # response = sbc_cmd_with_timeout(f'AT+CGDCONT={context_id},"IPV4V6","nxtgenphone"\r',
-            #                  serial_connection, verbose=verbose)
-            # if "OK" not in response:
-            #     logging.warning("Could not set PDP context definition (may already be set)")
-
             # Activate PDP context
             logging.info(f"Activating PDP context {context_id}...")
-            response = sbc_cmd_with_timeout(f"AT#SGACT={context_id},1\r",
-                             serial_connection,
-                             timeout=60,  # Context activation can take longer
-                             verbose=verbose)
+            response = sbc_cmd_with_timeout(
+                f"AT#SGACT={context_id},1\r",
+                serial_connection,
+                timeout=60,  # Context activation can take longer
+                verbose=verbose,
+            )
 
             if "OK" not in response and "#SGACT:" not in response:
                 return (3, f"Failed to activate PDP context: {response}")
 
         # Configure socket parameters
         # Set packet size to 1500 bytes (typical MTU)
-        response = sbc_cmd_with_timeout("AT#SCFG=1,1,1500,90,600,50\r",
-                          serial_connection, verbose=verbose)
+        response = sbc_cmd_with_timeout(
+            "AT#SCFG=1,1,1500,90,600,50\r", serial_connection, verbose=verbose
+        )
 
         # Extended configuration - TCP parameters
-        # AT#SCFGEXT=<socketId>,<srMode>,<recvDataMode>,<keepalive>,<listenAutoRsp>,<sendDataMode>
-        # srMode=2: Enable all socket ring unsolicited messages (CRITICAL for command mode)
+        # AT#SCFGEXT=<socketId>,<srMode>,<recvDataMode>,<keepalive>,<listenAutoRsp>,
+        # <sendDataMode> srMode=2: Enable all socket ring unsolicited messages
+        # (CRITICAL for command mode)
         # This enables #SRING notifications when data arrives
-        response = sbc_cmd_with_timeout("AT#SCFGEXT=1,2,0,30,0,0\r",
-                          serial_connection, verbose=verbose)
+        response = sbc_cmd_with_timeout(
+            "AT#SCFGEXT=1,2,0,30,0,0\r", serial_connection, verbose=verbose
+        )
 
         # Enable unsolicited socket event reporting
         # AT#E2SLRI=<enable>: Enable Socket Listen Ring Indicator
         # This ensures we get #SRING URCs when data arrives
-        response = sbc_cmd_with_timeout("AT#E2SLRI=1\r",
-                          serial_connection, verbose=verbose)
+        response = sbc_cmd_with_timeout(
+            "AT#E2SLRI=1\r", serial_connection, verbose=verbose
+        )
         if "OK" not in response:
-            logging.warning("Could not enable E2SLRI (may not be supported on this firmware)")
+            logging.warning(
+                "Could not enable E2SLRI (may not be supported on this firmware)"
+            )
 
         logging.info("Modem TCP configuration completed successfully")
         return (0, "")
@@ -338,12 +367,14 @@ def configure_modem_tcp(serial_connection: serial.Serial,
         return (11, f"Unexpected error during modem configuration: {str(e)}")
 
 
-def send_tcp_packet(hostname: str,
-                    port: int,
-                    data: str,
-                    serial_connection: serial.Serial,
-                    timeout: float = DEFAULT_RESPONSE_TIMEOUT,
-                    verbose: bool = False) -> Tuple[int, str]:
+def send_tcp_packet(
+    hostname: str,
+    port: int,
+    data: str,
+    serial_connection: serial.Serial,
+    timeout: float = DEFAULT_RESPONSE_TIMEOUT,
+    verbose: bool = False,
+) -> Tuple[int, str]:
     """
     Send a TCP packet to a server using the Telit LE910C1 modem and wait for response.
 
@@ -392,44 +423,58 @@ def send_tcp_packet(hostname: str,
         # Step 2: Configure socket
         logging.info(f"Configuring socket {socket_id} for TCP...")
         # AT#SCFG=<socketId>,<cid>,<pktSz>,<maxTo>,<connTo>,<txTo>
-        # Using context 1, packet size 1500, max timeout 90s, connect timeout 600s, tx timeout 50s
-        response = sbc_cmd_with_timeout(f"AT#SCFG={socket_id},1,1500,90,600,50\r",
-                          serial_connection, verbose=verbose)
+        # Using context 1, packet size 1500, max timeout 90s,
+        # connect timeout 600s, tx timeout 50s
+        response = sbc_cmd_with_timeout(
+            f"AT#SCFG={socket_id},1,1500,90,600,50\r",
+            serial_connection,
+            verbose=verbose,
+        )
         if "OK" not in response:
             logging.error(f"Socket configuration failed: {response}")
             return (20, "")
 
         # Step 3: Open socket connection in COMMAND MODE
-        # AT#SD=<socketId>,<protocol>,<port>,<IPaddr>,<closureType>,<localPort>,<connMode>
-        # connMode=1 means command mode (requires AT#SSEND to send data)
+        # AT#SD=<socketId>,<protocol>,<port>,<IPaddr>,<closureType>,<localPort>,
+        # <connMode> connMode=1 means command mode (requires AT#SSEND to send data)
         # connMode=0 means data mode (can write data directly after CONNECT)
         logging.info(f"Opening TCP connection to {hostname}:{port} in command mode...")
-        response = sbc_cmd_with_timeout(f'AT#SD={socket_id},0,{port},"{hostname}",0,0,1\r',
-                          serial_connection,
-                          timeout=SOCKET_CONNECT_TIMEOUT,
-                          verbose=verbose)
+        response = sbc_cmd_with_timeout(
+            f'AT#SD={socket_id},0,{port},"{hostname}",0,0,1\r',
+            serial_connection,
+            timeout=SOCKET_CONNECT_TIMEOUT,
+            verbose=verbose,
+        )
 
         # Check for OK response when starting in command mode
         if "OK" not in response:
             logging.error(f"Socket connection failed: {response}")
             # Try to close socket if it was partially opened
-            sbc_cmd_with_timeout(f"AT#SH={socket_id}\r", serial_connection, verbose=verbose)
+            sbc_cmd_with_timeout(
+                f"AT#SH={socket_id}\r", serial_connection, verbose=verbose
+            )
             return (21, "")
 
         logging.info("TCP connection established in command mode")
 
         # Step 4: Send data using AT#SSEND (command mode)
-        logging.info(f"Sending data: {data[:50]}..." if len(data) > 50 else f"Sending data: {data}")
+        logging.info(
+            f"Sending data: {data[:50]}..."
+            if len(data) > 50
+            else f"Sending data: {data}"
+        )
 
         # Calculate data length
         data_length = len(data)
 
         # Use AT#SSENDEXT for sending data in command mode
         # AT#SSENDEXT=<socketId>,<bytesToSend>
-        response = sbc_cmd_with_timeout(f"AT#SSENDEXT={socket_id},{data_length}\r",
-                          serial_connection,
-                          timeout=5,
-                          verbose=verbose)
+        response = sbc_cmd_with_timeout(
+            f"AT#SSENDEXT={socket_id},{data_length}\r",
+            serial_connection,
+            timeout=5,
+            verbose=verbose,
+        )
 
         # After receiving the prompt (usually ">"), send the actual data
         if ">" in response or "SSENDEXT:" in response:
@@ -441,7 +486,11 @@ def send_tcp_packet(hostname: str,
             send_response = ""
             while (time.time() - start_time) < 10:  # 10 second timeout for send
                 if serial_connection.in_waiting > 0:
-                    line = serial_connection.readline().decode('utf-8', errors='ignore').strip()
+                    line = (
+                        serial_connection.readline()
+                        .decode("utf-8", errors="ignore")
+                        .strip()
+                    )
                     send_response += line + "\n"
                     if "OK" in line or "ERROR" in line:
                         break
@@ -452,11 +501,15 @@ def send_tcp_packet(hostname: str,
 
             if "OK" not in send_response:
                 logging.error(f"Failed to send data: {send_response}")
-                sbc_cmd_with_timeout(f"AT#SH={socket_id}\r", serial_connection, verbose=verbose)
+                sbc_cmd_with_timeout(
+                    f"AT#SH={socket_id}\r", serial_connection, verbose=verbose
+                )
                 return (22, "")
         else:
             logging.error(f"Did not receive prompt for AT#SSENDEXT: {response}")
-            sbc_cmd_with_timeout(f"AT#SH={socket_id}\r", serial_connection, verbose=verbose)
+            sbc_cmd_with_timeout(
+                f"AT#SH={socket_id}\r", serial_connection, verbose=verbose
+            )
             return (22, "")
 
         # Step 5: Read response with timeout
@@ -473,11 +526,16 @@ def send_tcp_packet(hostname: str,
         logging.info("Waiting for incoming data notification (#SRING)...")
         while (time.time() - start_time) < timeout:
             if serial_connection.in_waiting > 0:
-                line = serial_connection.readline().decode('utf-8', errors='ignore').strip()
+                line = (
+                    serial_connection.readline()
+                    .decode("utf-8", errors="ignore")
+                    .strip()
+                )
                 if verbose:
                     logging.debug(f"Received: {line}")
 
-                # Check for #SRING: <socketId>,<dataLen>[,<data>] or SRING: <socketId>,<dataLen>[,<data>]
+                # Check for #SRING: <socketId>,<dataLen>[,<data>] or
+                # SRING: <socketId>,<dataLen>[,<data>]
                 if line.startswith("#SRING:") or line.startswith("SRING:"):
                     sring_line = line
                     logging.info(f"Data arrival notification received: {line}")
@@ -496,40 +554,51 @@ def send_tcp_packet(hostname: str,
                 parts = sring_line[6:].strip()  # Remove "SRING:"
 
             # Split by comma
-            sring_parts = parts.split(',', 2)  # Split into at most 3 parts
+            sring_parts = parts.split(",", 2)  # Split into at most 3 parts
 
             if len(sring_parts) >= 3:
                 # Data is included in the SRING notification
                 data_len = int(sring_parts[1].strip())
                 received_data = sring_parts[2].strip()
-                logging.info(f"Data retrieved from #SRING notification: '{received_data}' ({data_len} bytes)")
+                logging.info(
+                    f"Data retrieved from #SRING notification: '{received_data}' "
+                    f"({data_len} bytes)"
+                )
             elif len(sring_parts) >= 2:
                 # Data not included, need to retrieve with AT#SRECV
                 data_len = int(sring_parts[1].strip())
-                logging.info(f"#SRING indicates {data_len} bytes available, retrieving with AT#SRECV...")
+                logging.info(
+                    f"#SRING indicates {data_len} bytes available, retrieving "
+                    "with AT#SRECV..."
+                )
 
-                response = sbc_cmd_with_timeout(f"AT#SRECV={socket_id},1500\r",
-                                  serial_connection,
-                                  timeout=5,
-                                  verbose=verbose)
+                response = sbc_cmd_with_timeout(
+                    f"AT#SRECV={socket_id},1500\r",
+                    serial_connection,
+                    timeout=5,
+                    verbose=verbose,
+                )
 
                 if "#SRECV:" in response:
                     # Parse response: #SRECV: <socketId>,<datalen>
                     # Followed by the actual data
-                    lines = response.split('\n')
+                    lines = response.split("\n")
                     for i, line in enumerate(lines):
                         if line.startswith("#SRECV:"):
                             # Extract data length
-                            recv_parts = line.split(',')
+                            recv_parts = line.split(",")
                             if len(recv_parts) >= 2:
                                 try:
                                     recv_len = int(recv_parts[1].strip())
                                     if recv_len > 0 and i + 1 < len(lines):
                                         # Next line(s) contain the data
-                                        received_data = '\n'.join(lines[i+1:])
+                                        received_data = "\n".join(lines[i + 1 :])
                                         # Trim to expected length
                                         received_data = received_data[:recv_len]
-                                        logging.info(f"Retrieved {recv_len} bytes of data via AT#SRECV")
+                                        logging.info(
+                                            f"Retrieved {recv_len} bytes of data "
+                                            f"via AT#SRECV"
+                                        )
                                 except ValueError:
                                     pass
                             break
@@ -538,12 +607,16 @@ def send_tcp_packet(hostname: str,
 
         # Step 6: Close socket
         logging.info("Closing socket...")
-        response = sbc_cmd_with_timeout(f"AT#SH={socket_id}\r",
-                          serial_connection,
-                          verbose=verbose)
+        response = sbc_cmd_with_timeout(
+            f"AT#SH={socket_id}\r", serial_connection, verbose=verbose
+        )
 
         if received_data:
-            logging.info(f"Received response: {received_data[:100]}..." if len(received_data) > 100 else f"Received response: {received_data}")
+            logging.info(
+                f"Received response: {received_data[:100]}..."
+                if len(received_data) > 100
+                else f"Received response: {received_data}"
+            )
             return (0, received_data)
         else:
             logging.warning("No response received within timeout period")
@@ -553,8 +626,10 @@ def send_tcp_packet(hostname: str,
         logging.error(f"Serial communication error: {str(e)}")
         # Try to close socket on error
         try:
-            sbc_cmd_with_timeout(f"AT#SH={socket_id}\r", serial_connection, verbose=False)
-        except:
+            sbc_cmd_with_timeout(
+                f"AT#SH={socket_id}\r", serial_connection, verbose=False
+            )
+        except Exception:
             pass
         return (24, "")
 
@@ -562,8 +637,10 @@ def send_tcp_packet(hostname: str,
         logging.error(f"Unexpected error: {str(e)}")
         # Try to close socket on error
         try:
-            sbc_cmd_with_timeout(f"AT#SH={socket_id}\r", serial_connection, verbose=False)
-        except:
+            sbc_cmd_with_timeout(
+                f"AT#SH={socket_id}\r", serial_connection, verbose=False
+            )
+        except Exception:
             pass
         return (24, "")
 
@@ -571,17 +648,23 @@ def send_tcp_packet(hostname: str,
 def get_pactl_sources():
     try:
         # Run the pactl command and capture output
-        result = subprocess.run(['pactl', 'list', 'sources', 'short'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        result = subprocess.run(
+            ["pactl", "list", "sources", "short"],
+            capture_output=True,
+            text=True,
+        )
         if result.returncode != 0:
             print("Error running pactl:", result.stderr)
             return []
 
         interface_numbers = []
-        for line in result.stdout.strip().split('\n'):
-            parts = line.split('\t')
+        for line in result.stdout.strip().split("\n"):
+            parts = line.split("\t")
             if len(parts) >= 2:
                 source_name = parts[1]
-                match = re.search(r'output.usb-Android_LE910C1-NF_[\w]+-(\d{2})\.', source_name)
+                match = re.search(
+                    r"output.usb-Android_LE910C1-NF_[\w]+-(\d{2})\.", source_name
+                )
                 if match:
                     interface_numbers.append(match.group(1))
         return interface_numbers
@@ -589,6 +672,7 @@ def get_pactl_sources():
     except Exception as e:
         print("Exception occurred:", e)
         return []
+
 
 def start_audio_bridge():
     """
@@ -605,17 +689,25 @@ def start_audio_bridge():
     # Setup PulseAudio loopbacks for audio routing
 
     # LE910C1 → SGTL5000Card
-    telit_to_sgtl_cmd = ["pactl", "load-module", "module-loopback",
+    telit_to_sgtl_cmd = [
+        "pactl",
+        "load-module",
+        "module-loopback",
         f"source=alsa_input.usb-Android_LE910C1-NF_0123456789ABCDEF-{interface_number[0]}.mono-fallback",
         "sink=alsa_output.platform-sound.stereo-fallback",
         "rate=48000",
-        "latency_msec=80"]
+        "latency_msec=80",
+    ]
 
     # SGTL5000Card → LE910C1
-    sgtl_to_telit_cmd = ["pactl", "load-module", "module-loopback",
+    sgtl_to_telit_cmd = [
+        "pactl",
+        "load-module",
+        "module-loopback",
         "source=alsa_input.platform-sound.stereo-fallback",
         f"sink=alsa_output.usb-Android_LE910C1-NF_0123456789ABCDEF-{interface_number[0]}.mono-fallback",
-        "latency_msec=80"]
+        "latency_msec=80",
+    ]
 
     # try:
     #     # Start both loopbacks and get their module IDs
@@ -632,6 +724,7 @@ def start_audio_bridge():
 
     return (telit_to_sgtl, sgtl_to_telit)
 
+
 def terminate_pids(module_ids):
     """
     Unload the PulseAudio loopback modules with the given module IDs.
@@ -639,25 +732,33 @@ def terminate_pids(module_ids):
     for module_id in module_ids:
         try:
             # Get the module list first
-            result = subprocess.run(["pactl", "list", "modules", "short"],
-                                 capture_output=True, text=True, check=True)
+            result = subprocess.run(
+                ["pactl", "list", "modules", "short"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
 
             # Check each line for our module ID and loopback
-            module_exists = any(line.startswith(f"{module_id}\tmodule-loopback")
-                              for line in result.stdout.splitlines())
+            module_exists = any(
+                line.startswith(f"{module_id}\tmodule-loopback")
+                for line in result.stdout.splitlines()
+            )
 
             if module_exists:
                 subprocess.run(["pactl", "unload-module", str(module_id)], check=True)
                 logging.info(f"Unloaded PulseAudio loopback module {module_id}")
             else:
-                logging.info(f"Loopback module {module_id} not found or already unloaded")
+                logging.info(
+                    f"Loopback module {module_id} not found or already unloaded"
+                )
         except subprocess.CalledProcessError as e:
             logging.error(f"Failed to unload loopback module {module_id}: {e}")
         except Exception as e:
             logging.error(f"Unexpected error with loopback module {module_id}: {e}")
 
-def sbc_config_call(serial_connection: serial.Serial, verbose: bool):
 
+def sbc_config_call(serial_connection: serial.Serial, verbose: bool):
     at_cmd_set = [
         "ATE1\r",
         "AT#DVI=0\r",
@@ -671,14 +772,19 @@ def sbc_config_call(serial_connection: serial.Serial, verbose: bool):
         "AT+CLVL=0\r",
         "AT+CMER=2,0,0,2\r",  # Enable unsolicited result codes
         "AT#ADSPC=6\r",
-        "AT+CIND=0,0,1,0,1,1,1,1,0,1,1\r"
+        "AT+CIND=0,0,1,0,1,1,1,1,0,1,1\r",
     ]
 
     for cmd in at_cmd_set:
         sbc_cmd(cmd, serial_connection, verbose)
 
 
-def sbc_place_call(number: str, modem: serial.Serial, verbose: bool = True, no_audio_routing: bool = False) -> bool:
+def sbc_place_call(
+    number: str,
+    modem: serial.Serial,
+    verbose: bool = True,
+    no_audio_routing: bool = False,
+) -> bool:
     sbc_config_call(modem, verbose)
 
     # Flush any pending data before dialing
@@ -740,7 +846,10 @@ def sbc_connect(serial_connection: serial.Serial):
     serial_connection.baudrate = 115200
     serial_connection.timeout = 30
     serial_connection.xonxoff = False
-    print(f"Connecting to SBC on port {serial_connection.port} with baud rate {serial_connection.baudrate}")
+    print(
+        f"Connecting to SBC on port {serial_connection.port} "
+        f"with baud rate {serial_connection.baudrate}"
+    )
     try:
         print(serial_connection.is_open)
         serial_connection.open()
@@ -750,10 +859,10 @@ def sbc_connect(serial_connection: serial.Serial):
         print(f"SBC connected successfully?: {response.decode().strip()}")
         print(serial_connection.is_open)
 
-
     except Exception as e:
         logging.error(f"Failed to connect to SBC: {e}")
     return serial_connection.is_open
+
 
 def start_reg_again(serial_connection: serial.Serial):
     logging.info("Starting registration process again")
@@ -762,7 +871,7 @@ def start_reg_again(serial_connection: serial.Serial):
 
 
 def check_registration(serial_connection: serial.Serial):
-    response =  sbc_cmd("AT+CEREG?\r", serial_connection, verbose=True)
+    response = sbc_cmd("AT+CEREG?\r", serial_connection, verbose=True)
     if response.startswith("+CEREG:"):
         parts = response.split(",")
         if len(parts) > 1:
@@ -776,6 +885,7 @@ def check_registration(serial_connection: serial.Serial):
 
     return False
 
+
 def sbc_disconnect(serial_connection: serial.Serial):
     serial_connection.close()
     logging.info(f"Disconnected from SBC on port {serial_connection.port}")
@@ -784,30 +894,52 @@ def sbc_disconnect(serial_connection: serial.Serial):
 if __name__ == "__main__":
     # Set up logging to syslog with milliseconds in timestamp
 
-    logging.basicConfig(level=logging.DEBUG,
-                        format='%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s',
-                        datefmt='%m-%d %H:%M:%S',
-                        filename="/mnt/data/calls.log",
-                        filemode='a+')
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s",
+        datefmt="%m-%d %H:%M:%S",
+        filename="/mnt/data/calls.log",
+        filemode="a+",
+    )
 
     console = logging.StreamHandler()
     console.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s.%(msecs)03d:%(levelname)-8s %(message)s', datefmt='%H:%M:%S')
-    formatter.default_msec_format = '%s.%03d'
+    formatter = logging.Formatter(
+        "%(asctime)s.%(msecs)03d:%(levelname)-8s %(message)s", datefmt="%H:%M:%S"
+    )
+    formatter.default_msec_format = "%s.%03d"
     console.setFormatter(formatter)
-    logging.getLogger('').addHandler(console)
-
+    logging.getLogger("").addHandler(console)
 
     parser = argparse.ArgumentParser(description="Serial SBC dialer")
-    parser.add_argument("-n", "--number", type=str, help="Phone number to dial",
-                        default="9723507770")
-    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output")
-    parser.add_argument("-r", "--no-audio-routing", action="store_true", help="Disable audio re-routing (establish call only)")
-    parser.add_argument("-H", "--hostname", type=str, help="Server hostname for TCP packet",
-                        default="m90events.devkingsiii.com")
-    parser.add_argument("-p", "--port", type=int, help="Server port for TCP packet",
-                        default=10083)
-    parser.add_argument("-s", "--skip-packet", action="store_true", help="Skip sending TCP packet before call")
+    parser.add_argument(
+        "-n", "--number", type=str, help="Phone number to dial", default="9723507770"
+    )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Enable verbose output"
+    )
+    parser.add_argument(
+        "-r",
+        "--no-audio-routing",
+        action="store_true",
+        help="Disable audio re-routing (establish call only)",
+    )
+    parser.add_argument(
+        "-H",
+        "--hostname",
+        type=str,
+        help="Server hostname for TCP packet",
+        default="m90events.devkingsiii.com",
+    )
+    parser.add_argument(
+        "-p", "--port", type=int, help="Server port for TCP packet", default=10083
+    )
+    parser.add_argument(
+        "-s",
+        "--skip-packet",
+        action="store_true",
+        help="Skip sending TCP packet before call",
+    )
     args = parser.parse_args()
 
     serial_connection = serial.Serial()
@@ -818,9 +950,14 @@ if __name__ == "__main__":
             logging.info("Retrieving modem information for TCP packet...")
             iccid, imei, imsi = get_modem_info(serial_connection, verbose=args.verbose)
 
-
             # Build the event data packet
-            event_data = f"START CID=5822460189|AC=C12345|EC=01|MDL=Q01|APP=03020089|CRC = BEEF|BOOT = 03010007|TSPV=25.21.260-P0F.261803|CCI={iccid}|IMSI={imsi}|IMEI={imei}|NET=4G|APN=broadband|IMS=1|SS=067|RSRP=098|RSRQ=011|TMP1=+020|TMP2=+020|BAT=1305|ZLST=01|STM=0450946E|UTM=02EBA09E|RST=0|PIN=1|THW=1.10 END"
+            event_data = (
+                f"START CID=5822460189|AC=C12345|EC=01|MDL=Q01|APP=03020089|CRC = BEEF|"
+                f"BOOT = 03010007|TSPV=25.21.260-P0F.261803|CCI={iccid}|"
+                f"IMSI={imsi}|IMEI={imei}|"
+                f"NET=4G|APN=broadband|IMS=1|SS=067|RSRP=098|RSRQ=011|TMP1=+020|TMP2=+020|"
+                f"BAT=1305|ZLST=01|STM=0450946E|UTM=02EBA09E|RST=0|PIN=1|THW=1.10 END"
+            )
 
             logging.info(f"Sending TCP packet to {args.hostname}:{args.port}")
             error_code, response = send_tcp_packet(
@@ -829,7 +966,7 @@ if __name__ == "__main__":
                 data=event_data,
                 serial_connection=serial_connection,
                 timeout=30,
-                verbose=args.verbose
+                verbose=args.verbose,
             )
 
             if error_code == 0:
@@ -842,13 +979,17 @@ if __name__ == "__main__":
             logging.info("Skipping TCP packet send (--skip-packet flag set)")
 
         logging.info(f"Ready to dial number: {args.number}")
-        call_success = sbc_place_call(args.number, serial_connection, verbose=args.verbose, no_audio_routing=args.no_audio_routing)
+        call_success = sbc_place_call(
+            args.number,
+            serial_connection,
+            verbose=args.verbose,
+            no_audio_routing=args.no_audio_routing,
+        )
         if call_success:
             logging.info("Call completed successfully")
         else:
             logging.warning("Call failed or timed out")
 
-    Path('/tmp/setup').touch()
+    Path("/tmp/setup").touch()
 
     sbc_disconnect(serial_connection)
-
