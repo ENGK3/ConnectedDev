@@ -45,7 +45,12 @@ voip:
     scp voip_call_monitor_tcp.py  {{nuser}}@{{target}}:/mnt/data/voip_call_monitor_tcp.py
     scp voip_call_monitor.service {{nuser}}@{{target}}:/mnt/data/voip_call_monitor.service
 
-push: modem switch leds service sounds boot pulse voip
+
+asterisk:
+    scp VOIP/asterisk/pjsip.conf  {{nuser}}@{{target}}:/mnt/data/pjsip.conf
+    scp VOIP/asterisk/extensions.conf  {{nuser}}@{{target}}:/mnt/data/extensions.conf
+
+push: modem switch leds service sounds boot pulse voip asterisk
 
 pkg:
     rm -f GW-Pool-Setup.tgz
