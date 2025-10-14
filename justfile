@@ -42,12 +42,15 @@ modem:
     scp check_reg.py  {{nuser}}@{{target}}:/mnt/data/check_reg.py
 
 voip:
-    scp voip_call_rerouting.py  {{nuser}}@{{target}}:/mnt/data/voip_call_rerouting.py
-    scp EDC_packet.py  {{nuser}}@{{target}}:/mnt/data/EDC_packet.py
     scp voip_call_monitor_tcp.py  {{nuser}}@{{target}}:/mnt/data/voip_call_monitor_tcp.py
+    scp voip_call_monitor.service {{nuser}}@{{target}}:/mnt/data/voip_call_monitor.service
 
 push: modem switch leds service sounds boot pulse voip
 
 pkg:
     rm -f GW-Pool-Setup.tgz
     tar -zcvf GW-Pool-Setup.tgz sounds/* *.py *.sh *.service *.dtbo *.conf 99* *.alias
+
+pkgvoip:
+    rm -f GW-VoIP-Setup.tgz
+    tar -zcvf GW-VoIP-Setup.tgz place_call.py voip_call_monitor_tcp.py
