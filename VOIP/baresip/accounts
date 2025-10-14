@@ -37,4 +37,4 @@
 #
 #<sip:kuser@lan>;auth_pass=PASSWORD
 #sip:1013@192.168.80.132;auth_user=1013;auth_pass=sU5#I$u0Zp2@3O*h;answermode=auto
-sip:6003@192.168.80.209;auth_user=6003;auth_pass=unsecurepassword;answermode=auto
+sip:6003@192.168.80.209;auth_user=6003;auth_pass=unique_password_6003;answermode=auto
