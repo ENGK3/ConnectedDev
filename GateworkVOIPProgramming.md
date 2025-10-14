@@ -43,6 +43,27 @@ Before running updates for the packages, make sure that the eth0 is disabled, or
 the command below will fail because it will be going to a network interface that does
 not have internet access.
 
+## Push VOIP phone scripts
+
+To be able to push the voip setup scripts to the Gateworks board a user needs to be
+created
+
+```bash
+adduser kuser
+```
+
+And create the user with a password. REMEMBER the password.
+
+This user on the target needs to have some additional permissions granted.
+These are for accessing the modem and gpios and provides some additional security since
+the application is not being run as root.
+
+```bash
+usermod -aG dialout,audio,plugdev  kuser
+```
+
+
+
 ## Packages
 
 ```bash
@@ -53,27 +74,69 @@ apt-get install baresip asterisk python3-serial microcom pulseaudio
 
 The following edits are appended to the '/etc/pulse/default.pa' file.
 
+### PulseAudio
+
 ```bash
 set-card-profile alsa_card.usb-Android_LE910C1-NF_0123456789ABCDEF-04 output:mono-fallback+input:mono-fallback
 set-default-sink alsa_output.usb-Android_LE910C1-NF_0123456789ABCDEF-04.mono-fallback
 set-default-source alsa_input.usb-Android_LE910C1-NF_0123456789ABCDEF-04.mono-fallback
 ```
 
+The default.pa file also needs to be edited the same way it was for the Pool config and
+the adjustment to the sample-rates.
+
+**NOTE:** The name of 'usb-Android_LE910C1-NF_0123456789ABCDEF-04' can be different between different modem modules. Typically, the '-04' can change so make sure that
+the modification of the 'default.pa' accounts for this difference.
+
+### Baresip
+
 The dialing script does not need to do any rerouting.
 
 Edit the '.baresip/config' file to have the audio player set as shown below.
 
+```bash
 audio_driver            pulse
 audio_player            pulse
 audio_source            pulse
+```
 
-.baresip/accounts needs to have the following setup..
+The file .baresip/accounts needs to have the following setup.
 
 ```bash
 sip:6003@192.168.80.209;auth_user=6003;auth_pass=unsecurepassword;answermode=auto
 ```
 
+**NOTE:** The client that runs on the target MUST be set to 'answermode=auto' for the
+correct operation.
+
 **NOTE:** some method of using authentication is needed because this is in the clear.
+
+The service voip_call_monitor.service is responsible for starting the
+voip_call_monitor_tcp.py script.
+
+As root execute the following.
+
+```bash
+# Copy the service file to systemd directory
+cp /mnt/data/voip_call_monitor.service /etc/systemd/system/.
+
+# Reload systemd to recognize the new service
+systemctl daemon-reload
+
+# Enable the service to start on boot
+systemctl enable voip_call_monitor.service
+
+# Start the service now
+systemctl start voip_call_monitor.service
+
+# Check service status
+systemctl status voip_call_monitor.service
+
+# View logs
+journalctl -u voip_call_monitor.service -f
+```
+
+### Asterisk
 
 The asterisk server needs to know about the extensions in the '/etc/asterisk/pjsip.conf'
 file.
@@ -88,8 +151,6 @@ bind=192.168.80.209:5060
 [aor]
 remove_existing=yes
 qualify_frequency=180
-
-
 
 [6001]
 type=endpoint
@@ -131,11 +192,16 @@ qualify_frequency=180
 **NOTE:** The passwords are in the clear!
 
 The asterisk.service configuration needs to be modified to get it to start at boot
-and handle calls.
+and handle calls. This is done by having a override.conf file in the
+'/etc/systemd/system/asterisk.service.d/' directory.
 
 ```bash
-systemctl edit asterisk.service
+cp asterisk.override.conf /etc/systemd/system/asterisk.service.d/override.conf
+```
 
+The contents of the override.conf file should be
+
+```bash
 # Then add these lines between the ### as explained at the top of the file.
 [Unit]
 Wants=network-online.target
@@ -153,24 +219,7 @@ systemctl enable asterisk
 systemctl start asterisk
 ```
 
-## Push VOIP phone scripts
 
-To be able to push the pool phone scripts to the Gateworks board a user needs to be
-created
-
-```bash
-adduser kuser
-```
-
-And create the user with a password. REMEMBER the password.
-
-This user on the target needs to have some additional permissions granted.
-These are for accessing the modem and gpios and provides some additional security since
-the application is not being run as root.
-
-```bash
-usermod -aG dialout,audio,plugdev  kuser
-```
 
 ## Setup of Viking phone
 
