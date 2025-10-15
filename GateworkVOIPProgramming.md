@@ -62,8 +62,6 @@ the application is not being run as root.
 usermod -aG dialout,audio,plugdev  kuser
 ```
 
-
-
 ## Packages
 
 ```bash
