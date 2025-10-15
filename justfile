@@ -56,7 +56,7 @@ asterisk:
 
 push: modem switch leds service sounds boot pulse voip asterisk
 
-vpush: asterisk voip modem pulseaudio
+vpush: asterisk voip modem pulse
 
 pkg:
     rm -f GW-Pool-Setup.tgz
