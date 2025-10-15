@@ -5,5 +5,5 @@ chown asterisk:asterisk /etc/asterisk/extensions.conf /etc/asterisk/confbridge.c
      /etc/asterisk/pjsip.conf
 
 cp /mnt/data/accounts /home/kuser/.baresip/accounts
-cp /mnt/data/basesip.config /home/kuser/.baresip/config
+cp /mnt/data/baresip.config /home/kuser/.baresip/config
 chown kuser:kuser /home/kuser/.baresip/config /home/kuser/.baresip/accounts
