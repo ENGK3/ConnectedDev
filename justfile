@@ -24,33 +24,39 @@ service:
     scp config_sys.sh {{nuser}}@{{target}}:/mnt/data/config_sys.sh
 
 boot:
-    scp imx8mm-venice-gw7xxx-0x-gpio.dtbo  {{nuser}}@{{target}}:/mnt/data/imx8mm-venice-gw7xxx-0x-gpio.dtbo
+    scp imx8mm-venice-gw7xxx-0x-gpio.dtbo {{nuser}}@{{target}}:/mnt/data/imx8mm-venice-gw7xxx-0x-gpio.dtbo
 
 leds:
-    scp led*.sh  {{nuser}}@{{target}}:/mnt/data/.
+    scp led*.sh {{nuser}}@{{target}}:/mnt/data/.
 
 switch:
-    scp switch_detect.sh  {{nuser}}@{{target}}:/mnt/data/switch_detect.sh
-    scp switch_mon.sh  {{nuser}}@{{target}}:/mnt/data/switch_mon.sh
+    scp switch_detect.sh {{nuser}}@{{target}}:/mnt/data/switch_detect.sh
+    scp switch_mon.sh {{nuser}}@{{target}}:/mnt/data/switch_mon.sh
 
 sounds:
-    scp -r sounds  {{nuser}}@{{target}}:/mnt/data/.
+    scp -r sounds {{nuser}}@{{target}}:/mnt/data/.
     scp asound.state {{nuser}}@{{target}}:/mnt/data/asound.state
 
 modem:
-    scp place_call.py  {{nuser}}@{{target}}:/mnt/data/place_call.py
-    scp check_reg.py  {{nuser}}@{{target}}:/mnt/data/check_reg.py
+    scp place_call.py {{nuser}}@{{target}}:/mnt/data/place_call.py
+    scp check_reg.py {{nuser}}@{{target}}:/mnt/data/check_reg.py
 
 voip:
-    scp voip_call_monitor_tcp.py  {{nuser}}@{{target}}:/mnt/data/voip_call_monitor_tcp.py
-    scp voip_call_monitor.service {{nuser}}@{{target}}:/mnt/data/voip_call_monitor.service
+    scp VOIP/voip_call_monitor_tcp.py {{nuser}}@{{target}}:/mnt/data/voip_call_monitor_tcp.py
+    scp VOIP/voip_call_monitor.service {{nuser}}@{{target}}:/mnt/data/voip_call_monitor.service
+    scp VOIP/baresip/config {{nuser}}@{{target}}:/mnt/data/baresip.config
+    scp VOIP/baresip/accounts {{nuser}}@{{target}}:/mnt/data/accounts
 
 
 asterisk:
-    scp VOIP/asterisk/pjsip.conf  {{nuser}}@{{target}}:/mnt/data/pjsip.conf
-    scp VOIP/asterisk/extensions.conf  {{nuser}}@{{target}}:/mnt/data/extensions.conf
+    scp VOIP/asterisk/pjsip.conf {{nuser}}@{{target}}:/mnt/data/pjsip.conf
+    scp VOIP/asterisk/extensions.conf {{nuser}}@{{target}}:/mnt/data/extensions.conf
+    scp VOIP/asterisk/confbridge.conf {{nuser}}@{{target}}:/mnt/data/confbridge.conf
+    scp VOIP/voip_config.sh {{nuser}}@{{target}}:/mnt/data/voip_config.sh
 
 push: modem switch leds service sounds boot pulse voip asterisk
+
+vpush: asterisk voip modem pulseaudio
 
 pkg:
     rm -f GW-Pool-Setup.tgz
