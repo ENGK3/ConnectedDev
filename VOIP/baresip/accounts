@@ -36,5 +36,4 @@
 #  <sip:user@[2001:df8:0:16:216:6fff:fe91:614c]:5070;transport=tcp>;auth_pass=secret
 #
 #<sip:kuser@lan>;auth_pass=PASSWORD
-#sip:1013@192.168.80.132;auth_user=1013;auth_pass=sU5#I$u0Zp2@3O*h;answermode=auto
-sip:6003@192.168.80.209;auth_user=6003;auth_pass=unique_password_6003;answermode=auto
+sip:200@192.168.80.10;auth_user=200;auth_pass=unique_password_200;answermode=auto
