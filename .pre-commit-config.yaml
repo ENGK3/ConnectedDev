@@ -4,6 +4,7 @@ repos:
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
+    exclude: VOIP/VOIPLayout.png  # Exclude this file from these hooks
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.6.9  # Use the latest version
@@ -13,3 +14,4 @@ repos:
         args: [--fix, --unsafe-fixes]
       # Run the formatter
       - id: ruff-format
+    exclude: VOIP/VOIPLayout.png  # Exclude this file from these hooks
