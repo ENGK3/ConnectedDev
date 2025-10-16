@@ -7,3 +7,5 @@ chown asterisk:asterisk /etc/asterisk/extensions.conf /etc/asterisk/confbridge.c
 cp /mnt/data/accounts /home/kuser/.baresip/accounts
 cp /mnt/data/baresip.config /home/kuser/.baresip/config
 chown kuser:kuser /home/kuser/.baresip/config /home/kuser/.baresip/accounts
+
+cp /mnt/data/interfaces /etc/network/interfaces

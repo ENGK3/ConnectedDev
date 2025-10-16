@@ -49,6 +49,7 @@ voip:
 
 
 asterisk:
+    scp VOIP/interfaces {{nuser}}@{{target}}:/mnt/data/interfaces
     scp VOIP/asterisk/pjsip.conf {{nuser}}@{{target}}:/mnt/data/pjsip.conf
     scp VOIP/asterisk/extensions.conf {{nuser}}@{{target}}:/mnt/data/extensions.conf
     scp VOIP/voip_config.sh {{nuser}}@{{target}}:/mnt/data/voip_config.sh
