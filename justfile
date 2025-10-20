@@ -3,7 +3,7 @@
 #target := "172.27.17.9"
 #target := "172.20.10.141"
 #target := "172.20.10.93"
-target := "172.20.10.246"   # Gateworks Target
+target := "172.20.10.223"   # Gateworks Target
 #target := "172.27.17.9"
 
 #nuser := "root"
@@ -12,10 +12,11 @@ nuser := "kuser"
 pulse:
     scp daemon.conf  {{nuser}}@{{target}}:/mnt/data/pulse/daemon.conf
     scp pulseaudio.service {{nuser}}@{{target}}:/mnt/data/pulse/pulseaudio.service
-    scp setup_audio_routing.sh  {{nuser}}@{{target}}:/mnt/data/pulse/setup_audio_routing.sh
-    scp setup_telit_routing.sh  {{nuser}}@{{target}}:/mnt/data/pulse/setup_telit_routing.sh
-    scp teardown_audio_routing.sh  {{nuser}}@{{target}}:/mnt/data/pulse/teardown_audio_routing.sh
-    scp teardown_telit_routing.sh  {{nuser}}@{{target}}:/mnt/data/pulse/teardown_telit_routing.sh
+    scp VOIP/pulseaudio/default.pa  {{nuser}}@{{target}}:/mnt/data/pulse/default.pa
+    # scp setup_audio_routing.sh  {{nuser}}@{{target}}:/mnt/data/pulse/setup_audio_routing.sh
+    # scp setup_telit_routing.sh  {{nuser}}@{{target}}:/mnt/data/pulse/setup_telit_routing.sh
+    # scp teardown_audio_routing.sh  {{nuser}}@{{target}}:/mnt/data/pulse/teardown_audio_routing.sh
+    # scp teardown_telit_routing.sh  {{nuser}}@{{target}}:/mnt/data/pulse/teardown_telit_routing.sh
 
 service:
     scp switch_mon.service  {{nuser}}@{{target}}:/mnt/data/switch_mon.service
@@ -46,6 +47,7 @@ voip:
     scp VOIP/voip_call_monitor.service {{nuser}}@{{target}}:/mnt/data/voip_call_monitor.service
     scp VOIP/baresip/config {{nuser}}@{{target}}:/mnt/data/baresip.config
     scp VOIP/baresip/accounts {{nuser}}@{{target}}:/mnt/data/accounts
+    scp 99-ignore-modemmanager.rules {{nuser}}@{{target}}:/mnt/data/99-ignore-modemmanager.rules
 
 
 asterisk:
@@ -57,12 +59,25 @@ asterisk:
 
 push: modem switch leds service sounds boot pulse voip asterisk
 
-vpush: asterisk voip modem pulse
+vpush: asterisk voip modem pulse modem
 
 pkg:
     rm -f GW-Pool-Setup.tgz
     tar -zcvf GW-Pool-Setup.tgz sounds/* *.py *.sh *.service *.dtbo *.conf 99* *.alias
 
 pkgvoip:
-    rm -f GW-VoIP-Setup.tgz
-    tar -zcvf GW-VoIP-Setup.tgz place_call.py voip_call_monitor_tcp.py
+    rm -f GW-VoIP-Setup*.tgz
+    tar -zcvf GW-VoIP-Setup.tgz place_call.py daemon.conf \
+        pulseaudio.service  99-ignore-modemmanager.rules \
+        -C VOIP \
+        voip_call_monitor_tcp.py voip_call_monitor.service voip_config.sh \
+        interfaces \
+        -C baresip \
+        accounts config \
+        -C ../asterisk \
+         pjsip.conf extensions.conf \
+        -C ../pulseaudio \
+        default.pa
+
+vpkgpush: pkgvoip
+    scp GW-VoIP-Setup.tgz {{nuser}}@{{target}}:/mnt/data/.
