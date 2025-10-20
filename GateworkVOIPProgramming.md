@@ -100,10 +100,27 @@ apt-get install -y baresip asterisk python3-serial microcom pulseaudio btop
 ### Copy script to the target
 
 There are several files that need to get to the target.
-This is done by one of two methods. A tar file "INSERT NAME" can be copied into the
-'/mnt/data' location and un-tar-ed there or the command from the development box
-'just vpush' can be executed if the networking and justfile have been configured
+This is done by one of two methods. A tar file "GW-VoIP-Setup.tgz" can be copied into the
+'/mnt/data' location and un-tar-ed there.
+
+The command from the development box 'just vpkgpush' can be executed if the networking and justfile have been configured
 correctly.
+
+Once the file is present on the target, untar it in the '/mnt/data'
+directory.
+
+```bash
+cd /mnt/data
+tar -zxf GW-VoIP-Setup.tgz
+```
+
+Once this is 'un-tar-ed', the script 'voip_config.sh' can be run.
+
+```bash
+./voip_config.sh
+```
+
+The command 'systemctl --user enable pulseaudio.service' still needs to be executed as the user 'kuser'
 
 ### Telit USB config
 
