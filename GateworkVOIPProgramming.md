@@ -42,9 +42,7 @@ The interface eth0 is providing power and will be configured in a later step.
 
 Make sure that eth1 has internet access.
 
-Before running updates for the packages, make sure that the eth0 is disabled, or
-the command below will fail because it will be going to a network interface that does
-not have internet access.
+
 
 ## Configuration
 
@@ -88,6 +86,9 @@ chmod ugo+w /mnt/data  /mnt/data/sounds  /mnt/data/pulse
 ```
 
 ## Packages
+
+Before running updates for the packages, make sure that the eth0 is disabled, or
+the command below will fail because it will be going to a network interface that does not have internet access.
 
 ```bash
 apt-get install -y baresip asterisk python3-serial microcom pulseaudio btop

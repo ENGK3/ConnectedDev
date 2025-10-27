@@ -29,17 +29,63 @@ EVENT_CALL_INCOMING = "CALL_INCOMING"
 EVENT_CALL_RINGING = "CALL_RINGING"
 
 
-def get_audio_routing_cmd(phone_number, skip_rerouting=False):
-    """Construct the audio routing command with the given phone number
+def extract_extension_from_uri(peeruri):
+    """Extract two-digit extension from peer URI
+
+    Args:
+        peeruri: The peer URI from baresip event (e.g., "sip:12@192.168.1.100")
+
+    Returns:
+        String containing two-digit extension, or "01" as default
+    """
+    if not peeruri:
+        return "01"
+
+    # Extract the user part from SIP URI (before @)
+    # Example: "sip:12@192.168.1.100" -> "12"
+    try:
+        # Remove sip: prefix if present
+        uri = peeruri.replace("sip:", "")
+        # Get the part before @
+        user_part = uri.split("@")[0]
+
+        # Ensure it's numeric and pad to 2 digits if needed
+        if user_part.isdigit():
+            extension = user_part.zfill(2)  # Pad with leading zero if single digit
+            logging.info(f"Extracted extension: {extension} from URI: {peeruri}")
+            return extension
+        else:
+            logging.warning(
+                f"Non-numeric extension in URI: {peeruri}, using default '01'"
+            )
+            return "01"
+    except Exception as e:
+        logging.warning(
+            f"Failed to parse extension from URI {peeruri}: {e}, using default '01'"
+        )
+        return "01"
+
+
+def get_audio_routing_cmd(phone_number, extension="01", skip_rerouting=False):
+    """Construct the audio routing command with the given phone number and extension
 
     Args:
         phone_number: Phone number to dial
+        extension: Two-digit extension/elevator number (default: "01")
         skip_rerouting: If True, adds -r flag to skip audio re-routing
 
     Returns:
         List of command arguments for subprocess
     """
-    cmd = ["/usr/bin/python3", "/mnt/data/place_call.py", "-n", phone_number, "-v"]
+    cmd = [
+        "/usr/bin/python3",
+        "/mnt/data/place_call.py",
+        "-n",
+        phone_number,
+        "-e",
+        extension,
+        "-v",
+    ]
     if skip_rerouting:
         cmd.append("-r")
     return cmd
@@ -294,14 +340,21 @@ def monitor_baresip_socket(sock, phone_number, skip_rerouting=False, stop_event=
 
                         # Store the call ID for later use
                         current_call_id = event.get("id")
+
+                        # Extract extension from peer URI
+                        peeruri = event.get("peeruri", "")
+                        extension = extract_extension_from_uri(peeruri)
+
                         logging.info(
-                            f"Call established (ID: {current_call_id}). Routing audio"
-                            " call..."
+                            f"Call established (ID: {current_call_id}, "
+                            f"Extension: {extension}). Routing audio call..."
                         )
                         call_in_progress = True
 
                         # Launch place_call.py
-                        audio_cmd = get_audio_routing_cmd(phone_number, skip_rerouting)
+                        audio_cmd = get_audio_routing_cmd(
+                            phone_number, extension, skip_rerouting
+                        )
                         logging.info(f"Executing: {' '.join(audio_cmd)}")
                         audio_proc = subprocess.Popen(
                             audio_cmd,

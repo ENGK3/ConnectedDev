@@ -938,6 +938,13 @@ if __name__ == "__main__":
         action="store_true",
         help="Skip sending TCP packet before call",
     )
+    parser.add_argument(
+        "-e",
+        "--elevator",
+        type=str,
+        help="Elevator number (two digits)",
+        default="01",
+    )
     args = parser.parse_args()
 
     serial_connection = serial.Serial()
@@ -950,10 +957,12 @@ if __name__ == "__main__":
 
             # Build the event data packet
             event_data = (
-                f"START CID=5822460189|AC=C12345|EC=01|MDL=Q01|APP=03020089|CRC = BEEF|"
+                f"START CID=5822460189|AC=C12345|EC={args.elevator}|MDL=Q01|"
+                f"APP=03020089|CRC = BEEF|"
                 f"BOOT = 03010007|TSPV=25.21.260-P0F.261803|CCI={iccid}|"
                 f"IMSI={imsi}|IMEI={imei}|"
-                f"NET=4G|APN=broadband|IMS=1|SS=067|RSRP=098|RSRQ=011|TMP1=+020|TMP2=+020|"
+                f"NET=4G|APN=broadband|IMS=1|SS=067|RSRP=098|RSRQ=011|"
+                f"TMP1=+020|TMP2=+020|"
                 f"BAT=1305|ZLST=01|STM=0450946E|UTM=02EBA09E|RST=0|PIN=1|THW=1.10 END"
             )
 
