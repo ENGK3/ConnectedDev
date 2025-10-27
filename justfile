@@ -49,13 +49,16 @@ voip:
     scp VOIP/baresip/accounts {{nuser}}@{{target}}:/mnt/data/accounts
     scp 99-ignore-modemmanager.rules {{nuser}}@{{target}}:/mnt/data/99-ignore-modemmanager.rules
 
+conf:
+    scp VOIP/asterisk/extensions.conf {{nuser}}@{{target}}:/mnt/data/extensions.conf
+    scp VOIP/asterisk/confbridge.conf {{nuser}}@{{target}}:/mnt/data/confbridge.conf
 
 asterisk:
     scp VOIP/interfaces {{nuser}}@{{target}}:/mnt/data/interfaces
     scp VOIP/asterisk/pjsip.conf {{nuser}}@{{target}}:/mnt/data/pjsip.conf
     scp VOIP/asterisk/extensions.conf {{nuser}}@{{target}}:/mnt/data/extensions.conf
     scp VOIP/voip_config.sh {{nuser}}@{{target}}:/mnt/data/voip_config.sh
-#        scp VOIP/asterisk/confbridge.conf {{nuser}}@{{target}}:/mnt/data/confbridge.conf
+    scp VOIP/asterisk/confbridge.conf {{nuser}}@{{target}}:/mnt/data/confbridge.conf
 
 push: modem switch leds service sounds boot pulse voip asterisk
 

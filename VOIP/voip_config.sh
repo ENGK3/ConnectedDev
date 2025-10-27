@@ -5,6 +5,10 @@ chown asterisk:asterisk /etc/asterisk/extensions.conf  \
      /etc/asterisk/pjsip.conf
 # /etc/asterisk/confbridge.conf
 
+# Create call log file and change ownership.
+touch /mnt/data/calls.log
+chown kuser:kuser /mnt/data/calls.log
+
 # Baresip setup
 mkdir -p /home/kuser/.baresip
 
