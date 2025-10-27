@@ -140,7 +140,7 @@ OK
 ```
 
 The LE910 will reboot after this command is executed, so quit the microcom program
-and reboot.
+with Ctrl+X and reboot.
 
 
 ### PulseAudio
