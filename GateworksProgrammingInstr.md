@@ -70,7 +70,7 @@ To facilitate the copying of files,
  ssh-copy-id kuser@172.20.10.71
 ```
 
-On the Gatworks target create the "/mnt/data/" directory.
+On the Gateworks target create the "/mnt/data/" directory.
 
 ```bash
 mkdir /mnt/data
