@@ -24,10 +24,12 @@ def main():
     iccid = "89010303300044214949"
     imei = "352176536546312"
     imsi = "310030004421494"
-    event_data = "START CID=5822460189|AC=C12345|EC=01|MDL=Q01|APP=03020089|CRC = "
-    f"BEEF|BOOT = 03010007|TSPV=25.21.260-P0F.261803|CCI={iccid}|IMSI={imsi}|"
-    f"IMEI={imei}|NET=4G|APN=broadband|IMS=1|SS=067|RSRP=098|RSRQ=011|TMP1=+020|"
-    "TMP2=+020|BAT=1305|ZLST=01|STM=0450946E|UTM=02EBA09E|RST=0|PIN=1|THW=1.10 END"
+    event_data = (
+        f"START CID=5822460189|AC=C12345|EC=01|MDL=Q01|APP=03020089|CRC = "
+        f"BEEF|BOOT = 03010007|TSPV=25.21.260-P0F.261803|CCI={iccid}|IMSI={imsi}|"
+        f"IMEI={imei}|NET=4G|APN=broadband|IMS=1|SS=067|RSRP=098|RSRQ=011|TMP1=+020|"
+        f"TMP2=+020|BAT=1305|ZLST=01|STM=0450946E|UTM=02EBA09E|RST=0|PIN=1|THW=1.10 END"
+    )
 
     logging.info(f"Connecting to {hostname}:{port} via direct TCP socket...")
     try:
