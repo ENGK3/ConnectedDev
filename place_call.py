@@ -13,6 +13,7 @@ import serial
 DEFAULT_RESPONSE_TIMEOUT = 30  # seconds
 AT_COMMAND_TIMEOUT = 5  # seconds for AT command responses
 SOCKET_CONNECT_TIMEOUT = 30  # seconds for socket connection
+MAX_NO_DATA_ITERATIONS = 10  # Maximum iterations with no data before giving up early
 
 
 def sbc_cmd(cmd: str, serial_connection: serial.Serial, verbose: bool) -> str:
@@ -88,9 +89,6 @@ def sbc_cmd_with_timeout(
         response_lines = []
         start_time = time.time()
         no_data_count = 0
-        max_no_data_iterations = (
-            10  # Maximum iterations with no data before giving up early
-        )
 
         while (time.time() - start_time) < timeout:
             if serial_connection.in_waiting > 0:
@@ -116,7 +114,7 @@ def sbc_cmd_with_timeout(
                 no_data_count += 1
                 # If we already have response lines and there's been no data for a
                 # while, break early
-                if response_lines and no_data_count > max_no_data_iterations:
+                if response_lines and no_data_count > MAX_NO_DATA_ITERATIONS:
                     if verbose:
                         logging.debug(
                             f"No more data after {no_data_count} iterations, breaking"
