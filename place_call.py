@@ -140,14 +140,14 @@ def check_network_status(
 ) -> None:
     """
     Check and log network registration and signal quality before sending data.
-    Sends AT+CREG?, AT+CGREG?, and AT+CSQ to the modem and logs the results.
+    Sends AT+CREG?, AT+CEREG?, and AT+CSQ to the modem and logs the results.
     """
     try:
         creg = sbc_cmd_with_timeout("AT+CREG?\r", serial_connection, verbose=False)
-        cgreg = sbc_cmd_with_timeout("AT+CGREG?\r", serial_connection, verbose=False)
+        cereg = sbc_cmd_with_timeout("AT+CEREG?\r", serial_connection, verbose=False)
         csq = sbc_cmd_with_timeout("AT+CSQ\r", serial_connection, verbose=False)
         logging.info(f"Network registration (AT+CREG?): {creg.strip()}")
-        logging.info(f"GPRS registration (AT+CGREG?): {cgreg.strip()}")
+        logging.info(f"EPS Network registration (AT+CEREG?): {cereg.strip()}")
         logging.info(f"Signal quality (AT+CSQ): {csq.strip()}")
     except Exception as e:
         logging.error(f"Error checking network status: {e}")
