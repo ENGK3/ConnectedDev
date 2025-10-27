@@ -78,7 +78,7 @@ To facilitate the copying of files,
  # Or the correct address you have for the internet connected ethernet connection.
 ```
 
-On the Gatworks target create the "/mnt/data/" directory.
+On the Gateworks target create the "/mnt/data/" directory.
 
 ```bash
 mkdir /mnt/data
