@@ -10,4 +10,3 @@ elif [[ "$1" == "OFF" ]]; then
 else
     echo "Unknown command: $1"
 fi
-

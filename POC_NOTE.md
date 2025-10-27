@@ -11,4 +11,3 @@ file, so care should be taken to make sure it doesn't get too big. Also note tha
 there is no Real Time Clock and the time is not captured from the LTE network.
 1. There is an issue on a controlled shutdown where the unit makes an unintended call. This is not an issue if the power is just removed.
 1. At times the POC will dial, connect and immediately disconnect. It is not understood why this is occurring.
-

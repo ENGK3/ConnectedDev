@@ -1,0 +1,40 @@
+[tool.ruff]
+# Exclude common directories
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "output",
+]
+
+# Set the maximum line length
+line-length = 88
+
+# Target Python version
+target-version = "py38"
+
+[tool.ruff.lint]
+# Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
+# Add other rule sets as needed:
+# - `I` for isort (import sorting)
+# - `N` for pep8-naming
+# - `UP` for pyupgrade
+# - `B` for flake8-bugbear
+select = ["E", "F", "I", "N", "UP", "B"]
+
+# Ignore specific rules if needed
+ignore = []
+
+# Allow autofix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.format]
+# Use double quotes for strings
+quote-style = "double"
+
+# Indent with spaces
+indent-style = "space"

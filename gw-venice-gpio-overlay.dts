@@ -1,0 +1,43 @@
+/*
+ * GW72xx GPIO:
+ *  - repurpose ecspi2 CLK/MISO/MOSI/CS0 as GPIO
+ *  - repurpose i2c3 CLK/DATA as GPIO
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+
+#include "imx8mm-pinfunc.h"
+
+/dts-v1/;
+/plugin/;
+
+&uart3 {
+	status = "disabled";
+};
+
+&gpio5 {
+        pinctrl-names = "default";
+        pinctrl-0 = <&pinctrl_gpio5_hog>;
+        gpio-line-names = "", "", "", "", "", "", "", "", "", "",
+                          "", "", "", "", "", "",
+                          "", "", "", "", "", "", "", "", "", "",
+			  "btn_red_led", "extra-io";
+};
+
+
+&iomuxc {
+        /* pinmux: refer to IMX8M Reference Manuals for the bit configuration
+         *  - the first definition comes from imx8mm-pinfunc.h and sets the
+         *    pins NUX_CTL register and input select
+         *  - the second definition sets the PAD_CTL register that configures
+         *    things like drive strength, slew rate, pull-up, pull-down, and hysteresis.
+         *    If you want to be able to read back the pin state you need to set the SION
+         *    bit by setting bit 30 (as is done below)
+         */
+        pinctrl_gpio5_hog: gpio5hoggrp {
+                fsl,pins = <
+			MX8MM_IOMUXC_UART3_RXD_GPIO5_IO26             0x140
+			MX8MM_IOMUXC_UART3_TXD_GPIO5_IO27             0x140
+                >;
+        };
+};
