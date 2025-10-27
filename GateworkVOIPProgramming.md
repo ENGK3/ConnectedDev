@@ -23,9 +23,9 @@ If the ethernet eth1 interface doesn't come up and get an ip address.
 
 ```bash
 root@noble-venice:~# ip addr show eth1
-2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+2: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
     link/ether 00:d0:12:07:fa:02 brd ff:ff:ff:ff:ff:ff
-    altname end0
+    altname end1
     inet 172.20.10.71/24 brd 172.20.10.255 scope global dynamic noprefixroute eth0
        valid_lft 601249sec preferred_lft 525744sec
     inet6 fe80::d6dd:4eca:da70:827d/64 scope link
