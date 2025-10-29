@@ -7,76 +7,34 @@ This repository contains scripts, configurations, and documentation for the King
 ```bash
 King3-build/
 ├── 99-ignore-modemmanager.rules
-├── asound.state
-├── check_reg.py
-├── config_sys.sh
-├── daemon.conf
-├── digi-config
-├── GateworksProgrammingInstr.md
 ├── GateworkVOIPProgramming.md
-├── gw-venice-gpio-overlay.dts
-├── imx8mm-venice-gw7xxx-0x-gpio.dtbo
+├── GateworkVOIPProgramming.pdf
+├── GateworksProgrammingInstr.md
 ├── InitialProgrammingInstr.md
-├── justfile
-├── led_blue.sh
-├── led_green.sh
-├── led_red.sh
-├── microcom.alias
-├── PACKAGE_SUMMARY.md
-├── place_call.py
+├── K3_QS2_WiringDiagram.png
 ├── POC_NOTE.md
-├── pulseaudio.modded.service
-├── pulseaudio.service
-├── pyproject.toml
 ├── README.md
-├── switch_detect.sh
-├── switch_mon.service
-├── switch_mon.sh
 ├── TF-config
-├── VERSIONING_AND_INTEGRITY.md
-├── common/
-├── explore/
-│   ├── BARESIP_TCP_API.md
-│   ├── EDC_packet.py
-│   ├── EDC_packet_direct.py
-│   ├── extract_dev.py
-│   ├── PLACE_CALL_FIX.md
-│   ├── start.sh
-│   └── VOIP_MONITOR_CHANGELOG.md
-├── integrity-system/
-│   ├── QUICK_REFERENCE.txt
-│   ├── README.txt
-│   ├── VERSION
-│   ├── check_modifications.sh
-│   ├── commit_authorized_changes.sh
-│   ├── generate_checksums.sh
-│   ├── generate_version.sh
-│   ├── init_deployment.sh
-│   ├── integrity_monitor.py
-│   ├── integrity_monitor.service
-│   ├── integrity_monitor.timer
-│   ├── justfile.patch
-│   ├── show_version.sh
-│   ├── verify_installation.sh
-│   └── version_info.py
-├── sounds/
-│   ├── ENU00012.wav
-│   ├── ENU00209-48k.wav
-│   ├── ENU00209.wav
-│   ├── ENU00439.wav
-│   ├── ENU00456-48k.wav
-│   ├── ENU00456.wav
-│   ├── ENU00459.wav
-│   ├── S0000209.wav
-│   ├── S0000300.wav
-│   ├── S0000301.wav
-│   ├── S0000302.wav
-│   ├── S0000303-48k.wav
-│   ├── S0000303.wav
-│   ├── S0000304.wav
-│   └── S0000305.wav
-├── VOIP/
+├── VOIP
+│   ├── VOIPLayout.drawio
+│   ├── VOIPLayout.png
+│   ├── asterisk
+│   │   ├── ari-mon-conf.py
+│   │   ├── asterisk.override.conf
+│   │   ├── confbridge.conf
+│   │   ├── extensions.conf
+│   │   ├── modules.conf
+│   │   └── pjsip.conf
+│   ├── baresip
+│   │   ├── accounts
+│   │   └── config
 │   ├── interfaces
+│   ├── latest
+│   │   ├── confbridge.conf
+│   │   ├── extensions.conf
+│   │   └── pjsip.conf
+│   ├── pulseaudio
+│   │   └── default.pa
 │   ├── setup_audio_routing.sh
 │   ├── setup_telit_routing.sh
 │   ├── teardown_audio_routing.sh
@@ -84,21 +42,34 @@ King3-build/
 │   ├── voip_call_monitor.service
 │   ├── voip_call_monitor_tcp.py
 │   ├── voip_call_rerouting.py
-│   ├── voip_config.sh
-│   ├── VOIPLayout.drawio
-│   ├── VOIPLayout.png
-│   ├── asterisk/
-│   │   ├── asterisk.override.conf
-│   │   ├── barge_notes.md
-│   │   ├── confbridge.conf
-│   │   ├── extensions.conf
-│   │   ├── modules.conf
-│   │   └── pjsip.conf
-│   ├── baresip/
-│   │   ├── accounts
-│   │   └── config
-│   └── pulseaudio/
-│       └── default.pa
+│   └── voip_config.sh
+├── asound.state
+├── check_reg.py
+├── common
+├── config_sys.sh
+├── daemon.conf
+├── digi-config
+├── explore
+│   ├── .. a directory of file that I don't want to
+|    lose, but don't have any functional value currently.
+|    Mostly debugging exploring ideas types of scripts.
+├── gw-venice-gpio-overlay.dts
+├── imx8mm-venice-gw7xxx-0x-gpio.dtbo
+├── integrity-system
+│   ├── .. ignore
+├── justfile
+├── led_blue.sh
+├── led_green.sh
+├── led_red.sh
+├── microcom.alias
+├── place_call.py
+├── pulseaudio.service
+├── pyproject.toml
+├── sounds
+│   ├── ..
+├── switch_detect.sh
+├── switch_mon.service
+└── switch_mon.sh
 ```
 
 ## Project Files
