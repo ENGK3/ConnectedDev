@@ -2,11 +2,14 @@
 
 This repository contains scripts, configurations, and documentation for the King3 embedded system project, which includes VoIP functionality, cellular modem integration, and audio routing on Gateworks hardware platforms.
 
-## Directory Tree (as of October 22, 2025)
+## Directory Tree (as of October 29, 2025)
 
 ```bash
-King3-build/
+./
 ├── 99-ignore-modemmanager.rules
+├── Digi
+│   ├── TF-config
+│   └── digi-config
 ├── GateworkVOIPProgramming.md
 ├── GateworkVOIPProgramming.pdf
 ├── GateworksProgrammingInstr.md
@@ -14,7 +17,6 @@ King3-build/
 ├── K3_QS2_WiringDiagram.png
 ├── POC_NOTE.md
 ├── README.md
-├── TF-config
 ├── VOIP
 │   ├── VOIPLayout.drawio
 │   ├── VOIPLayout.png
@@ -29,10 +31,6 @@ King3-build/
 │   │   ├── accounts
 │   │   └── config
 │   ├── interfaces
-│   ├── latest
-│   │   ├── confbridge.conf
-│   │   ├── extensions.conf
-│   │   └── pjsip.conf
 │   ├── pulseaudio
 │   │   └── default.pa
 │   ├── setup_audio_routing.sh
@@ -45,10 +43,8 @@ King3-build/
 │   └── voip_config.sh
 ├── asound.state
 ├── check_reg.py
-├── common
 ├── config_sys.sh
 ├── daemon.conf
-├── digi-config
 ├── explore
 │   ├── .. a directory of file that I don't want to
 |    lose, but don't have any functional value currently.
