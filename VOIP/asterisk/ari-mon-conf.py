@@ -40,6 +40,7 @@ class ARIConfMonitor:
         self.conference_started = False
         self.admin_channel_id = None  # Track admin channel
         self.conference_channels = set()  # Track all conference participants
+        self.admin_call_in_progress = False  # Prevent duplicate admin calls
 
     async def connect(self):
         """Establish connection to ARI"""
@@ -62,6 +63,16 @@ class ARIConfMonitor:
 
     async def originate_call(self):
         """Originate a call to the admin extension and join to conference"""
+        # Prevent duplicate calls
+        if self.admin_call_in_progress or self.admin_channel_id is not None:
+            logger.info(
+                f"Admin call already in progress or admin already in conference. "
+                f"Skipping duplicate call. (in_progress={self.admin_call_in_progress}, "
+                f"admin_channel_id={self.admin_channel_id})"
+            )
+            return None
+
+        self.admin_call_in_progress = True
         endpoint = f"PJSIP/{self.extension}"
 
         originate_data = {
@@ -90,9 +101,11 @@ class ARIConfMonitor:
                     logger.error(
                         f"Failed to originate call: {resp.status} - {error_text}"
                     )
+                    self.admin_call_in_progress = False  # Reset on failure
                     return None
         except Exception as e:
             logger.error(f"Error originating call: {e}")
+            self.admin_call_in_progress = False  # Reset on error
             return None
 
     async def add_to_conference(self, channel_id):
@@ -171,6 +184,8 @@ class ARIConfMonitor:
             if conf_name == self.conference_name:
                 logger.info(f"Adding channel {channel_id} to conference {conf_name}")
                 self.admin_channel_id = channel_id  # Track admin channel
+                # Don't reset admin_call_in_progress yet - wait until they actually
+                # join the bridge
                 await self.add_to_conference(channel_id)
 
     async def handle_channel_state_change(self, event):
@@ -200,13 +215,9 @@ class ARIConfMonitor:
             f"Bridge created: {bridge_id}, name: {bridge_name}: (type: {bridge_type})"
         )
 
-        # Check if this is our conference bridge starting
-        if bridge_name == self.conference_name and not self.conference_started:
-            logger.info(
-                f"Conference {self.conference_name} started - triggering admin join"
-            )
-            self.conference_started = True
-            await self.originate_call()
+        # Don't trigger on bridge creation - wait for first participant to join
+        # This prevents duplicate admin calls
+        logger.debug(f"Bridge {bridge_name} created, waiting for participants to join")
 
     async def handle_channel_entered_bridge(self, event):
         """Handle channel entering bridge"""
@@ -223,15 +234,27 @@ class ARIConfMonitor:
             self.conference_channels.add(channel_id)
             logger.info(f"Tracked channel {channel_id} in conference")
 
-            # Trigger admin join if this is first non-admin participant
-            # and admin is not already in the conference
+            # If this is the admin channel joining, reset the in-progress flag
+            if channel_id == self.admin_channel_id:
+                self.admin_call_in_progress = False
+                logger.info(
+                    f"Admin channel {channel_id} successfully joined conference"
+                )
+                return  # Don't trigger another admin call
+
+            # Trigger admin join only if:
+            # 1. Conference hasn't started, OR
+            # 2. Admin is not in the conference and there are participants
             if not self.conference_started or (
-                self.admin_channel_id is None and len(self.conference_channels) > 0
+                self.admin_channel_id is None
+                and not self.admin_call_in_progress
+                and len(self.conference_channels) > 0
             ):
                 logger.info(
                     f"Participant joined {self.conference_name} - triggering "
                     f"admin join (conference_started={self.conference_started}, "
-                    f"admin_channel={self.admin_channel_id})"
+                    f"admin_channel={self.admin_channel_id}, "
+                    f"admin_call_in_progress={self.admin_call_in_progress})"
                 )
                 self.conference_started = True
                 await self.originate_call()
@@ -245,6 +268,7 @@ class ARIConfMonitor:
             logger.info(f"Conference {self.conference_name} ended - resetting state")
             self.conference_started = False
             self.admin_channel_id = None
+            self.admin_call_in_progress = False
             self.conference_channels.clear()
 
     async def handle_channel_left_bridge(self, event):
@@ -269,6 +293,7 @@ class ARIConfMonitor:
             )
             await self.hangup_all_participants()
             self.admin_channel_id = None
+            self.admin_call_in_progress = False  # Reset so admin can be called again
 
     async def hangup_all_participants(self):
         """Hangup all channels still in the conference"""
