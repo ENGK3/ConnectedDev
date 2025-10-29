@@ -50,6 +50,18 @@ Here is a diagram of the configuration being setup.
 
 ![System Configuration](VOIP/VOIPLayout.png)
 
+### How it works
+
+The diagram above shows the moving parts of the VOIP system.
+1. A call to the conference number (9876) is placed by extension 101 and Asterisk
+puts the caller in the conference call named 'elevator_conference'.
+1. A script "listening to the asterisk server "hears" the conference call being
+established and dials the extension 200, which causes..
+1. A script "listening" to the extension 200 client sees the incoming call which is
+answered automatically, places the call to the number provided (EDC number).
+1. Once connected the call is automatically added to the 'elevator_conference' as
+the admin of the call.
+
 ## Push VOIP phone scripts
 
 To be able to push the voip setup scripts to the Gateworks board a user needs to be
@@ -91,7 +103,8 @@ Before running updates for the packages, make sure that the eth0 is disabled, or
 the command below will fail because it will be going to a network interface that does not have internet access.
 
 ```bash
-apt-get install -y baresip asterisk python3-serial microcom pulseaudio btop
+apt-get install -y baresip asterisk python3-serial microcom pulseaudio btop \
+    python3-aiohttp
 
 # --fix-missing might be needed.
 ```
@@ -233,120 +246,21 @@ journalctl -u voip_call_monitor.service -f
 
 ### Asterisk
 
-The asterisk server needs to know about the extensions in the '/etc/asterisk/pjsip.conf'
-file.
-An example is shown below.
+The asterisk server needs to know about the following files.
 
 ```bash
-[transport-udp]
-type=transport
-protocol=udp
-bind=192.168.80.10:5060
-
-;==============================================================================
-; Templates - Define common settings once
-;==============================================================================
-
-; Template for all endpoints
-[endpoint-template](!)
-type=endpoint
-context=from-internal
-disallow=all
-allow=ulaw
-allow=alaw
-direct_media=no
-rtp_symmetric=yes
-rewrite_contact=yes
-
-; Template for all auth sections
-[auth-template](!)
-type=auth
-auth_type=userpass
-; Note: password must be set per extension for security
-
-; Template for all AORs
-[aor-template](!)
-type=aor
-max_contacts=8
-remove_existing=yes
-qualify_frequency=180
-
-;==============================================================================
-; Extensions - Unique values per extension
-;==============================================================================
-
-; Extension 101
-[101](endpoint-template)
-auth=101
-aors=101
-
-[101](auth-template)
-username=101
-password=unique_password_101
-
-[101](aor-template)
-
-; Extension 102
-[102](endpoint-template)
-auth=102
-aors=102
-
-[102](auth-template)
-username=102
-password=unique_password_102
-
-[102](aor-template)
-
-; Extension 103
-[103](endpoint-template)
-auth=103
-aors=103
-
-[103](auth-template)
-username=103
-password=unique_password_103
-
-[103](aor-template)
-
-; Extension 104
-[104](endpoint-template)
-auth=104
-aors=104
-
-[104](auth-template)
-username=104
-password=unique_password_104
-
-[104](aor-template)
-
-; These extensions have special roles in the system.
-
-; Extension 200
-[200](endpoint-template)
-auth=200
-aors=200
-
-[200](auth-template)
-username=200
-password=unique_password_200
-
-[200](aor-template)
-
-; Extension 201 First Master phone.
-[201](endpoint-template)
-auth=201
-aors=201
-
-[201](auth-template)
-username=201
-password=unique_password_201
-
-[201](aor-template)
+/etc/asterisk/pjsip.conf
+/etc/asterisk/modules.conf
+/etc/asterisk/confbridge.conf
+/etc/asterisk/extensions.conf
 ```
+
+These files are all part of the VOIP package and should be examined if changes are
+needed to the configuration.
 
 **NOTE:** The authentication for the extensions loaded here need to match the
 .baresip/accounts file.
-**NOTE:** The passwords are in the clear!
+**NOTE:** The passwords are in the clear!!!!
 
 The asterisk.service configuration needs to be modified to get it to start at boot
 and handle calls. This is done by having a override.conf file in the
@@ -376,8 +290,6 @@ As 'root' run the following once the asterisk files are in place.
 systemctl enable asterisk
 systemctl start asterisk
 ```
-
-
 
 ## Setup of Viking phone
 
