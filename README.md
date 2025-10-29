@@ -66,7 +66,7 @@ King3-build/
 ├── pulseaudio.service
 ├── pyproject.toml
 ├── sounds
-│   ├── ..
+│   ├── .. sounds for the pool config
 ├── switch_detect.sh
 ├── switch_mon.service
 └── switch_mon.sh
