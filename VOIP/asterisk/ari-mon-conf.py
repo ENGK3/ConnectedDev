@@ -38,6 +38,8 @@ class ARIConfMonitor:
         self.session = None
         self.ws = None
         self.conference_started = False
+        self.admin_channel_id = None  # Track admin channel
+        self.conference_channels = set()  # Track all conference participants
 
     async def connect(self):
         """Establish connection to ARI"""
@@ -66,7 +68,7 @@ class ARIConfMonitor:
             "endpoint": endpoint,
             "app": ARI_APP_NAME,
             "appArgs": f"conf,{self.conference_name}",
-            "callerId": "Conference Auto-Join <9876>",
+            "callerId": f"{self.extension}",
             "timeout": 30,
         }
 
@@ -167,7 +169,8 @@ class ARIConfMonitor:
         if len(app_args) >= 2 and app_args[0] == "conf":
             conf_name = app_args[1]
             if conf_name == self.conference_name:
-                logger.info(f"Adding channel {channel_id}to conference {conf_name}")
+                logger.info(f"Adding channel {channel_id} to conference {conf_name}")
+                self.admin_channel_id = channel_id  # Track admin channel
                 await self.add_to_conference(channel_id)
 
     async def handle_channel_state_change(self, event):
@@ -209,28 +212,82 @@ class ARIConfMonitor:
         """Handle channel entering bridge"""
         bridge = event.get("bridge", {})
         channel = event.get("channel", {})
-        bridge_id = bridge.get("id")
+        bridge_name = bridge.get("name", "")
         channel_name = channel.get("name")
+        channel_id = channel.get("id")
 
-        logger.info(f"Channel {channel_name} entered bridge {bridge_id}")
+        logger.info(f"Channel {channel_name} entered bridge {bridge_name}")
 
-        # Alternative trigger: first channel joins conference
-        if bridge_id == self.conference_name and not self.conference_started:
-            logger.info(
-                f"First participant joined {self.conference_name} - triggering "
-                f"admin join"
-            )
-            self.conference_started = True
-            await self.originate_call()
+        # Track participants in our conference
+        if bridge_name == self.conference_name:
+            self.conference_channels.add(channel_id)
+            logger.info(f"Tracked channel {channel_id} in conference")
+
+            # Trigger admin join if this is first non-admin participant
+            # and admin is not already in the conference
+            if not self.conference_started or (
+                self.admin_channel_id is None and len(self.conference_channels) > 0
+            ):
+                logger.info(
+                    f"Participant joined {self.conference_name} - triggering "
+                    f"admin join (conference_started={self.conference_started}, "
+                    f"admin_channel={self.admin_channel_id})"
+                )
+                self.conference_started = True
+                await self.originate_call()
 
     async def handle_bridge_destroyed(self, event):
         """Handle bridge destruction - reset state"""
         bridge = event.get("bridge", {})
-        bridge_id = bridge.get("id")
+        bridge_name = bridge.get("name", "")
 
-        if bridge_id == self.conference_name:
+        if bridge_name == self.conference_name:
             logger.info(f"Conference {self.conference_name} ended - resetting state")
             self.conference_started = False
+            self.admin_channel_id = None
+            self.conference_channels.clear()
+
+    async def handle_channel_left_bridge(self, event):
+        """Handle channel leaving bridge - hangup others if admin leaves"""
+        bridge = event.get("bridge", {})
+        channel = event.get("channel", {})
+        bridge_name = bridge.get("name", "")
+        channel_id = channel.get("id")
+        channel_name = channel.get("name")
+
+        logger.info(f"Channel {channel_name} left bridge {bridge_name}")
+
+        # Remove from tracking
+        if channel_id in self.conference_channels:
+            self.conference_channels.discard(channel_id)
+
+        # If admin left the conference, hangup all remaining participants
+        if bridge_name == self.conference_name and channel_id == self.admin_channel_id:
+            logger.info(
+                f"Admin channel {channel_id} left conference - "
+                f"hanging up all participants"
+            )
+            await self.hangup_all_participants()
+            self.admin_channel_id = None
+
+    async def hangup_all_participants(self):
+        """Hangup all channels still in the conference"""
+        channels_to_hangup = list(self.conference_channels)
+
+        for channel_id in channels_to_hangup:
+            try:
+                hangup_url = f"{self.base_url}/channels/{channel_id}"
+                async with self.session.delete(hangup_url) as resp:
+                    if resp.status == 204:
+                        logger.info(f"Hung up channel {channel_id}")
+                    else:
+                        logger.warning(
+                            f"Failed to hangup channel {channel_id}: {resp.status}"
+                        )
+            except Exception as e:
+                logger.error(f"Error hanging up channel {channel_id}: {e}")
+
+        self.conference_channels.clear()
 
     async def handle_event(self, event):
         """Route events to appropriate handlers"""
@@ -241,6 +298,7 @@ class ARIConfMonitor:
             "ChannelStateChange": self.handle_channel_state_change,
             "BridgeCreated": self.handle_bridge_created,
             "ChannelEnteredBridge": self.handle_channel_entered_bridge,
+            "ChannelLeftBridge": self.handle_channel_left_bridge,
             "BridgeDestroyed": self.handle_bridge_destroyed,
         }
 
