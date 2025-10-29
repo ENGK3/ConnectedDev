@@ -53,6 +53,9 @@ conf:
     scp VOIP/asterisk/extensions.conf {{nuser}}@{{target}}:/mnt/data/extensions.conf
     scp VOIP/asterisk/confbridge.conf {{nuser}}@{{target}}:/mnt/data/confbridge.conf
 
+ari:
+    scp VOIP/asterisk/ari-mon-conf.py {{nuser}}@{{target}}:/mnt/data/ari-mon-conf.py
+
 asterisk:
     scp VOIP/interfaces {{nuser}}@{{target}}:/mnt/data/interfaces
     scp VOIP/asterisk/pjsip.conf {{nuser}}@{{target}}:/mnt/data/pjsip.conf
