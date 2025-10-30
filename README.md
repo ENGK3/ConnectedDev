@@ -31,6 +31,7 @@ This repository contains scripts, configurations, and documentation for the King
 │   ├── start.sh
 │   ├── VERSIONING_AND_INTEGRITY.md
 │   └── VOIP_MONITOR_CHANGELOG.md
+├── generate_version.sh
 ├── GateworksProgrammingInstr.md
 ├── GateworkVOIPProgramming.md
 ├── gw-venice-gpio-overlay.dts
@@ -48,6 +49,7 @@ This repository contains scripts, configurations, and documentation for the King
 ├── pulseaudio.service
 ├── pyproject.toml
 ├── README.md
+├── show_version.sh
 ├── sounds/
 │   └── (audio files for pool configuration)
 ├── switch_detect.sh
@@ -56,9 +58,11 @@ This repository contains scripts, configurations, and documentation for the King
 └── VOIP/
     ├── asterisk/
     │   ├── ari-mon-conf.py
+    │   ├── ari.conf
     │   ├── asterisk.override.conf
     │   ├── confbridge.conf
     │   ├── extensions.conf
+    │   ├── http.conf
     │   ├── modules.conf
     │   └── pjsip.conf
     ├── baresip/
@@ -71,6 +75,7 @@ This repository contains scripts, configurations, and documentation for the King
     ├── setup_telit_routing.sh
     ├── teardown_audio_routing.sh
     ├── teardown_telit_routing.sh
+    ├── voip_ari_conference.service
     ├── voip_call_monitor.service
     ├── voip_call_monitor_tcp.py
     ├── voip_call_rerouting.py
@@ -86,9 +91,11 @@ This repository contains scripts, configurations, and documentation for the King
 | Filename | Directory | Description |
 |----------|-----------|-------------|
 | `config_sys.sh` | `.` | System configuration script that sets up udev rules, systemd services, PulseAudio configuration, and enables necessary system services |
+| `generate_version.sh` | `.` | Generates version information file with git commit hash, branch, and timestamp |
 | `led_blue.sh` | `.` | Controls the blue LED on/off (GPIO control for status indication) |
 | `led_green.sh` | `.` | Controls the green LED on/off on GPIO 9 (Gateworks GW7200 board) |
 | `led_red.sh` | `.` | Controls the red LED on/off on GPIO 26 (Gateworks GW7200 board) |
+| `show_version.sh` | `.` | Displays current version information from VERSION_INFO file |
 | `setup_audio_routing.sh` | `VOIP/` | Sets up PulseAudio loopback modules for routing audio between USB headset and SGTL5000 sound card |
 | `setup_telit_routing.sh` | `VOIP/` | Configures PulseAudio loopback modules for routing audio between Telit LE910C1 modem and SGTL5000 sound card |
 | `start.sh` | `explore/` | Docker container startup script for DEY 4.0 development environment |
@@ -114,6 +121,7 @@ This repository contains scripts, configurations, and documentation for the King
 |----------|-----------|-------------|
 | `pulseaudio.service` | `.` | Systemd user service for PulseAudio sound server, creates runtime directory and runs as user service |
 | `switch_mon.service` | `.` | Systemd service for GPIO switch monitoring, depends on network and ttyUSB2 device, runs switch_mon.sh as kuser |
+| `voip_ari_conference.service` | `VOIP/` | Systemd service for ARI conference monitoring, depends on Asterisk service, runs ari-mon-conf.py |
 | `voip_call_monitor.service` | `VOIP/` | Systemd service for VoIP call monitoring over TCP, depends on Asterisk service and ttyUSB2 device, runs voip_call_monitor_tcp.py |
 
 ### Configuration Files
@@ -121,9 +129,11 @@ This repository contains scripts, configurations, and documentation for the King
 | Filename | Directory | Description |
 |----------|-----------|-------------|
 | `daemon.conf` | `.` | PulseAudio daemon configuration file with settings for audio processing and system behavior |
+| `ari.conf` | `VOIP/asterisk/` | Asterisk ARI (Asterisk REST Interface) configuration with user credentials and connection settings |
 | `asterisk.override.conf` | `VOIP/asterisk/` | Systemd override for Asterisk service, adds dependencies on network and ttyUSB2 device with delayed start and restart |
 | `confbridge.conf` | `VOIP/asterisk/` | Asterisk ConfBridge configuration defining user profiles (default_user for extensions 101-104, default_admin for extension 200) and bridge settings |
 | `extensions.conf` | `VOIP/asterisk/` | Asterisk dialplan for elevator conference system with extension dialing (101-104, 200, 201) and conference extension 9876 |
+| `http.conf` | `VOIP/asterisk/` | Asterisk HTTP server configuration enabling the built-in HTTP server for ARI and other web interfaces |
 | `modules.conf` | `VOIP/asterisk/` | Asterisk module loader configuration specifying which modules to load or exclude |
 | `pjsip.conf` | `VOIP/asterisk/` | Asterisk PJSIP configuration with transport settings, endpoint templates, and extension definitions (101-104, 200, 201) |
 | `config` | `VOIP/baresip/` | Baresip SIP client configuration with audio (PulseAudio), video, and network settings |
