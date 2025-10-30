@@ -3,4 +3,5 @@ asterisk-gui*
 .vscode/
 GateworkVOIPProgramming.pdf
 integrity-system
-TF-config
+*.tgz
+VERSION_INFO
