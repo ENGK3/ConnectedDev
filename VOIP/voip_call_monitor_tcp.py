@@ -29,17 +29,26 @@ EVENT_CALL_INCOMING = "CALL_INCOMING"
 EVENT_CALL_RINGING = "CALL_RINGING"
 
 
-def get_audio_routing_cmd(phone_number, skip_rerouting=False):
-    """Construct the audio routing command with the given phone number
+def get_audio_routing_cmd(phone_number, extension="01", skip_rerouting=False):
+    """Construct the audio routing command with the given phone number and extension
 
     Args:
         phone_number: Phone number to dial
+        extension: Two-digit extension/elevator number (default: "01")
         skip_rerouting: If True, adds -r flag to skip audio re-routing
 
     Returns:
         List of command arguments for subprocess
     """
-    cmd = ["/usr/bin/python3", "/mnt/data/place_call.py", "-n", phone_number, "-v"]
+    cmd = [
+        "/usr/bin/python3",
+        "/mnt/data/place_call.py",
+        "-n",
+        phone_number,
+        "-e",
+        extension,
+        "-v",
+    ]
     if skip_rerouting:
         cmd.append("-r")
     return cmd
@@ -294,14 +303,17 @@ def monitor_baresip_socket(sock, phone_number, skip_rerouting=False, stop_event=
 
                         # Store the call ID for later use
                         current_call_id = event.get("id")
+
                         logging.info(
-                            f"Call established (ID: {current_call_id}). Routing audio"
-                            " call..."
+                            f"Call established (ID: {current_call_id}). "
+                            f"Routing audio call..."
                         )
                         call_in_progress = True
 
                         # Launch place_call.py
-                        audio_cmd = get_audio_routing_cmd(phone_number, skip_rerouting)
+                        audio_cmd = get_audio_routing_cmd(
+                            phone_number, "01", skip_rerouting
+                        )
                         logging.info(f"Executing: {' '.join(audio_cmd)}")
                         audio_proc = subprocess.Popen(
                             audio_cmd,

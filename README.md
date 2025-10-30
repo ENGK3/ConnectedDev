@@ -2,6 +2,83 @@
 
 This repository contains scripts, configurations, and documentation for the King3 embedded system project, which includes VoIP functionality, cellular modem integration, and audio routing on Gateworks hardware platforms.
 
+## Directory Tree (as of October 29, 2025)
+
+```bash
+./
+├── 99-ignore-modemmanager.rules
+├── asound.state
+├── check_reg.py
+├── config_sys.sh
+├── daemon.conf
+├── Digi/
+│   ├── TF-config
+│   └── digi-config
+├── explore/
+│   ├── ami-mon.py
+│   ├── ARI_CONFBRIDGE_FIX.md
+│   ├── ARI_SETUP.md
+│   ├── barge_notes.md
+│   ├── BARESIP_TCP_API.md
+│   ├── EDC_packet.py
+│   ├── EDC_packet_direct.py
+│   ├── extract_dev.py
+│   ├── mon_asterisk.py
+│   ├── monitor_and_join_ARI.py
+│   ├── PACKAGE_SUMMARY.md
+│   ├── PLACE_CALL_FIX.md
+│   ├── QUICK_FIX.md
+│   ├── start.sh
+│   ├── VERSIONING_AND_INTEGRITY.md
+│   └── VOIP_MONITOR_CHANGELOG.md
+├── GateworksProgrammingInstr.md
+├── GateworkVOIPProgramming.md
+├── gw-venice-gpio-overlay.dts
+├── imx8mm-venice-gw7xxx-0x-gpio.dtbo
+├── InitialProgrammingInstr.md
+├── integrity-system/
+│   ├── Ignore for the time being.
+├── justfile
+├── led_blue.sh
+├── led_green.sh
+├── led_red.sh
+├── microcom.alias
+├── place_call.py
+├── POC_NOTE.md
+├── pulseaudio.service
+├── pyproject.toml
+├── README.md
+├── sounds/
+│   └── (audio files for pool configuration)
+├── switch_detect.sh
+├── switch_mon.service
+├── switch_mon.sh
+└── VOIP/
+    ├── asterisk/
+    │   ├── ari-mon-conf.py
+    │   ├── asterisk.override.conf
+    │   ├── confbridge.conf
+    │   ├── extensions.conf
+    │   ├── modules.conf
+    │   └── pjsip.conf
+    ├── baresip/
+    │   ├── accounts
+    │   └── config
+    ├── interfaces
+    ├── pulseaudio/
+    │   └── default.pa
+    ├── setup_audio_routing.sh
+    ├── setup_telit_routing.sh
+    ├── teardown_audio_routing.sh
+    ├── teardown_telit_routing.sh
+    ├── voip_call_monitor.service
+    ├── voip_call_monitor_tcp.py
+    ├── voip_call_rerouting.py
+    ├── voip_config.sh
+    ├── VOIPLayout.drawio
+    └── VOIPLayout.png
+```
+
 ## Project Files
 
 ### Shell Scripts
@@ -12,38 +89,44 @@ This repository contains scripts, configurations, and documentation for the King
 | `led_blue.sh` | `.` | Controls the blue LED on/off (GPIO control for status indication) |
 | `led_green.sh` | `.` | Controls the green LED on/off on GPIO 9 (Gateworks GW7200 board) |
 | `led_red.sh` | `.` | Controls the red LED on/off on GPIO 26 (Gateworks GW7200 board) |
-| `setup_audio_routing.sh` | `.` | Sets up PulseAudio loopback modules for routing audio between USB headset and SGTL5000 sound card |
-| `setup_telit_routing.sh` | `.` | Configures PulseAudio loopback modules for routing audio between Telit LE910C1 modem and SGTL5000 sound card |
-| `start.sh` | `.` | Docker container startup script for DEY 4.0 development environment |
+| `setup_audio_routing.sh` | `VOIP/` | Sets up PulseAudio loopback modules for routing audio between USB headset and SGTL5000 sound card |
+| `setup_telit_routing.sh` | `VOIP/` | Configures PulseAudio loopback modules for routing audio between Telit LE910C1 modem and SGTL5000 sound card |
+| `start.sh` | `explore/` | Docker container startup script for DEY 4.0 development environment |
 | `switch_detect.sh` | `.` | Emergency switch press handler that plays audio alert and initiates emergency call |
 | `switch_mon.sh` | `.` | GPIO monitoring service that detects switch press events and triggers the switch_detect script |
-| `teardown_audio_routing.sh` | `.` | Removes PulseAudio loopback modules for headset audio routing |
-| `teardown_telit_routing.sh` | `.` | Removes PulseAudio loopback modules for Telit modem audio routing |
-
-
+| `teardown_audio_routing.sh` | `VOIP/` | Removes PulseAudio loopback modules for headset audio routing |
+| `teardown_telit_routing.sh` | `VOIP/` | Removes PulseAudio loopback modules for Telit modem audio routing |
+| `voip_config.sh` | `VOIP/` | Copies VoIP configuration files (Asterisk, Baresip, PulseAudio, network interfaces) to system directories and sets up systemd services |
 
 ### Python Scripts
 
 | Filename | Directory | Description |
 |----------|-----------|-------------|
 | `check_reg.py` | `.` | Checks cellular network registration status via AT commands to the Telit modem |
-| `EDC_packet.py` | `.` | TCP packet transmission using Telit LE910C1 modem with AT commands for event data communication |
-| `EDC_packet_direct.py` | `.` | Direct TCP socket implementation for sending event packets without using modem AT commands |
-| `extract_dev.py` | `.` | Extracts USB device interface numbers from PulseAudio source list (used for Telit modem detection) |
 | `place_call.py` | `.` | Initiates VoIP calls using baresip, handles audio routing, and logs call events |
-| `voip_call_rerouting.py` | `.` | Monitors baresip output and automatically reroutes audio when calls are established |
-| `Wait-answer.py` | `.` | Monitors baresip FIFO for incoming calls and automatically answers after a configurable delay |
+| `ari-mon-conf.py` | `VOIP/asterisk/` | ARI-based conference monitor that automatically adds a specified extension as admin when the first participant joins a ConfBridge conference |
+| `voip_call_monitor_tcp.py` | `VOIP/` | Monitors baresip via TCP socket interface, handles incoming calls, and launches place_call.py for audio routing when calls are established |
+| `voip_call_rerouting.py` | `VOIP/` | Monitors baresip output and automatically reroutes audio when calls are established by detecting call state changes |
 
-### Markdown Documentation
+### Systemd Service Files
 
 | Filename | Directory | Description |
 |----------|-----------|-------------|
-| `GateworksProgrammingInstr.md` | `.` | Programming and setup instructions for Gateworks Venice board with pool configuration |
-| `GateworkVOIPProgramming.md` | `.` | Programming instructions specific to VoIP solution on Gateworks Venice board with PoE configuration |
-| `InitialProgrammingInstr.md` | `.` | Initial programming instructions for Digiboard CC6 using UUU tool and firmware flashing |
-| `POC_NOTE.md` | `.` | Important notes and limitations about the POC (Proof of Concept) units including security warnings |
+| `pulseaudio.service` | `.` | Systemd user service for PulseAudio sound server, creates runtime directory and runs as user service |
+| `switch_mon.service` | `.` | Systemd service for GPIO switch monitoring, depends on network and ttyUSB2 device, runs switch_mon.sh as kuser |
+| `voip_call_monitor.service` | `VOIP/` | Systemd service for VoIP call monitoring over TCP, depends on Asterisk service and ttyUSB2 device, runs voip_call_monitor_tcp.py |
 
+### Configuration Files
 
+| Filename | Directory | Description |
+|----------|-----------|-------------|
+| `daemon.conf` | `.` | PulseAudio daemon configuration file with settings for audio processing and system behavior |
+| `asterisk.override.conf` | `VOIP/asterisk/` | Systemd override for Asterisk service, adds dependencies on network and ttyUSB2 device with delayed start and restart |
+| `confbridge.conf` | `VOIP/asterisk/` | Asterisk ConfBridge configuration defining user profiles (default_user for extensions 101-104, default_admin for extension 200) and bridge settings |
+| `extensions.conf` | `VOIP/asterisk/` | Asterisk dialplan for elevator conference system with extension dialing (101-104, 200, 201) and conference extension 9876 |
+| `modules.conf` | `VOIP/asterisk/` | Asterisk module loader configuration specifying which modules to load or exclude |
+| `pjsip.conf` | `VOIP/asterisk/` | Asterisk PJSIP configuration with transport settings, endpoint templates, and extension definitions (101-104, 200, 201) |
+| `config` | `VOIP/baresip/` | Baresip SIP client configuration with audio (PulseAudio), video, and network settings |
 
 ## System Overview
 
@@ -70,3 +153,12 @@ This project implements an embedded communication system with the following key 
 - GPIO control for switches and LEDs
 - Docker containerization for cross-compilation
 - Systemd services for background monitoring
+
+## Ignore the following directories
+
+The directories are experimental and not part of the production code.
+
+```bash
+explore
+integrity-system
+```
