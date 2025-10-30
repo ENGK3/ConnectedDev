@@ -260,7 +260,7 @@ needed to the configuration.
 
 **NOTE:** The authentication for the extensions loaded here need to match the
 .baresip/accounts file.
-**NOTE:** The passwords are in the clear!!!!
+**NOTE:** The passwords are stored in clear text!
 
 The asterisk.service configuration needs to be modified to get it to start at boot
 and handle calls. This is done by having a override.conf file in the
