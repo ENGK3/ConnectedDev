@@ -87,7 +87,7 @@ class ARIConfMonitor:
             url = f"{self.base_url}/channels"
             async with self.session.post(url, json=originate_data) as resp:
                 logger.info(f"Originating call to {endpoint}...")
-                logger.info(f"resp json data: {await resp.json()}")
+                logger.debug(f"resp json data: {await resp.json()}")
                 if resp.status == 200:
                     channel_data = await resp.json()
                     channel_id = channel_data["id"]
