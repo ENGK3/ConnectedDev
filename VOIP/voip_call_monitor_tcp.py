@@ -305,7 +305,7 @@ def monitor_baresip_socket(sock, phone_number, skip_rerouting=False, stop_event=
                         current_call_id = event.get("id")
 
                         logging.info(
-                            f"Call established (ID: {current_call_id}, "
+                            f"Call established (ID: {current_call_id}). "
                             f"Routing audio call..."
                         )
                         call_in_progress = True
