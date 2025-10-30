@@ -42,8 +42,6 @@ The interface eth0 is providing power and will be configured in a later step.
 
 Make sure that eth1 has internet access.
 
-
-
 ## Configuration
 
 Here is a diagram of the configuration being setup.
@@ -62,10 +60,38 @@ answered automatically, places the call to the number provided (EDC number).
 1. Once connected the call is automatically added to the 'elevator_conference' as
 the admin of the call.
 
-## Push VOIP phone scripts
+## Installing OS Packages
 
-To be able to push the voip setup scripts to the Gateworks board a user needs to be
-created
+Before running updates for the packages, make sure that the eth0 is disabled, or
+the command below will fail because it will be going to a network interface that does
+not have internet access.
+
+```bash
+apt-get install -y baresip asterisk python3-serial microcom pulseaudio btop \
+    python3-aiohttp
+
+# --fix-missing might be needed.
+```
+
+## Installing Kings III SW package
+
+There are two methods for moving the necessary scripts to the target board.
+The first method, and easiest method is to copy (using scp or WinSCP) the VOIP
+package tar file to the target. This method will be described first.
+There is an alternate method used while in development which is described last.
+
+With either method, the following is needed.
+On the Gateworks target as root create the "/mnt/data/" directory using the system
+console.
+
+```bash
+mkdir /mnt/data
+mkdir -p /mnt/data/sounds
+mkdir -p /mnt/data/pulse
+chmod ugo+w /mnt/data  /mnt/data/sounds  /mnt/data/pulse
+```
+
+Create a kuser by doing the following and answering the prompts.
 
 ```bash
 adduser kuser
@@ -81,60 +107,60 @@ the application is not being run as root.
 usermod -aG dialout,audio,plugdev  kuser
 ```
 
-To facilitate the copying of files,
+### Tarball Method
 
-```bash
- ssh-copy-id kuser@172.20.10.71
- # Or the correct address you have for the internet connected ethernet connection.
-```
+A tar file with the files to be installed can be used to install all the scripts and
+configuration needed for the VOIP solution.
 
-On the Gateworks target create the "/mnt/data/" directory.
+This method describes what is needed to be done using the tarball.
 
-```bash
-mkdir /mnt/data
-mkdir -p /mnt/data/sounds
-mkdir -p /mnt/data/pulse
-chmod ugo+w /mnt/data  /mnt/data/sounds  /mnt/data/pulse
-```
+First get the tar file of the package to the system into the '/mnt/' directory.
 
-## Packages
-
-Before running updates for the packages, make sure that the eth0 is disabled, or
-the command below will fail because it will be going to a network interface that does not have internet access.
-
-```bash
-apt-get install -y baresip asterisk python3-serial microcom pulseaudio btop \
-    python3-aiohttp
-
-# --fix-missing might be needed.
-```
-
-## Setup and Configuration
-
-### Copy script to the target
-
-There are several files that need to get to the target.
-This is done by one of two methods. A tar file "GW-VoIP-Setup.tgz" can be copied into the
-'/mnt/data' location and un-tar-ed there.
-
-The command from the development box 'just vpkgpush' can be executed if the networking and justfile have been configured
-correctly.
-
-Once the file is present on the target, untar it in the '/mnt/data'
-directory.
+A tar file "GW-VoIP-Setup.tgz" can be copied into the
+'/mnt/data' location and un-tar-ed there. The un-tar command should be run as root.
 
 ```bash
 cd /mnt/data
 tar -zxf GW-VoIP-Setup.tgz
 ```
 
-Once this is 'un-tar-ed', the script 'voip_config.sh' can be run.
+### Push Method
+
+To be able to use the "Push Method" a tool called just is used to push the scripts to
+'/mnt/data' directory. However, before that can be done the following is needed to
+facilitate the scp operations without having to user the kusers password for each file
+copied across.
+
+```bash
+ssh-copy-id kuser@172.20.10.71
+# Or the correct address you have for the internet connected ethernet connection.
+```
+
+Also, to be able to push the voip setup scripts to the Gateworks board a user (kuser)
+needs to be created, which should have been completed above.
+
+The 'justfile' may need to be adjusted for the target IP with this method.
+
+The command from the development box 'just vpkgpush' can be executed if the
+networking and justfile have been configured correctly.
+
+## Setup and Configuration
+
+### Execute the config script on the target
+
+Once the script "voip_config.sh" is present on the target, in the '/mnt/data'
+directory, it can be run as root with.
 
 ```bash
 ./voip_config.sh
 ```
 
-The command 'systemctl --user enable pulseaudio.service' still needs to be executed as the user 'kuser'
+This script will put various files in the correct locations on the file system.
+However, some of the files may still need adjustment. The next step is just one of
+these adjustments.
+
+**NOTE:** The command 'systemctl --user enable pulseaudio.service' still
+needs to be executed as the user 'kuser'
 
 ### Telit USB config
 
@@ -149,27 +175,27 @@ microcom -p /dev/ttyUSB2 -s 115200
 
 ATE1
 OK
-ATE#USBCFG=11
+AT#USBCFG=11
 OK
 ```
 
 The LE910 will reboot after this command is executed, so quit the microcom program
 with Ctrl+X and reboot.
 
-
 ### PulseAudio
 
 The following edits are appended to the '/etc/pulse/default.pa' file.
 
-To determine what the "dash number" for the LE910 is, execute the following command.
+To determine what the "dash number" for the LE910 is, execute the following command,
+'pactl list sinks short'. The output is shown below.
 
 ```bash
 kuser@noble-venice:/mnt/data$ pactl list sinks short
 1       alsa_output.usb-Android_LE910C1-NF_0123456789ABCDEF-03.mono-fallback    module-alsa-card.c    s16le 1ch 16000Hz        SUSPENDED
 ```
 
-In this case the "dash number" is -03 from the command above. This will be used in modifying
-the default.pa file as shown below.
+In this case the "dash number" is -03 from the command above. This will be used in
+modifying the default.pa file as shown below.
 The version copied to the target **MAY** not match the hardware installed so editing
 may be required.
 
@@ -179,12 +205,18 @@ set-default-sink alsa_output.usb-Android_LE910C1-NF_0123456789ABCDEF-03.mono-fal
 set-default-source alsa_input.usb-Android_LE910C1-NF_0123456789ABCDEF-03.mono-fallback
 ```
 
-The daemon.conf file also needs to be edited the same way it was for the Pool config and
-the adjustment to the sample-rates.
-
 **NOTE:** The name of 'usb-Android_LE910C1-NF_0123456789ABCDEF-04' can be different
 between different modem modules. Typically, the '-04' can change so make sure that
 the modification of the 'default.pa' accounts for this difference.
+
+The '/etc/pulse/daemon.conf' file also needs to be edited the same way it was for the
+Pool config and the adjustment to the sample-rates.
+Here is what the values should be.
+
+```bash
+default-sample-rate = 48000
+alternate-sample-rate = 16000
+```
 
 ### Baresip
 
@@ -199,6 +231,7 @@ audio_source            pulse
 ```
 
 The file .baresip/accounts needs to have the following setup.
+This should be set correctly after the install, but it is something to check.
 
 ```bash
 sip:200@192.168.80.10;auth_user=200;auth_pass=unsecurepassword;answermode=auto
@@ -207,7 +240,8 @@ sip:200@192.168.80.10;auth_user=200;auth_pass=unsecurepassword;answermode=auto
 **NOTE:** The client that runs on the target MUST be set to 'answermode=auto' for the
 correct operation.
 
-**NOTE:** some method of using authentication is needed because this is in the clear.
+**NOTE:** some method of using authentication is needed because the authenticaion
+ is in the clear text.
 
 The service voip_call_monitor.service is responsible for starting the
 voip_call_monitor_tcp.py script.
@@ -253,10 +287,13 @@ The asterisk server needs to know about the following files.
 /etc/asterisk/modules.conf
 /etc/asterisk/confbridge.conf
 /etc/asterisk/extensions.conf
+/etc/asterisk/ari.conf
+/etc/asterisk/http.conf
 ```
 
 These files are all part of the VOIP package and should be examined if changes are
-needed to the configuration.
+needed to the configuration. These files are copied in as part of the 'voip_config.sh'
+script, so there should be
 
 **NOTE:** The authentication for the extensions loaded here need to match the
 .baresip/accounts file.

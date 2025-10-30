@@ -55,6 +55,7 @@ conf:
 
 ari:
     scp VOIP/asterisk/ari-mon-conf.py {{nuser}}@{{target}}:/mnt/data/ari-mon-conf.py
+    scp VOIP/voip_ari_conference.service {{nuser}}@{{target}}:/mnt/data/voip_ari_conference.service
 
 asterisk:
     scp VOIP/interfaces {{nuser}}@{{target}}:/mnt/data/interfaces

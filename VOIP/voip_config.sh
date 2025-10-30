@@ -1,9 +1,14 @@
 cp /mnt/data/extensions.conf /etc/asterisk/extensions.conf
-#cp /mnt/data/confbridge.conf /etc/asterisk/confbridge.conf
+cp /mnt/data/confbridge.conf /etc/asterisk/confbridge.conf
 cp /mnt/data/pjsip.conf /etc/asterisk/pjsip.conf
+cp /mnt/data/modules.conf /etc/asterisk/modules.conf
+cp /mnt/data/ari.conf /etc/asterisk/ari.conf
+cp /mnt/data/http.conf /etc/asterisk/http.conf
 chown asterisk:asterisk /etc/asterisk/extensions.conf  \
-     /etc/asterisk/pjsip.conf
-# /etc/asterisk/confbridge.conf
+     /etc/asterisk/pjsip.conf /etc/asterisk/modules.conf \
+     /etc/asterisk/confbridge.conf /etc/asterisk/ari.conf \
+     /etc/asterisk/http.conf
+
 
 # Create call log file and change ownership.
 touch /mnt/data/calls.log
@@ -35,7 +40,16 @@ chown -R kuser:kuser /home/kuser/.config
 cp /mnt/data/99-ignore-modemmanager.rules  /etc/udev/rules.d/99-ignore-modemmanager.rules
 
 
+# Start the service that monitors the Ext 200 VOIP line for calls.
 cp /mnt/data/voip_call_monitor.service /etc/systemd/system/.
 systemctl daemon-reload
 systemctl enable voip_call_monitor.service
 systemctl start voip_call_monitor.service
+
+
+# Start the service that monitors the connections to the 'elevator_conference' ARI
+# conference bridge.
+cp /mnt/data/voip_ari_conference.service /etc/systemd/system/.
+systemctl daemon-reload
+systemctl enable voip_ari_conference.service
+systemctl start voip_ari_conference.service
