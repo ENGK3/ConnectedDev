@@ -55,7 +55,7 @@ Here is a diagram of the configuration being setup.
 The diagram above shows the moving parts of the VOIP system.
 1. A call to the conference number (9876) is placed by extension 101 and Asterisk
 puts the caller in the conference call named 'elevator_conference'.
-1. A script "listening to the asterisk server "hears" the conference call being
+1. A script "listening" to the asterisk server "hears" the conference call being
 established and dials the extension 200, which causes..
 1. A script "listening" to the extension 200 client sees the incoming call which is
 answered automatically, places the call to the number provided (EDC number).

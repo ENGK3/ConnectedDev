@@ -154,7 +154,7 @@ This project implements an embedded communication system with the following key 
 - Docker containerization for cross-compilation
 - Systemd services for background monitoring
 
-## Ignore the following direcoties
+## Ignore the following directories
 
 The directories are experimental and not part of the production code.
 
