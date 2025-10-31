@@ -41,6 +41,8 @@ sounds:
 modem:
     scp place_call.py {{nuser}}@{{target}}:/mnt/data/place_call.py
     scp check_reg.py {{nuser}}@{{target}}:/mnt/data/check_reg.py
+    scp modem_utils.py {{nuser}}@{{target}}:/mnt/data/modem_utils.py
+    scp send_EDC_info.py {{nuser}}@{{target}}:/mnt/data/send_EDC_info.py
 
 voip:
     scp VOIP/voip_call_monitor_tcp.py {{nuser}}@{{target}}:/mnt/data/voip_call_monitor_tcp.py
@@ -88,7 +90,8 @@ pkg:
 pkgvoip:
     rm -f GW-VoIP-Setup*.tgz
     tar -zcvf GW-VoIP-Setup-{{my_version}}.tgz \
-       place_call.py daemon.conf pulseaudio.service  \
+       place_call.py modem_utils.py send_EDC_info.py \
+       daemon.conf pulseaudio.service  \
        99-ignore-modemmanager.rules \
        -C VOIP \
        voip_call_monitor_tcp.py voip_call_monitor.service \
