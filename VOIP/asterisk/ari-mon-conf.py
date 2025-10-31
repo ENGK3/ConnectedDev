@@ -219,6 +219,19 @@ class ARIConfMonitor:
         # This prevents duplicate admin calls
         logger.debug(f"Bridge {bridge_name} created, waiting for participants to join")
 
+    def extract_elevator_number(self, channel_name):
+        """
+        Extract elevator number from channel name.
+        Assumes elevator number is a numeric substring in the channel name.
+        Returns the first found number or None.
+        """
+        import re
+
+        match = re.search(r"PJSIP/\d*(\d{2})", channel_name)
+        if match:
+            return match.group(1)
+        return None
+
     async def handle_channel_entered_bridge(self, event):
         """Handle channel entering bridge"""
         bridge = event.get("bridge", {})
@@ -228,6 +241,18 @@ class ARIConfMonitor:
         channel_id = channel.get("id")
 
         logger.info(f"Channel {channel_name} entered bridge {bridge_name}")
+
+        # extract the elevator number from the calling extension.
+        elevator_number = self.extract_elevator_number(channel_name)
+        if elevator_number:
+            logger.info(
+                f"Extracted elevator number {elevator_number} from channel "
+                f"{channel_name}"
+            )
+        else:
+            logger.warning(
+                f"Failed to extract elevator number from channel {channel_name}"
+            )
 
         # Track participants in our conference
         if bridge_name == self.conference_name:
