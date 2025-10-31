@@ -241,7 +241,7 @@ sip:200@192.168.80.10;auth_user=200;auth_pass=unsecurepassword;answermode=auto
 **NOTE:** The client that runs on the target MUST be set to 'answermode=auto' for the
 correct operation.
 
-**NOTE:** some method of using authentication is needed because the authenticaion
+**NOTE:** some method of using authentication is needed because the authentication
  is in the clear text.
 
 The service voip_call_monitor.service is responsible for starting the
