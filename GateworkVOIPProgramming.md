@@ -91,7 +91,7 @@ mkdir -p /mnt/data/pulse
 chmod ugo+w /mnt/data  /mnt/data/sounds  /mnt/data/pulse
 ```
 
-Create a kuser by doing the following and answering the prompts.
+Create a user called "kuser" by doing the following and answering the prompts:
 
 ```bash
 adduser kuser
