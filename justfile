@@ -92,7 +92,7 @@ pkgvoip:
     tar -zcvf GW-VoIP-Setup-{{my_version}}.tgz \
        place_call.py modem_utils.py send_EDC_info.py \
        daemon.conf pulseaudio.service  \
-       99-ignore-modemmanager.rules \
+       99-ignore-modemmanager.rules CHANGELOG.md \
        -C VOIP \
        voip_call_monitor_tcp.py voip_call_monitor.service \
        voip_config.sh voip_ari_conference.service interfaces \
