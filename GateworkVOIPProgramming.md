@@ -222,7 +222,8 @@ alternate-sample-rate = 16000
 
 The dialing script does not need to do any rerouting.
 
-Edit the '.baresip/config' file to have the audio player set as shown below.
+Edit the '/home/kuser/.baresip/config' file to have the audio player set as shown below.
+If the 'voip_config.sh' script ran successfully, these edits should already be present.
 
 ```bash
 audio_driver            pulse
@@ -230,7 +231,7 @@ audio_player            pulse
 audio_source            pulse
 ```
 
-The file .baresip/accounts needs to have the following setup.
+The file /home/kuser/.baresip/accounts needs to have the following setup.
 This should be set correctly after the install, but it is something to check.
 
 ```bash
@@ -328,6 +329,20 @@ systemctl enable asterisk
 systemctl start asterisk
 ```
 
+## Asterisk REST Interface (ARI)
+
+A service 'voip_ari_conference.service' is needed to monitor when calls enter the
+'elevator_conference' so the Baresip connection can get dialed and the voice channel
+connected. This should be installed by the 'voip_config.sh script. However, these are
+the steps the script executes to start the service.
+
+```bash
+cp /mnt/data/voip_ari_conference.service /etc/systemd/system/.
+systemctl daemon-reload
+systemctl enable voip_ari_conference.service
+systemctl start voip_ari_conference.service
+```
+
 ## Setup of Viking phone
 
 Load the Viking IP Programming V1.5.0 tool.
@@ -344,3 +359,24 @@ Gateway : 192.168.80.10  - this needs to be something that could be pinged.
 
 And on the Phone Settings page, the following needs to be set
 "In-Band Audio Call Progress": Disabled
+
+## Building A  VOIP Package
+
+These are the steps that are needed to build a package.
+Make sure that all the file are committed into the repo.
+Apply a tag of the form Vmm.nn.pp  where mm = major version, nn = minor version and
+pp = patch level.
+Once the tag is applied, then execute the command
+
+```bash
+just version
+```
+
+Once that is complete, then executed
+
+```bash
+just pkgvoip
+```
+
+The build process is a bit fragile, so don't run these to commands together on the
+same command line.
