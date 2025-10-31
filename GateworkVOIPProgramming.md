@@ -248,7 +248,7 @@ The service voip_call_monitor.service is responsible for starting the
 voip_call_monitor_tcp.py script.
 
 As root execute the following.
-**NOTE:** For testing purposes the following line in the ' /mnt/data/voip_call_monitor.service'
+**NOTE:** For testing purposes the following line in the '/mnt/data/voip_call_monitor.service'
  should be changed to call a phone for debugging purposes.
 
 ```bash

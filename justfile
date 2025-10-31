@@ -3,8 +3,8 @@
 #target := "172.27.17.9"
 #target := "172.20.10.141"
 #target := "172.20.10.93"
-target := "172.20.10.223"   # Gateworks Target
-#target := "172.27.17.9"
+#target := "172.20.10.223"   # Gateworks Target
+target := "172.27.17.41"
 
 #nuser := "root"
 nuser := "kuser"
@@ -97,7 +97,7 @@ pkgvoip:
        accounts config \
        -C ../asterisk \
        pjsip.conf extensions.conf ari.conf http.conf confbridge.conf \
-       ari-mon-conf.py \
+       ari-mon-conf.py modules.conf \
        -C ../pulseaudio default.pa
 
 vpkgpush: pkgvoip
