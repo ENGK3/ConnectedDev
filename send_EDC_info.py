@@ -350,7 +350,10 @@ if __name__ == "__main__":
     logging.info("Retrieving modem information for TCP packet...")
 
     serial_connection = serial.Serial()
-    if sbc_connect(serial_connection):
+    # Use the second file handle to the modem for the TCP configuration
+    # and sending of the packet. The first handle is used for call placement
+    # and in the case of the second elevator, the first handle is busy in a call.
+    if sbc_connect(serial_connection, port="/dev/ttyUSB3"):
         configure_modem_tcp(serial_connection, verbose=args.verbose)
 
         iccid, imei, imsi = get_modem_info(serial_connection, verbose=args.verbose)
