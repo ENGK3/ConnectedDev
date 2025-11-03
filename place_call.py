@@ -9,7 +9,7 @@ from pathlib import Path
 import serial
 
 # Import shared modem utilities
-from modem_utils import get_modem_info, sbc_cmd, sbc_connect, sbc_disconnect
+from modem_utils import sbc_cmd, sbc_connect, sbc_disconnect
 
 
 def get_pactl_sources():
@@ -242,41 +242,10 @@ if __name__ == "__main__":
         help="Disable audio re-routing (establish call only)",
     )
 
-    parser.add_argument(
-        "-s",
-        "--skip-packet",
-        action="store_true",
-        help="Skip sending TCP packet before call",
-    )
     args = parser.parse_args()
 
     serial_connection = serial.Serial()
     if sbc_connect(serial_connection):
-        # Send TCP packet before making the call (unless skipped)
-        if not args.skip_packet:
-            logging.info("=" * 60)
-            logging.info("Retrieving modem information for TCP packet...")
-            iccid, imei, imsi = get_modem_info(serial_connection, verbose=args.verbose)
-
-            # logging.info(f"Sending TCP packet to {args.hostname}:{args.port}")
-            # error_code, response = send_tcp_packet(
-            #     hostname=args.hostname,
-            #     port=args.port,
-            #     data=event_data,
-            #     serial_connection=serial_connection,
-            #     timeout=30,
-            #     verbose=args.verbose,
-            # )
-
-            # if error_code == 0:
-            #     logging.info("TCP packet sent successfully!")
-            #     logging.info(f"Server response: {response}")
-            # else:
-            #     logging.error(f"TCP packet send failed with error code: {error_code}")
-            #     # Continue with call even if packet send fails
-        else:
-            logging.info("Skipping TCP packet send (--skip-packet flag set)")
-
         logging.info(f"Ready to dial number: {args.number}")
         call_success = sbc_place_call(
             args.number,
