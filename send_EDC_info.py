@@ -304,7 +304,7 @@ if __name__ == "__main__":
 
     logging.basicConfig(
         level=logging.DEBUG,
-        format="%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s",
+        format="%(asctime)s.%(msecs)03d %(levelname)-8s [TCP] %(message)s",
         datefmt="%m-%d %H:%M:%S",
         filename="/mnt/data/calls.log",
         filemode="a+",
@@ -313,7 +313,7 @@ if __name__ == "__main__":
     console = logging.StreamHandler()
     console.setLevel(logging.INFO)
     formatter = logging.Formatter(
-        "%(asctime)s.%(msecs)03d:%(levelname)-8s %(message)s", datefmt="%H:%M:%S"
+        "%(asctime)s.%(msecs)03d:%(levelname)-8s [TCP] %(message)s", datefmt="%H:%M:%S"
     )
     formatter.default_msec_format = "%s.%03d"
     console.setFormatter(formatter)
