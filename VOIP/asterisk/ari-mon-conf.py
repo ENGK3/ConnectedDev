@@ -287,7 +287,7 @@ class ARIConfMonitor:
         else:
             # Not clear what the correct thing to do here is - TODO: Ask about.
             logger.warning(
-                f"Failed to extract elevator number from channel {channel_name}"
+                f"Failed to extract elevator number/or admin channel {channel_name}"
             )
 
         # Track participants in our conference
