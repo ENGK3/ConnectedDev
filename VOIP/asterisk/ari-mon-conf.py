@@ -23,6 +23,9 @@ ARI_APP_NAME = "conf_monitor"
 logging.basicConfig(level=logging.DEBUG, format="ARI_MON - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
+ADMIN_EXT_MASTER = "201"
+ADMIN_EXT_EDC = "200"
+
 
 class ARIConfMonitor:
     """Monitors ConfBridge via ARI and auto-adds admin extension"""
@@ -230,8 +233,7 @@ class ARIConfMonitor:
         # if the extension is "200" or "201" we skip sending elevator data
         # packet to the server.
         if match:
-            print("Match found:", match.group(1))
-            if match.group(1) == "200" or match.group(1) == "201":
+            if match.group(1) == ADMIN_EXT_EDC or match.group(1) == ADMIN_EXT_MASTER:
                 logging.info("Admin extension detected, skipping elevator data packet.")
                 return None
             else:
