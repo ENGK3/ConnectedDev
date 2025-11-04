@@ -29,12 +29,11 @@ EVENT_CALL_INCOMING = "CALL_INCOMING"
 EVENT_CALL_RINGING = "CALL_RINGING"
 
 
-def get_audio_routing_cmd(phone_number, extension="01", skip_rerouting=False):
+def get_audio_routing_cmd(phone_number, skip_rerouting=False):
     """Construct the audio routing command with the given phone number and extension
 
     Args:
         phone_number: Phone number to dial
-        extension: Two-digit extension/elevator number (default: "01")
         skip_rerouting: If True, adds -r flag to skip audio re-routing
 
     Returns:
@@ -45,8 +44,6 @@ def get_audio_routing_cmd(phone_number, extension="01", skip_rerouting=False):
         "/mnt/data/place_call.py",
         "-n",
         phone_number,
-        "-e",
-        extension,
         "-v",
     ]
     if skip_rerouting:
@@ -311,9 +308,7 @@ def monitor_baresip_socket(sock, phone_number, skip_rerouting=False, stop_event=
                         call_in_progress = True
 
                         # Launch place_call.py
-                        audio_cmd = get_audio_routing_cmd(
-                            phone_number, "01", skip_rerouting
-                        )
+                        audio_cmd = get_audio_routing_cmd(phone_number, skip_rerouting)
                         logging.info(f"Executing: {' '.join(audio_cmd)}")
                         audio_proc = subprocess.Popen(
                             audio_cmd,

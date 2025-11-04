@@ -20,10 +20,11 @@ ARI_PASSWORD = "asterisk"
 ARI_APP_NAME = "conf_monitor"
 
 # Logging setup
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.DEBUG, format="ARI_MON - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
+ADMIN_EXT_MASTER = "201"
+ADMIN_EXT_EDC = "200"
 
 
 class ARIConfMonitor:
@@ -219,6 +220,30 @@ class ARIConfMonitor:
         # This prevents duplicate admin calls
         logger.debug(f"Bridge {bridge_name} created, waiting for participants to join")
 
+    def extract_elevator_number(self, channel_name):
+        """
+        Extract elevator number from channel name.
+        Assumes elevator number is a numeric substring in the channel name.
+        Returns the first found number or None.
+        """
+        import re
+
+        match = re.search(r"PJSIP/(\d{3})", channel_name)
+
+        # if the extension is "200" or "201" we skip sending elevator data
+        # packet to the server.
+        if match:
+            if match.group(1) == ADMIN_EXT_EDC or match.group(1) == ADMIN_EXT_MASTER:
+                logging.info("Admin extension detected, skipping elevator data packet.")
+                return None
+            else:
+                logging.info(
+                    f"Extracted elevator number: {match.group(1)} "
+                    f"returning last two digits."
+                )
+                return match.group(1)[1:]  # Return last two digits as elevator
+        return None
+
     async def handle_channel_entered_bridge(self, event):
         """Handle channel entering bridge"""
         bridge = event.get("bridge", {})
@@ -228,6 +253,44 @@ class ARIConfMonitor:
         channel_id = channel.get("id")
 
         logger.info(f"Channel {channel_name} entered bridge {bridge_name}")
+
+        # extract the elevator number from the calling extension.
+        elevator_number = self.extract_elevator_number(channel_name)
+
+        if elevator_number:
+            logger.info(
+                f"Extracted elevator number {elevator_number} from channel "
+                f"{channel_name}"
+            )
+
+            # Invoke the script "python3 send_EDC_info.py -e <elevator_number>"
+            # and capture its return code. Log success or failure.
+            # Also wait for this script to complete before proceeding
+
+            result = await asyncio.create_subprocess_exec(
+                "python3",
+                "/mnt/data/send_EDC_info.py",
+                "-e",
+                elevator_number,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await result.communicate()
+            if result.returncode == 0:
+                logger.info(
+                    f"send_EDC_info.py completed successfully for elevator "
+                    f"{elevator_number}"
+                )
+            else:
+                logger.error(
+                    f"send_EDC_info.py failed for elevator {elevator_number} with "
+                    f"return code {result.returncode}: {stderr.decode().strip()}"
+                )
+        else:
+            # Not clear what the correct thing to do here is - TODO: Ask about.
+            logger.warning(
+                f"Failed to extract elevator number/or admin channel {channel_name}"
+            )
 
         # Track participants in our conference
         if bridge_name == self.conference_name:
