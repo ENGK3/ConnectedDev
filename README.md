@@ -2,86 +2,80 @@
 
 This repository contains scripts, configurations, and documentation for the King3 embedded system project, which includes VoIP functionality, cellular modem integration, and audio routing on Gateworks hardware platforms.
 
-## Directory Tree (as of October 29, 2025)
+## Directory Tree (as of Nov 4, 2025)
 
 ```bash
 ./
 ├── 99-ignore-modemmanager.rules
+├── CHANGELOG.md
+├── Digi
+│   ├── TF-config
+│   └── digi-config
+├── GateworkVOIPProgramming.md
+├── GateworkVOIPProgramming.pdf
+├── GateworksProgrammingInstr.md
+├── InitialProgrammingInstr.md
+├── K3_QS2_WiringDiagram.png
+├── K3_config_settings
+├── POC_NOTE.md
+├── README.md
+├── VERSION_INFO
+├── VOIP
+│   ├── VOIPLayout.drawio
+│   ├── VOIPLayout.png
+│   ├── asterisk
+│   │   ├── ari-mon-conf.py
+│   │   ├── ari.conf
+│   │   ├── asterisk.override.conf
+│   │   ├── confbridge.conf
+│   │   ├── extensions.conf
+│   │   ├── http.conf
+│   │   ├── modules.conf
+│   │   └── pjsip.conf
+│   ├── baresip
+│   │   ├── accounts
+│   │   └── config
+│   ├── interfaces
+│   ├── pulseaudio
+│   │   └── default.pa
+│   ├── setup_audio_routing.sh
+│   ├── setup_telit_routing.sh
+│   ├── teardown_audio_routing.sh
+│   ├── teardown_telit_routing.sh
+│   ├── voip_ari_conference.service
+│   ├── voip_call_monitor.service
+│   ├── voip_call_monitor_tcp.py
+│   ├── voip_call_rerouting.py
+│   └── voip_config.sh
 ├── asound.state
+├── brd1.pkg
+├── brd2.pkg
 ├── check_reg.py
 ├── config_sys.sh
 ├── daemon.conf
-├── Digi/
-│   ├── TF-config
-│   └── digi-config
-├── explore/
-│   ├── ami-mon.py
-│   ├── ARI_CONFBRIDGE_FIX.md
-│   ├── ARI_SETUP.md
-│   ├── barge_notes.md
-│   ├── BARESIP_TCP_API.md
-│   ├── EDC_packet.py
-│   ├── EDC_packet_direct.py
-│   ├── extract_dev.py
-│   ├── mon_asterisk.py
-│   ├── monitor_and_join_ARI.py
-│   ├── PACKAGE_SUMMARY.md
-│   ├── PLACE_CALL_FIX.md
-│   ├── QUICK_FIX.md
-│   ├── start.sh
-│   ├── VERSIONING_AND_INTEGRITY.md
-│   └── VOIP_MONITOR_CHANGELOG.md
+├── explore
+│   └── Ignore for the time being.
 ├── generate_version.sh
-├── GateworksProgrammingInstr.md
-├── GateworkVOIPProgramming.md
 ├── gw-venice-gpio-overlay.dts
 ├── imx8mm-venice-gw7xxx-0x-gpio.dtbo
-├── InitialProgrammingInstr.md
-├── integrity-system/
-│   ├── Ignore for the time being.
+├── integrity-system
+│   └── Ignore for the time being.
 ├── justfile
 ├── led_blue.sh
 ├── led_green.sh
 ├── led_red.sh
 ├── microcom.alias
+├── modem_utils.py
 ├── place_call.py
-├── POC_NOTE.md
 ├── pulseaudio.service
 ├── pyproject.toml
-├── README.md
+├── send_EDC_info.py
 ├── show_version.sh
-├── sounds/
+├── sounds
 │   └── (audio files for pool configuration)
 ├── switch_detect.sh
 ├── switch_mon.service
-├── switch_mon.sh
-└── VOIP/
-    ├── asterisk/
-    │   ├── ari-mon-conf.py
-    │   ├── ari.conf
-    │   ├── asterisk.override.conf
-    │   ├── confbridge.conf
-    │   ├── extensions.conf
-    │   ├── http.conf
-    │   ├── modules.conf
-    │   └── pjsip.conf
-    ├── baresip/
-    │   ├── accounts
-    │   └── config
-    ├── interfaces
-    ├── pulseaudio/
-    │   └── default.pa
-    ├── setup_audio_routing.sh
-    ├── setup_telit_routing.sh
-    ├── teardown_audio_routing.sh
-    ├── teardown_telit_routing.sh
-    ├── voip_ari_conference.service
-    ├── voip_call_monitor.service
-    ├── voip_call_monitor_tcp.py
-    ├── voip_call_rerouting.py
-    ├── voip_config.sh
-    ├── VOIPLayout.drawio
-    └── VOIPLayout.png
+└── switch_mon.sh
 ```
 
 ## Project Files
@@ -110,9 +104,11 @@ This repository contains scripts, configurations, and documentation for the King
 | Filename | Directory | Description |
 |----------|-----------|-------------|
 | `check_reg.py` | `.` | Checks cellular network registration status via AT commands to the Telit modem |
-| `place_call.py` | `.` | Initiates VoIP calls using baresip, handles audio routing, and logs call events |
-| `ari-mon-conf.py` | `VOIP/asterisk/` | ARI-based conference monitor that automatically adds a specified extension as admin when the first participant joins a ConfBridge conference |
-| `voip_call_monitor_tcp.py` | `VOIP/` | Monitors baresip via TCP socket interface, handles incoming calls, and launches place_call.py for audio routing when calls are established |
+| `modem_utils.py` | `.` | Shared module for Telit LE910C1 modem communication providing AT command functions, network registration checking, modem configuration, and TCP socket operations |
+| `place_call.py` | `.` | Initiates VoIP calls using baresip, handles audio routing, and logs call events; refactored to use shared modem_utils module |
+| `send_EDC_info.py` | `.` | Sends EDC (Emergency Dispatch Center) information packets to remote servers via the cellular modem using TCP; reports extension number, site information, and modem details |
+| `ari-mon-conf.py` | `VOIP/asterisk/` | ARI-based conference monitor that automatically adds a specified extension as admin when the first participant joins a ConfBridge conference; captures calling extension for EDC reporting |
+| `voip_call_monitor_tcp.py` | `VOIP/` | Monitors baresip via TCP socket interface, handles incoming calls, launches place_call.py for audio routing, and triggers EDC info packet transmission when calls are established |
 | `voip_call_rerouting.py` | `VOIP/` | Monitors baresip output and automatically reroutes audio when calls are established by detecting call state changes |
 
 ### Systemd Service Files
@@ -129,6 +125,7 @@ This repository contains scripts, configurations, and documentation for the King
 | Filename | Directory | Description |
 |----------|-----------|-------------|
 | `daemon.conf` | `.` | PulseAudio daemon configuration file with settings for audio processing and system behavior |
+| `K3_config_settings` | `.` | Kings III configuration file containing site-specific settings (CID, account code, model, APN, modem UTM, battery voltage) for EDC reporting |
 | `ari.conf` | `VOIP/asterisk/` | Asterisk ARI (Asterisk REST Interface) configuration with user credentials and connection settings |
 | `asterisk.override.conf` | `VOIP/asterisk/` | Systemd override for Asterisk service, adds dependencies on network and ttyUSB2 device with delayed start and restart |
 | `confbridge.conf` | `VOIP/asterisk/` | Asterisk ConfBridge configuration defining user profiles (default_user for extensions 101-104, default_admin for extension 200) and bridge settings |
@@ -163,6 +160,19 @@ This project implements an embedded communication system with the following key 
 - GPIO control for switches and LEDs
 - Docker containerization for cross-compilation
 - Systemd services for background monitoring
+
+#### Configuration File (`K3_config_settings`)
+
+Contains site-specific settings:
+
+```bash
+CID="5822460189"         # Customer ID
+AC="C12345"              # Account Code
+MDL="Q01"                # Model designation
+APN="broadband"          # Cellular APN
+UTM="02EBA09E"           # Modem UTM (auto-retrieved if available)
+bat_voltage="1323"       # Battery voltage reading
+```
 
 ## Ignore the following directories
 
