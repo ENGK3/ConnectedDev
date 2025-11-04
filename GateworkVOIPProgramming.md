@@ -68,7 +68,7 @@ not have internet access.
 
 ```bash
 apt-get install -y baresip asterisk python3-serial microcom pulseaudio btop \
-    python3-aiohttp
+    python3-aiohttp python3-dotenv
 
 # --fix-missing might be needed.
 ```
@@ -342,6 +342,27 @@ systemctl daemon-reload
 systemctl enable voip_ari_conference.service
 systemctl start voip_ari_conference.service
 ```
+
+## Configuration File
+
+The '/mnt/data/K3_config_settings'  file is used for information about the
+site/installation. The format of the file is a text file that contains name value pairs
+in the format 'MDL="Q01"' Where MDL is the variable and "Q01" is the value associated
+with the variable. Currently the defaults for this file are as follows:
+
+```bash
+CID="5822460189"
+AC="C12345"
+MDL="Q01"
+APN="broadband"
+UTM="02EBA09E"
+bat_voltage="1323"
+```
+
+The bat_voltage and UTM and APN will eventually be read in real time and removed from
+the config file.
+
+This file can be edited during installation to report back the desired information.
 
 ## Setup of Viking phone
 

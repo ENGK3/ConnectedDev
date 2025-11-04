@@ -3,8 +3,8 @@
 #target := "172.27.17.9"
 #target := "172.20.10.141"
 #target := "172.20.10.93"
-#target := "172.20.10.223"   # Gateworks Target
-target := "172.27.17.41"
+target := "172.20.10.223"   # Gateworks Target
+#target := "172.27.17.41"
 
 #nuser := "root"
 nuser := "kuser"
@@ -43,6 +43,7 @@ modem:
     scp check_reg.py {{nuser}}@{{target}}:/mnt/data/check_reg.py
     scp modem_utils.py {{nuser}}@{{target}}:/mnt/data/modem_utils.py
     scp send_EDC_info.py {{nuser}}@{{target}}:/mnt/data/send_EDC_info.py
+    scp K3_config_settings {{nuser}}@{{target}}:/mnt/data/K3_config_settings
 
 voip:
     scp VOIP/voip_call_monitor_tcp.py {{nuser}}@{{target}}:/mnt/data/voip_call_monitor_tcp.py
@@ -91,7 +92,7 @@ pkgvoip:
     rm -f GW-VoIP-Setup*.tgz
     tar -zcvf GW-VoIP-Setup-{{my_version}}.tgz \
        place_call.py modem_utils.py send_EDC_info.py \
-       daemon.conf pulseaudio.service  \
+       daemon.conf pulseaudio.service K3_config_settings \
        99-ignore-modemmanager.rules CHANGELOG.md \
        -C VOIP \
        voip_call_monitor_tcp.py voip_call_monitor.service \

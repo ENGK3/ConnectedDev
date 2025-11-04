@@ -4,6 +4,7 @@ import time
 from typing import Tuple
 
 import serial
+from dotenv import dotenv_values
 
 # Import shared modem utilities
 from modem_utils import (
@@ -346,6 +347,10 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    config = dotenv_values(
+        "/mnt/data/K3_config_settings"
+    )  # Load environment variables from .env file
+
     logging.info("=" * 60)
     logging.info("Retrieving modem information for TCP packet...")
 
@@ -364,13 +369,14 @@ if __name__ == "__main__":
         # TSPV: should come from the modem : 25.21.260-P0F.261803
         # MDL: Q01
         # APN comes from the modem
-        #
-        CID = "5822460189"
-        AC = "C12345"
-        MDL = "Q01"
-        APN = "broadband"
-        UTM = "02EBA09E"  # Should come from the modem.
-        bat_voltage = "1305"  # Should come from the latest reading of the system.
+        # bat_voltage = "1305"  # Should come from the latest reading of the system.
+
+        CID = config.get("CID", "MISSING_CID")
+        AC = config.get("AC", "MISSING_AC")
+        MDL = config.get("MDL", "MISSING_MDL")
+        APN = config.get("APN", "MISSING_APN")
+        UTM = config.get("UTM", "MISSING_UTM")
+        bat_voltage = config.get("bat_voltage", "missing_bat_voltage")
 
         TSPV = get_software_package_version(serial_connection, verbose=args.verbose)
 
