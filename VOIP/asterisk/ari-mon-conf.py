@@ -20,9 +20,7 @@ ARI_PASSWORD = "asterisk"
 ARI_APP_NAME = "conf_monitor"
 
 # Logging setup
-logging.basicConfig(
-    level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.DEBUG, format="ARI_MON - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
