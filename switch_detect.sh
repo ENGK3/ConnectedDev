@@ -6,6 +6,7 @@ echo "Switch press detected"
 /mnt/data/led_red.sh ON
 
 # ENU00209.wav is the Emergency activation message
+python3 /mnt/data/send_EDC_info.py -e "01"
 aplay -D hw:SGTL5000Card,0 /mnt/data/sounds/ENU00209-48k.wav
 
 # S0000303.wav is just the word "Delta" - useful for testing.
