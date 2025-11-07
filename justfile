@@ -87,8 +87,11 @@ pkg:
         *.dtbo *.conf 99* *.alias
 
 
+k3_config:
+    cat K3_config_settings.in > K3_config_settings
+    echo 'APP="{{my_version}}"' >> K3_config_settings
 
-pkgvoip:
+pkgvoip: k3_config
     rm -f GW-VoIP-Setup*.tgz
     tar -zcvf GW-VoIP-Setup-{{my_version}}.tgz \
        place_call.py modem_utils.py send_EDC_info.py \

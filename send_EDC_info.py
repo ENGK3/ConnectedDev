@@ -376,6 +376,7 @@ if __name__ == "__main__":
         MDL = config.get("MDL", "MISSING_MDL")
         APN = config.get("APN", "MISSING_APN")
         UTM = config.get("UTM", "MISSING_UTM")
+        APP = config.get("APP", "MISSING_APP")
         bat_voltage = config.get("bat_voltage", "missing_bat_voltage")
 
         TSPV = get_software_package_version(serial_connection, verbose=args.verbose)
@@ -383,7 +384,7 @@ if __name__ == "__main__":
         # Build the event data packet
         event_data = (
             f"START CID={CID}|AC={AC}|EC={args.ecode}|MDL={MDL}|"
-            f"APP=03020089|CRC=BEEF|"
+            f"APP={APP}|CRC=BEEF|"
             f"BOOT=03010007|TSPV={TSPV}|CCI={iccid}|"
             f"IMSI={imsi}|IMEI={imei}|"
             f"NET=4G|APN={APN}|IMS=1|SS=067|RSRP=098|RSRQ=011|"
