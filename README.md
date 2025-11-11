@@ -107,7 +107,7 @@ This repository contains scripts, configurations, and documentation for the King
 | `modem_utils.py` | `.` | Shared module for Telit LE910C1 modem communication providing AT command functions, network registration checking, modem configuration, and TCP socket operations |
 | `place_call.py` | `.` | Initiates VoIP calls using baresip, handles audio routing, and logs call events; refactored to use shared modem_utils module |
 | `send_EDC_info.py` | `.` | Sends EDC (Emergency Dispatch Center) information packets to remote servers via the cellular modem using TCP; reports extension number, site information, and modem details |
-| `ari-mon-conf.py` | `VOIP/asterisk/` | ARI-based conference monitor that automatically adds a specified extension as admin when the first participant joins a ConfBridge conference; captures calling extension for EDC reporting |
+| `ari-mon-conf.py` | `VOIP/asterisk/` | ARI-based conference monitor that automatically calls admin extension when first participant joins a ConfBridge conference. Implements intelligent fallback: tries extension 201 first (15-second timeout), then falls back to extension 200 (LTE) if unanswered. Captures calling extension for EDC reporting |
 | `voip_call_monitor_tcp.py` | `VOIP/` | Monitors baresip via TCP socket interface, handles incoming calls, launches place_call.py for audio routing, and triggers EDC info packet transmission when calls are established |
 | `voip_call_rerouting.py` | `VOIP/` | Monitors baresip output and automatically reroutes audio when calls are established by detecting call state changes |
 
@@ -125,10 +125,11 @@ This repository contains scripts, configurations, and documentation for the King
 | Filename | Directory | Description |
 |----------|-----------|-------------|
 | `daemon.conf` | `.` | PulseAudio daemon configuration file with settings for audio processing and system behavior |
-| `K3_config_settings` | `.` | Kings III configuration file containing site-specific settings (CID, account code, model, APN, modem UTM, battery voltage) for EDC reporting |
+| `K3_config_settings` | `.` | Kings III configuration file containing site-specific settings (CID, account code, model, APN, APP version, modem UTM, battery voltage) for EDC reporting. Generated from K3_config_settings.in template during build |
+| `K3_config_settings.in` | `.` | Template for K3_config_settings. Version-controlled template that gets populated with APP version during build process |
 | `ari.conf` | `VOIP/asterisk/` | Asterisk ARI (Asterisk REST Interface) configuration with user credentials and connection settings |
 | `asterisk.override.conf` | `VOIP/asterisk/` | Systemd override for Asterisk service, adds dependencies on network and ttyUSB2 device with delayed start and restart |
-| `confbridge.conf` | `VOIP/asterisk/` | Asterisk ConfBridge configuration defining user profiles (default_user for extensions 101-104, default_admin for extension 200) and bridge settings |
+| `confbridge.conf` | `VOIP/asterisk/` | Asterisk ConfBridge configuration defining user profiles (default_user for extensions 101-104, default_admin for extensions 200/201) and bridge settings with user count announcements |
 | `extensions.conf` | `VOIP/asterisk/` | Asterisk dialplan for elevator conference system with extension dialing (101-104, 200, 201) and conference extension 9876 |
 | `http.conf` | `VOIP/asterisk/` | Asterisk HTTP server configuration enabling the built-in HTTP server for ARI and other web interfaces |
 | `modules.conf` | `VOIP/asterisk/` | Asterisk module loader configuration specifying which modules to load or exclude |
@@ -149,7 +150,6 @@ This project implements an embedded communication system with the following key 
 ## Hardware Platforms
 
 - **Gateworks Venice GW7200** - Primary embedded platform
-- **Digiboard CC6** - Alternative platform (legacy)
 - **Telit LE910C1-NF** - 4G LTE modem module
 
 ## Key Technologies
@@ -160,8 +160,32 @@ This project implements an embedded communication system with the following key 
 - GPIO control for switches and LEDs
 - Docker containerization for cross-compilation
 - Systemd services for background monitoring
+- Asterisk ARI (REST Interface) for call control and conference management
 
-#### Configuration File (`K3_config_settings`)
+## VoIP Call Flow
+
+### Conference Admin Connection (Extensions 201 → 200 Fallback)
+
+When an elevator extension (101-104) initiates a conference call:
+
+1. **Primary Admin Call (Extension 201)**
+   - System automatically calls extension 201 first
+   - 15-second timeout begins
+   - If 201 answers within timeout → joins conference as admin
+   - Timeout is cancelled, system ready for next conference
+
+2. **Fallback Admin Call (Extension 200 - LTE)**
+   - If 201 doesn't answer within 15 seconds
+   - Extension 201 is hung up
+   - System automatically calls extension 200 (LTE cellular connection)
+   - Extension 200 joins conference as admin
+
+3. **Conference Control**
+   - Admin extension (201 or 200) has full conference privileges
+   - When admin leaves, all participants are automatically disconnected
+   - System resets and ready for next conference
+
+#### Configuration File (`K3_config_settings.in`)
 
 Contains site-specific settings:
 
