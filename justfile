@@ -117,3 +117,19 @@ pkgvoip: k3_config
 
 vpkgpush: pkgvoip
     scp GW-VoIP-Setup*.tgz {{nuser}}@{{target}}:/mnt/data/.
+
+my_save_path := "/mnt/c/Users/AlanHasty/Exponential Technology Group, Inc/C_KingsIII-QSeries - Documents/sw"
+
+pdf:
+    docker run --rm --volume "$(pwd):/data" --user $(id -u):$(id -g) pandoc/latex CHANGELOG.md -o CHANGELOG.{{my_version}}.pdf
+    docker run --rm --volume "$(pwd):/data" --user $(id -u):$(id -g) pandoc/latex GateworkVOIPProgramming.md -o GateworkVOIPProgramming.{{my_version}}.pdf
+
+
+save: pkgvoip pdf
+    mkdir "{{my_save_path}}/{{my_version}}"
+    cp  GW-VoIP-Setup-{{my_version}}.tgz "{{my_save_path}}/{{my_version}}/."
+    cp CHANGELOG.{{my_version}}.pdf "{{my_save_path}}/{{my_version}}/."
+    cp GateworkVOIPProgramming.{{my_version}}.pdf "{{my_save_path}}/{{my_version}}/."
+
+ans:
+    scp answer_phone.py {{nuser}}@{{target}}:/mnt/data/answer_phone.py
