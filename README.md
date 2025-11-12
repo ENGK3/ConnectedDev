@@ -125,8 +125,8 @@ This repository contains scripts, configurations, and documentation for the King
 | Filename | Directory | Description |
 |----------|-----------|-------------|
 | `daemon.conf` | `.` | PulseAudio daemon configuration file with settings for audio processing and system behavior |
-| `K3_config_settings` | `.` | Kings III configuration file containing site-specific settings (CID, account code, model, APN, APP version, modem UTM, battery voltage) for EDC reporting. Generated from K3_config_settings.in template during build |
-| `K3_config_settings.in` | `.` | Template for K3_config_settings. Version-controlled template that gets populated with APP version during build process |
+| `K3_config_settings` | `.` | **Generated file**: Kings III configuration file containing site-specific settings (CID, account code, model, APN, APP version, modem UTM, battery voltage) for EDC reporting. This file is generated from the `K3_config_settings.in` template during the build process. |
+| `K3_config_settings.in` | `.` | **Template file**: Version-controlled template for `K3_config_settings`. This file is populated with the APP version and other variables during the build process to produce the final configuration file. |
 | `ari.conf` | `VOIP/asterisk/` | Asterisk ARI (Asterisk REST Interface) configuration with user credentials and connection settings |
 | `asterisk.override.conf` | `VOIP/asterisk/` | Systemd override for Asterisk service, adds dependencies on network and ttyUSB2 device with delayed start and restart |
 | `confbridge.conf` | `VOIP/asterisk/` | Asterisk ConfBridge configuration defining user profiles (default_user for extensions 101-104, default_admin for extensions 200/201) and bridge settings with user count announcements |
