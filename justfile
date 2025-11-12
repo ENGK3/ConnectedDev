@@ -59,6 +59,14 @@ conf:
     scp VOIP/asterisk/http.conf {{nuser}}@{{target}}:/mnt/data/http.conf
     scp VOIP/asterisk/ari.conf {{nuser}}@{{target}}:/mnt/data/ari.conf
 
+pullconf:
+    scp {{nuser}}@{{target}}:/etc/asterisk/extensions.conf ./VOIP/asterisk/extensions.conf.pull
+    scp {{nuser}}@{{target}}:/etc/asterisk/confbridge.conf ./VOIP/asterisk/confbridge.conf.pull
+    scp {{nuser}}@{{target}}:/etc/asterisk/pjsip.conf ./VOIP/asterisk/pjsip.conf.pull
+    scp {{nuser}}@{{target}}:/etc/asterisk/http.conf ./VOIP/asterisk/http.conf.pull
+    scp {{nuser}}@{{target}}:/etc/asterisk/ari.conf ./VOIP/asterisk/ari.conf.pull
+    scp {{nuser}}@{{target}}:/etc/asterisk/features.conf ./VOIP/asterisk/features.conf.pull
+
 ari:
     scp VOIP/asterisk/ari-mon-conf.py {{nuser}}@{{target}}:/mnt/data/ari-mon-conf.py
     scp VOIP/voip_ari_conference.service {{nuser}}@{{target}}:/mnt/data/voip_ari_conference.service
@@ -87,8 +95,11 @@ pkg:
         *.dtbo *.conf 99* *.alias
 
 
+k3_config:
+    cat K3_config_settings.in > K3_config_settings
+    echo 'APP="{{my_version}}"' >> K3_config_settings
 
-pkgvoip:
+pkgvoip: k3_config
     rm -f GW-VoIP-Setup*.tgz
     tar -zcvf GW-VoIP-Setup-{{my_version}}.tgz \
        place_call.py modem_utils.py send_EDC_info.py \

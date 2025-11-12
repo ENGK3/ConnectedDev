@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 ADMIN_EXT_MASTER = "201"
 ADMIN_EXT_EDC = "200"
+ADMIN_TIMEOUT_SECONDS = 15  # Timeout for extension 201 to answer
 
 
 class ARIConfMonitor:
@@ -42,6 +43,12 @@ class ARIConfMonitor:
         self.admin_channel_id = None  # Track admin channel
         self.conference_channels = set()  # Track all conference participants
         self.admin_call_in_progress = False  # Prevent duplicate admin calls
+
+        # New attributes for handling extension 201 -> 200 fallback
+        self.master_call_task = None  # Task for calling extension 201
+        self.master_channel_id = None  # Channel ID for extension 201 call
+        self.master_answered = False  # Whether extension 201 answered
+        self.fallback_scheduled = False  # Whether fallback to 200 is scheduled
 
     async def connect(self):
         """Establish connection to ARI"""
@@ -62,25 +69,15 @@ class ARIConfMonitor:
             logger.error(f"Failed to connect to ARI: {e}")
             return False
 
-    async def originate_call(self):
-        """Originate a call to the admin extension and join to conference"""
-        # Prevent duplicate calls
-        if self.admin_call_in_progress or self.admin_channel_id is not None:
-            logger.info(
-                f"Admin call already in progress or admin already in conference. "
-                f"Skipping duplicate call. (in_progress={self.admin_call_in_progress}, "
-                f"admin_channel_id={self.admin_channel_id})"
-            )
-            return None
-
-        self.admin_call_in_progress = True
-        endpoint = f"PJSIP/{self.extension}"
+    async def originate_call_to_extension(self, extension_number):
+        """Originate a call to a specific extension"""
+        endpoint = f"PJSIP/{extension_number}"
 
         originate_data = {
             "endpoint": endpoint,
             "app": ARI_APP_NAME,
             "appArgs": f"conf,{self.conference_name}",
-            "callerId": f"{self.extension}",
+            "callerId": f"{extension_number}",
             "timeout": 30,
         }
 
@@ -102,12 +99,88 @@ class ARIConfMonitor:
                     logger.error(
                         f"Failed to originate call: {resp.status} - {error_text}"
                     )
-                    self.admin_call_in_progress = False  # Reset on failure
                     return None
         except Exception as e:
             logger.error(f"Error originating call: {e}")
-            self.admin_call_in_progress = False  # Reset on error
             return None
+
+    async def start_admin_call_sequence(self):
+        """Start the admin call sequence - try 201 first, then 200 if no answer"""
+        # Prevent duplicate calls
+        if self.admin_call_in_progress or self.admin_channel_id is not None:
+            logger.info(
+                f"Admin call already in progress or admin already in conference. "
+                f"Skipping duplicate call. (in_progress={self.admin_call_in_progress}, "
+                f"admin_channel_id={self.admin_channel_id})"
+            )
+            return
+
+        self.admin_call_in_progress = True
+        self.master_answered = False
+        self.fallback_scheduled = False
+
+        logger.info(f"Starting admin call sequence - trying {ADMIN_EXT_MASTER} first")
+
+        # Try calling extension 201 first
+        master_channel_id = await self.originate_call_to_extension(ADMIN_EXT_MASTER)
+
+        if master_channel_id:
+            self.master_channel_id = master_channel_id
+            # Start timeout task for fallback to extension 200
+            self.master_call_task = asyncio.create_task(self._master_timeout_handler())
+        else:
+            # Failed to call 201, try 200 immediately
+            logger.warning(f"Failed to call {ADMIN_EXT_MASTER}, trying {ADMIN_EXT_EDC}")
+            await self._fallback_to_edc()
+
+    async def _master_timeout_handler(self):
+        """Handle timeout for extension 201 - fallback to 200 if no answer"""
+        try:
+            await asyncio.sleep(ADMIN_TIMEOUT_SECONDS)
+
+            # If we reach here, extension 201 didn't answer in time
+            if not self.master_answered and not self.fallback_scheduled:
+                logger.info(
+                    f"Extension {ADMIN_EXT_MASTER} did not answer within "
+                    f"{ADMIN_TIMEOUT_SECONDS} seconds, falling back to {ADMIN_EXT_EDC}"
+                )
+                self.fallback_scheduled = True
+
+                # Hangup the call to extension 201
+                if self.master_channel_id:
+                    await self._hangup_channel(self.master_channel_id)
+
+                # Call extension 200
+                await self._fallback_to_edc()
+
+        except asyncio.CancelledError:
+            logger.debug("Master timeout handler cancelled - extension 201 answered")
+        except Exception as e:
+            logger.error(f"Error in master timeout handler: {e}")
+
+    async def _fallback_to_edc(self):
+        """Fallback to calling extension 200"""
+        edc_channel_id = await self.originate_call_to_extension(ADMIN_EXT_EDC)
+        if not edc_channel_id:
+            logger.error(f"Failed to call fallback extension {ADMIN_EXT_EDC}")
+            self.admin_call_in_progress = False
+            self.master_channel_id = None
+            self.master_answered = False
+            self.fallback_scheduled = False
+
+    async def _hangup_channel(self, channel_id):
+        """Hangup a specific channel"""
+        try:
+            hangup_url = f"{self.base_url}/channels/{channel_id}"
+            async with self.session.delete(hangup_url) as resp:
+                if resp.status == 204:
+                    logger.info(f"Hung up channel {channel_id}")
+                else:
+                    logger.warning(
+                        f"Failed to hangup channel {channel_id}: {resp.status}"
+                    )
+        except Exception as e:
+            logger.error(f"Error hanging up channel {channel_id}: {e}")
 
     async def add_to_conference(self, channel_id):
         """Add a channel to the ConfBridge conference as admin"""
@@ -184,6 +257,17 @@ class ARIConfMonitor:
             conf_name = app_args[1]
             if conf_name == self.conference_name:
                 logger.info(f"Adding channel {channel_id} to conference {conf_name}")
+
+                # Check if this is extension 201 answering
+                if channel_id == self.master_channel_id:
+                    logger.info(f"Extension {ADMIN_EXT_MASTER} answered!")
+                    self.master_answered = True
+
+                    # Cancel the timeout task since 201 answered
+                    if self.master_call_task and not self.master_call_task.done():
+                        self.master_call_task.cancel()
+                        logger.debug("Cancelled master timeout task")
+
                 self.admin_channel_id = channel_id  # Track admin channel
                 # Don't reset admin_call_in_progress yet - wait until they actually
                 # join the bridge
@@ -320,7 +404,7 @@ class ARIConfMonitor:
                     f"admin_call_in_progress={self.admin_call_in_progress})"
                 )
                 self.conference_started = True
-                await self.originate_call()
+                await self.start_admin_call_sequence()
 
     async def handle_bridge_destroyed(self, event):
         """Handle bridge destruction - reset state"""
@@ -333,6 +417,15 @@ class ARIConfMonitor:
             self.admin_channel_id = None
             self.admin_call_in_progress = False
             self.conference_channels.clear()
+
+            # Cancel any pending master call timeout task
+            if self.master_call_task and not self.master_call_task.done():
+                self.master_call_task.cancel()
+
+            # Reset master call state
+            self.master_channel_id = None
+            self.master_answered = False
+            self.fallback_scheduled = False
 
     async def handle_channel_left_bridge(self, event):
         """Handle channel leaving bridge - hangup others if admin leaves"""
@@ -357,6 +450,11 @@ class ARIConfMonitor:
             await self.hangup_all_participants()
             self.admin_channel_id = None
             self.admin_call_in_progress = False  # Reset so admin can be called again
+
+            # Reset master call state
+            self.master_channel_id = None
+            self.master_answered = False
+            self.fallback_scheduled = False
 
     async def hangup_all_participants(self):
         """Hangup all channels still in the conference"""
@@ -427,6 +525,14 @@ class ARIConfMonitor:
 
     async def cleanup(self):
         """Clean up connections"""
+        # Cancel any pending master call timeout task
+        if self.master_call_task and not self.master_call_task.done():
+            self.master_call_task.cancel()
+            try:
+                await self.master_call_task
+            except asyncio.CancelledError:
+                pass
+
         if self.ws:
             await self.ws.close()
         if self.session:
