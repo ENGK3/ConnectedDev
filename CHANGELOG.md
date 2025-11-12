@@ -11,7 +11,16 @@ VoIP Enhancement - Ext 201 -> 200 roll over.
 Changed the ari-mon-conf.py script to first dial 201 and if it is not answered
 within 15 seconds the call rolls over to the LTE call at extension 200.
 
+Changed how the K3_config_settings file is created so the SW version can be added
+automatically.
+
 ### Removed
+
+### Known Issues
+
+The first time an LTE call is attempted it does not complete. It is not clear why.
+There is a ticket filed with Telit on this but to this point it has not been responded
+to or resolved.
 
 ## Version V00.03.00
 
