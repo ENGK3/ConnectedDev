@@ -164,6 +164,9 @@ class ARIConfMonitor:
         if not edc_channel_id:
             logger.error(f"Failed to call fallback extension {ADMIN_EXT_EDC}")
             self.admin_call_in_progress = False
+            self.master_channel_id = None
+            self.master_answered = False
+            self.fallback_scheduled = False
 
     async def _hangup_channel(self, channel_id):
         """Hangup a specific channel"""
