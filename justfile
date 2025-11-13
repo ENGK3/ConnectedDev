@@ -127,9 +127,15 @@ pdf:
 
 save: pkgvoip pdf
     mkdir "{{my_save_path}}/{{my_version}}"
-    cp  GW-VoIP-Setup-{{my_version}}.tgz "{{my_save_path}}/{{my_version}}/."
+    zip GW-VoIP-Pkg-{{my_version}}.zip GW-VoIP-Setup-{{my_version}}.tgz CHANGELOG.{{my_version}}.pdf GateworkVOIPProgramming.{{my_version}}.pdf
+    cp GW-VoIP-Setup-{{my_version}}.tgz "{{my_save_path}}/{{my_version}}/."
     cp CHANGELOG.{{my_version}}.pdf "{{my_save_path}}/{{my_version}}/."
     cp GateworkVOIPProgramming.{{my_version}}.pdf "{{my_save_path}}/{{my_version}}/."
+    cp GW-VoIP-Pkg-{{my_version}}.zip "{{my_save_path}}/{{my_version}}/."
 
 ans:
     scp answer_phone.py {{nuser}}@{{target}}:/mnt/data/answer_phone.py
+
+menu:
+    scp CONF_ADDING/confbridge.conf {{nuser}}@{{target}}:/mnt/data/addExten/confbridge.conf
+    scp CONF_ADDING/extensions.conf {{nuser}}@{{target}}:/mnt/data/addExten/extensions.conf
