@@ -4,3 +4,6 @@ MDL="Q01"
 APN="broadband"
 UTM="02EBA09E"  # Should come from the modem.
 bat_voltage="1323"  # Should come from the latest reading of the system.
+
+WHITELIST="9724620611,8668073545,9729560535,9729560536"
+MASTER_ANSWER_TO="15"

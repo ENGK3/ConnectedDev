@@ -1,5 +1,23 @@
 # CHANGELOG Kings III Software Changes
 
+## Version V00.03.02
+
+
+### Added
+
+### Changed
+
+### Removed
+
+### Known Issues
+
+The first time an LTE call is attempted it does not complete. It is not clear why.
+There is a ticket filed with Telit on this but to this point it has not been responded
+to or resolved.
+
+---
+
+
 ## Version V00.03.01
 
 ### Added
@@ -21,6 +39,8 @@ automatically.
 The first time an LTE call is attempted it does not complete. It is not clear why.
 There is a ticket filed with Telit on this but to this point it has not been responded
 to or resolved.
+
+---
 
 ## Version V00.03.00
 
@@ -54,10 +74,14 @@ Created a modem_utils.py file that has many of the modem related command in one 
 
 Nothing
 
+---
+
 ## Version V00.02.00
 
 Created VOIP configuration that successfully conferences calls to the
 operator at the EDC.
+
+---
 
 ## Version V00.01.00
 
