@@ -1,0 +1,101 @@
+graph TD
+    Start([Program Start]) --> Init[Initialize ARIConfMonitor]
+    Init --> Connect[Connect to ARI WebSocket]
+    Connect --> Listen[Listen for Events]
+
+    Listen --> EventRouter{Event Type}
+
+    %% Bridge Created
+    EventRouter -->|BridgeCreated| BridgeCreated[Log Bridge Creation]
+    BridgeCreated --> Listen
+
+    %% Channel Entered Bridge
+    EventRouter -->|ChannelEnteredBridge| ExtractElevator{Extract Elevator Number}
+    ExtractElevator -->|Valid Elevator| SendEDC[Send EDC Info Script]
+    ExtractElevator -->|Admin Extension| SkipEDC[Skip EDC]
+    ExtractElevator -->|Invalid| LogWarning[Log Warning]
+
+    SendEDC --> TrackChannel[Track Channel in Conference]
+    SkipEDC --> TrackChannel
+    LogWarning --> TrackChannel
+
+    TrackChannel --> IsAdmin{Is Admin Channel?}
+    IsAdmin -->|Yes| ResetFlags[Reset admin_call_in_progress]
+    IsAdmin -->|No| CheckTrigger{Should Trigger Admin?}
+
+    ResetFlags --> Listen
+
+    CheckTrigger -->|Conference Not Started OR<br/>No Admin Present| TriggerAdmin[Start Admin Call Sequence]
+    CheckTrigger -->|Admin Already Present| Listen
+
+    %% Admin Call Sequence
+    TriggerAdmin --> SetInProgress[Set admin_call_in_progress = True]
+    SetInProgress --> Call201[Call Extension 201]
+    Call201 --> Call201Success{Call Successful?}
+
+    Call201Success -->|Yes| StartTimeout[Start 15s Timeout Task]
+    Call201Success -->|No| Call200Direct[Call Extension 200]
+
+    StartTimeout --> WaitForAnswer{Wait for Answer}
+
+    WaitForAnswer -->|201 Answered<br/>Before Timeout| Cancel201Timeout[Cancel Timeout Task]
+    WaitForAnswer -->|Timeout Reached| Hangup201[Hangup Extension 201]
+
+    Cancel201Timeout --> StasisStart
+    Hangup201 --> Call200Fallback[Call Extension 200 Fallback]
+
+    Call200Direct --> Listen
+    Call200Fallback --> Listen
+
+    %% Stasis Start
+    EventRouter -->|StasisStart| CheckArgs{Check App Args}
+    CheckArgs -->|conf + conference_name| Is201{Is Extension 201?}
+
+    Is201 -->|Yes| Mark201Answered[Mark master_answered = True<br/>Cancel Timeout Task]
+    Is201 -->|No| SetAdminChannel[Set admin_channel_id]
+
+    Mark201Answered --> SetAdminChannel
+    SetAdminChannel --> AddToConf[Add Channel to Conference]
+
+    AddToConf --> AnswerChannel[Answer Channel]
+    AnswerChannel --> SetVars[Set ConfBridge Variables]
+    SetVars --> ContinueDialplan[Continue to Dialplan:<br/>confbridge_admin_join]
+
+    ContinueDialplan --> Listen
+
+    %% Channel Left Bridge
+    EventRouter -->|ChannelLeftBridge| RemoveTracking[Remove from Tracking]
+    RemoveTracking --> IsAdminLeaving{Is Admin Leaving?}
+
+    IsAdminLeaving -->|Yes| HangupAll[Hangup All Participants]
+    IsAdminLeaving -->|No| Listen
+
+    HangupAll --> ResetAdminState[Reset Admin State]
+    ResetAdminState --> Listen
+
+    %% Bridge Destroyed
+    EventRouter -->|BridgeDestroyed| CheckConfName{Is Target Conference?}
+    CheckConfName -->|Yes| ResetAllState[Reset All State:<br/>- conference_started<br/>- admin_channel_id<br/>- admin_call_in_progress<br/>- conference_channels<br/>- master call state]
+    CheckConfName -->|No| Listen
+
+    ResetAllState --> Listen
+
+    %% Other Events
+    EventRouter -->|ChannelStateChange| LogState[Log Channel State]
+    EventRouter -->|Other Events| LogUnhandled[Log Unhandled Event]
+
+    LogState --> Listen
+    LogUnhandled --> Listen
+
+    %% Cleanup
+    Listen -->|WebSocket Closed<br/>or Error| Cleanup[Cleanup:<br/>- Cancel timeout task<br/>- Close WebSocket<br/>- Close Session]
+    Cleanup --> End([Program End])
+
+    style Start fill:#90EE90
+    style End fill:#FFB6C1
+    style TriggerAdmin fill:#FFD700
+    style HangupAll fill:#FF6347
+    style AddToConf fill:#87CEEB
+    style Call201 fill:#DDA0DD
+    style Call200Fallback fill:#DDA0DD
+    style SendEDC fill:#F0E68C
