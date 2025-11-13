@@ -40,7 +40,7 @@ class ARIConfMonitor:
         self.session = None
         self.ws = None
         self.conference_started = False
-        self.admin_channel_id = None  # Track admin channel
+        self.admin_channels = set()  # Track all admin channels
         self.conference_channels = set()  # Track all conference participants
         self.admin_call_in_progress = False  # Prevent duplicate admin calls
 
@@ -107,11 +107,11 @@ class ARIConfMonitor:
     async def start_admin_call_sequence(self):
         """Start the admin call sequence - try 201 first, then 200 if no answer"""
         # Prevent duplicate calls
-        if self.admin_call_in_progress or self.admin_channel_id is not None:
+        if self.admin_call_in_progress:
             logger.info(
-                f"Admin call already in progress or admin already in conference. "
+                f"Admin call already in progress. "
                 f"Skipping duplicate call. (in_progress={self.admin_call_in_progress}, "
-                f"admin_channel_id={self.admin_channel_id})"
+                f"admin_channels={len(self.admin_channels)})"
             )
             return
 
@@ -268,7 +268,7 @@ class ARIConfMonitor:
                         self.master_call_task.cancel()
                         logger.debug("Cancelled master timeout task")
 
-                self.admin_channel_id = channel_id  # Track admin channel
+                self.admin_channels.add(channel_id)  # Track admin channel
                 # Don't reset admin_call_in_progress yet - wait until they actually
                 # join the bridge
                 await self.add_to_conference(channel_id)
@@ -381,8 +381,19 @@ class ARIConfMonitor:
             self.conference_channels.add(channel_id)
             logger.info(f"Tracked channel {channel_id} in conference")
 
-            # If this is the admin channel joining, reset the in-progress flag
-            if channel_id == self.admin_channel_id:
+            # Check if this channel is an admin by inspecting channel name
+            # Extensions 200 and 201 are admins
+            is_admin = False
+            if "PJSIP/200-" in channel_name or "PJSIP/201-" in channel_name:
+                is_admin = True
+                if channel_id not in self.admin_channels:
+                    self.admin_channels.add(channel_id)
+                    logger.info(
+                        f"Detected admin extension joining via dialplan: {channel_id}"
+                    )
+
+            # If this is an admin channel joining, reset the in-progress flag
+            if is_admin or channel_id in self.admin_channels:
                 self.admin_call_in_progress = False
                 logger.info(
                     f"Admin channel {channel_id} successfully joined conference"
@@ -391,16 +402,16 @@ class ARIConfMonitor:
 
             # Trigger admin join only if:
             # 1. Conference hasn't started, OR
-            # 2. Admin is not in the conference and there are participants
+            # 2. No admin is in the conference and there are participants
             if not self.conference_started or (
-                self.admin_channel_id is None
+                len(self.admin_channels) == 0
                 and not self.admin_call_in_progress
                 and len(self.conference_channels) > 0
             ):
                 logger.info(
                     f"Participant joined {self.conference_name} - triggering "
                     f"admin join (conference_started={self.conference_started}, "
-                    f"admin_channel={self.admin_channel_id}, "
+                    f"admin_channels={len(self.admin_channels)}, "
                     f"admin_call_in_progress={self.admin_call_in_progress})"
                 )
                 self.conference_started = True
@@ -414,7 +425,7 @@ class ARIConfMonitor:
         if bridge_name == self.conference_name:
             logger.info(f"Conference {self.conference_name} ended - resetting state")
             self.conference_started = False
-            self.admin_channel_id = None
+            self.admin_channels.clear()
             self.admin_call_in_progress = False
             self.conference_channels.clear()
 
@@ -441,20 +452,30 @@ class ARIConfMonitor:
         if channel_id in self.conference_channels:
             self.conference_channels.discard(channel_id)
 
-        # If admin left the conference, hangup all remaining participants
-        if bridge_name == self.conference_name and channel_id == self.admin_channel_id:
+        # If an admin left the conference, check if any admins remain
+        if bridge_name == self.conference_name and channel_id in self.admin_channels:
+            self.admin_channels.discard(channel_id)
             logger.info(
                 f"Admin channel {channel_id} left conference - "
-                f"hanging up all participants"
+                f"{len(self.admin_channels)} admin(s) remaining"
             )
-            await self.hangup_all_participants()
-            self.admin_channel_id = None
-            self.admin_call_in_progress = False  # Reset so admin can be called again
 
-            # Reset master call state
-            self.master_channel_id = None
-            self.master_answered = False
-            self.fallback_scheduled = False
+            # Only hangup all participants if this was the LAST admin
+            if len(self.admin_channels) == 0:
+                logger.info("Last admin left conference - hanging up all participants")
+                await self.hangup_all_participants()
+                # Reset so admin can be called again
+                self.admin_call_in_progress = False
+
+                # Reset master call state
+                self.master_channel_id = None
+                self.master_answered = False
+                self.fallback_scheduled = False
+            else:
+                logger.info(
+                    f"Conference continues with {len(self.admin_channels)} "
+                    f"admin(s) remaining"
+                )
 
     async def hangup_all_participants(self):
         """Hangup all channels still in the conference"""
