@@ -404,3 +404,7 @@ just pkgvoip
 
 The build process is a bit fragile, so don't run these to commands together on the
 same command line.
+
+## Updating Procedure
+
+**TODO : ** Add instructions on how to update when you have a tar file on the system.
