@@ -44,7 +44,7 @@ modem: k3_config
     scp modem_utils.py {{nuser}}@{{target}}:/mnt/data/modem_utils.py
     scp manage_modem.py {{nuser}}@{{target}}:/mnt/data/manage_modem.py
     scp modem_manager_client.py {{nuser}}@{{target}}:/mnt/data/modem_manager_client.py
-    scp modem_manager.service {{nuser}}@{{target}}:/mnt/data/modem_manager.service
+    scp manage_modem.service {{nuser}}@{{target}}:/mnt/data/manage_modem.service
     scp VOIP/voip_call_monitor_tcp_new.py {{nuser}}@{{target}}:/mnt/data/voip_call_monitor_tcp_new.py
     scp send_EDC_info.py {{nuser}}@{{target}}:/mnt/data/send_EDC_info.py
     scp K3_config_settings {{nuser}}@{{target}}:/mnt/data/K3_config_settings
