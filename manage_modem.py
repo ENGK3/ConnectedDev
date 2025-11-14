@@ -11,6 +11,7 @@ import argparse
 import enum
 import json
 import logging
+import os
 import queue
 import socket
 import sys
@@ -21,6 +22,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional, Tuple
 
 import serial
+from dotenv import dotenv_values
 
 # Import shared modem utilities
 from modem_utils import sbc_cmd, sbc_connect, sbc_disconnect
@@ -30,12 +32,57 @@ DEFAULT_SERIAL_PORT = "/dev/ttyUSB2"
 DEFAULT_BAUD_RATE = 115200
 DEFAULT_TCP_PORT = 5555
 DEFAULT_TCP_HOST = "0.0.0.0"
+DEFAULT_CONFIG_FILE = "/mnt/data/K3_config_settings"
 DEFAULT_WHITELIST = ["+19723256826", "+19723105316"]
 
 # AT Commands
 AT_ANSWER = "ATA\r"
 AT_HANGUP = "AT+CHUP\r"
 AT_CLIP_ENABLE = "AT+CLIP=1\r"
+
+
+def load_whitelist_from_config(config_file: str) -> Dict[str, bool]:
+    """
+    Load whitelist from config file and return as dictionary.
+
+    Args:
+        config_file: Path to K3_config_settings file
+
+    Returns:
+        Dictionary with phone numbers as keys (normalized with + prefix)
+    """
+    whitelist_dict = {}
+
+    if not os.path.exists(config_file):
+        logging.warning(f"Config file not found: {config_file}")
+        return whitelist_dict
+
+    try:
+        # Load config file using dotenv
+        config = dotenv_values(config_file)
+
+        whitelist_str = config.get("WHITELIST", "")
+        if not whitelist_str:
+            logging.warning("WHITELIST not found in config file")
+            return whitelist_dict
+
+        # Parse comma-separated numbers
+        numbers = [num.strip() for num in whitelist_str.split(",")]
+
+        # Create dictionary with normalized numbers (add + prefix if missing)
+        for num in numbers:
+            if num:
+                # Normalize: add + prefix if not present
+                normalized = num if num.startswith("+") else f"+1{num}"
+                whitelist_dict[normalized] = True
+                logging.info(f"Whitelist entry: {normalized}")
+
+        logging.info(f"Loaded {len(whitelist_dict)} numbers from whitelist")
+
+    except Exception as e:
+        logging.error(f"Error loading whitelist from config: {e}", exc_info=True)
+
+    return whitelist_dict
 
 
 class ModemState(enum.Enum):
@@ -82,12 +129,13 @@ class CommandResponse:
 class ModemStateMachine:
     """State machine for managing modem operations."""
 
-    def __init__(self, serial_connection: serial.Serial, whitelist: list):
+    def __init__(self, serial_connection: serial.Serial, whitelist: Dict[str, bool]):
         self.serial = serial_connection
-        self.whitelist = whitelist
+        self.whitelist = whitelist  # Dictionary of allowed numbers
         self.state = ModemState.IDLE
         self.call_info = CallInfo()
         self.state_lock = threading.Lock()
+        self.serial_lock = threading.Lock()  # Protect serial port access
         self.command_queue = queue.Queue()
         self.pending_requests = {}  # request_id -> CommandRequest
         self.shutdown_flag = threading.Event()
@@ -177,11 +225,12 @@ class ModemStateMachine:
             # Configure modem for calling
             self._configure_modem_for_call()
 
-            # Flush any pending data
-            self.serial.reset_input_buffer()
+            with self.serial_lock:
+                # Flush any pending data
+                self.serial.reset_input_buffer()
 
-            # Place the call
-            sbc_cmd(f"ATD{number};\r", self.serial, verbose=True)
+                # Place the call
+                sbc_cmd(f"ATD{number};\r", self.serial, verbose=True)
 
             audio_modules = None
             start_time = time.time()
@@ -202,7 +251,10 @@ class ModemStateMachine:
                         call_termination_reason = "timeout"
                         break
 
-                    response = self.serial.readline().decode(errors="ignore").strip()
+                    with self.serial_lock:
+                        response = (
+                            self.serial.readline().decode(errors="ignore").strip()
+                        )
 
                     if response:
                         logging.info(f"Call response: {response}")
@@ -274,7 +326,8 @@ class ModemStateMachine:
                     logging.info("Audio bridge terminated")
 
                 # Send hangup to ensure modem is clean
-                sbc_cmd(AT_HANGUP, self.serial, verbose=True)
+                with self.serial_lock:
+                    sbc_cmd(AT_HANGUP, self.serial, verbose=True)
 
                 # Reset state
                 self.set_state(ModemState.IDLE)
@@ -286,7 +339,8 @@ class ModemStateMachine:
             elif not call_connected:
                 # Call never connected
                 logging.info("Call failed to connect, cleaning up")
-                sbc_cmd(AT_HANGUP, self.serial, verbose=True)
+                with self.serial_lock:
+                    sbc_cmd(AT_HANGUP, self.serial, verbose=True)
                 self.set_state(ModemState.IDLE)
                 self.call_info = CallInfo()
 
@@ -332,7 +386,8 @@ class ModemStateMachine:
         self.set_state(ModemState.CALL_ENDING)
 
         # Send hangup command
-        sbc_cmd(AT_HANGUP, self.serial, verbose=True)
+        with self.serial_lock:
+            sbc_cmd(AT_HANGUP, self.serial, verbose=True)
 
         # Cleanup audio
         if self.call_info.audio_modules:
@@ -388,16 +443,20 @@ class ModemStateMachine:
         logging.info(f"Incoming call from {caller_number}")
         self.set_state(ModemState.ANSWERING_CALL)
 
-        # Check whitelist
+        # Check whitelist (dictionary lookup)
         if caller_number not in self.whitelist:
-            logging.info(f"Number {caller_number} not in whitelist, ignoring call")
+            logging.warning(
+                f"Number {caller_number} not in whitelist ({len(self.whitelist)} "
+                f"entries), rejecting call"
+            )
             self.set_state(ModemState.IDLE)
             return
 
         logging.info(f"Number {caller_number} is whitelisted, answering call")
 
         # Answer the call
-        sbc_cmd(AT_ANSWER, self.serial, verbose=True)
+        with self.serial_lock:
+            sbc_cmd(AT_ANSWER, self.serial, verbose=True)
 
         # Wait a moment for call to establish
         time.sleep(1)
@@ -413,6 +472,25 @@ class ModemStateMachine:
         )
         self.set_state(ModemState.CALL_ACTIVE)
         logging.info(f"Incoming call from {caller_number} is now active")
+
+    def _configure_modem_for_incoming_calls(self):
+        """Configure modem to detect and report incoming calls."""
+        logging.info("Configuring modem for incoming call detection")
+        at_cmd_set = [
+            "ATE1\r",  # Enable command echo
+            "AT+CLIP=1\r",  # Enable caller ID presentation
+            "AT+CMEE=2\r",  # Enable verbose error reporting
+            "AT+CMER=2,0,0,2\r",  # Enable unsolicited result codes for events
+            "AT+CIND=0,0,1,0,1,1,1,1,0,1,1\r",  # Configure indicators
+        ]
+
+        with self.serial_lock:
+            for cmd in at_cmd_set:
+                response = sbc_cmd(cmd, self.serial, verbose=True)
+                if response:
+                    logging.debug(f"Response to {cmd.strip()}: {response}")
+
+        logging.info("Modem configured for incoming calls")
 
     def _configure_modem_for_call(self):
         """Configure modem for calling."""
@@ -432,8 +510,9 @@ class ModemStateMachine:
             "AT+CIND=0,0,1,0,1,1,1,1,0,1,1\r",
         ]
 
-        for cmd in at_cmd_set:
-            sbc_cmd(cmd, self.serial, verbose=False)
+        with self.serial_lock:
+            for cmd in at_cmd_set:
+                sbc_cmd(cmd, self.serial, verbose=False)
 
     def _start_audio_bridge(self) -> Optional[Tuple[Optional[str], Optional[str]]]:
         """Start PulseAudio loopback modules for audio routing."""
@@ -624,21 +703,23 @@ def monitor_serial_port(state_machine: ModemStateMachine):
     """Monitor serial port for incoming calls and events."""
     logging.info("Starting serial port monitor")
 
-    # Enable caller ID
-    sbc_cmd(AT_CLIP_ENABLE, state_machine.serial, verbose=True)
+    # Configure modem for incoming call detection
+    state_machine._configure_modem_for_incoming_calls()
 
     caller_number = None
 
     while not state_machine.shutdown_flag.is_set():
         try:
             # Set short timeout to allow checking shutdown flag
-            state_machine.serial.timeout = 0.5
-            line = state_machine.serial.readline().decode(errors="ignore").strip()
+            with state_machine.serial_lock:
+                state_machine.serial.timeout = 0.5
+                line = state_machine.serial.readline().decode(errors="ignore").strip()
 
             if not line:
                 continue
 
-            logging.debug(f"Serial: {line}")
+            # Log all serial traffic at INFO level for visibility
+            logging.info(f"Serial: {line}")
 
             # Detect incoming call
             if line == "RING":
@@ -733,11 +814,17 @@ def main():
         help=f"Modem baud rate (default: {DEFAULT_BAUD_RATE})",
     )
     parser.add_argument(
+        "--config-file",
+        type=str,
+        default=DEFAULT_CONFIG_FILE,
+        help=f"Config file path (default: {DEFAULT_CONFIG_FILE})",
+    )
+    parser.add_argument(
         "--whitelist",
         type=str,
         nargs="+",
-        default=DEFAULT_WHITELIST,
-        help="Whitelist of allowed phone numbers",
+        default=None,
+        help="Whitelist of allowed phone numbers (overrides config file)",
     )
     parser.add_argument(
         "--log-level",
@@ -770,7 +857,27 @@ def main():
     logging.info("Modem Manager Starting")
     logging.info(f"TCP Server: {args.host}:{args.port}")
     logging.info(f"Modem Port: {args.modem} @ {args.baud} baud")
-    logging.info(f"Whitelist: {args.whitelist}")
+    logging.info("=" * 60)
+
+    # Load whitelist from config file or command line
+    if args.whitelist:
+        # Command line override
+        logging.info("Using whitelist from command line")
+        whitelist_dict = {}
+        for num in args.whitelist:
+            normalized = num if num.startswith("+") else f"+1{num}"
+            whitelist_dict[normalized] = True
+        logging.info(f"Whitelist: {list(whitelist_dict.keys())}")
+    else:
+        # Load from config file
+        logging.info(f"Loading whitelist from config: {args.config_file}")
+        whitelist_dict = load_whitelist_from_config(args.config_file)
+
+        if not whitelist_dict:
+            logging.warning("No whitelist loaded, using defaults")
+            whitelist_dict = {num: True for num in DEFAULT_WHITELIST}
+            logging.info(f"Default whitelist: {list(whitelist_dict.keys())}")
+
     logging.info("=" * 60)
 
     # Connect to modem
@@ -781,7 +888,7 @@ def main():
 
     try:
         # Create state machine
-        state_machine = ModemStateMachine(serial_connection, args.whitelist)
+        state_machine = ModemStateMachine(serial_connection, whitelist_dict)
 
         # Start serial monitor thread
         serial_thread = threading.Thread(
