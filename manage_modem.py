@@ -230,7 +230,26 @@ class ModemStateMachine:
                 self.serial.reset_input_buffer()
 
                 # Place the call
-                sbc_cmd(f"ATD{number};\r", self.serial, verbose=True)
+                dial_response = sbc_cmd(f"ATD{number};\r", self.serial, verbose=True)
+
+            # Check if dial command failed immediately
+            if "ERROR" in dial_response or "+CME ERROR" in dial_response:
+                logging.error(f"Dial command failed: {dial_response}")
+                with self.serial_lock:
+                    sbc_cmd(AT_HANGUP, self.serial, verbose=True)
+                self.set_state(ModemState.IDLE)
+                self.call_info = CallInfo()
+
+                self._send_async_response(
+                    request_id,
+                    CommandResponse(
+                        status="error",
+                        message=f"Call failed: {dial_response}",
+                        request_id=request_id,
+                        data={"call_connected": False},
+                    ),
+                )
+                return
 
             audio_modules = None
             start_time = time.time()
@@ -258,6 +277,12 @@ class ModemStateMachine:
 
                     if response:
                         logging.info(f"Call response: {response}")
+
+                    # Check for error responses
+                    if "+CME ERROR" in response or "ERROR" in response:
+                        logging.error(f"Call failed with error: {response}")
+                        call_termination_reason = f"error: {response}"
+                        break
 
                     if "+CIEV: call,1" in response:
                         logging.info("Call connected successfully")
@@ -437,7 +462,9 @@ class ModemStateMachine:
                 f"Incoming call from {caller_number} rejected - "
                 f"modem busy (state: {current_state.value})"
             )
-            # Could send busy signal here if needed
+            # Send hangup to reject the incoming call
+            with self.serial_lock:
+                sbc_cmd(AT_HANGUP, self.serial, verbose=True)
             return
 
         logging.info(f"Incoming call from {caller_number}")
@@ -449,6 +476,9 @@ class ModemStateMachine:
                 f"Number {caller_number} not in whitelist ({len(self.whitelist)} "
                 f"entries), rejecting call"
             )
+            # Send hangup command to terminate the call
+            with self.serial_lock:
+                sbc_cmd(AT_HANGUP, self.serial, verbose=True)
             self.set_state(ModemState.IDLE)
             return
 
@@ -597,7 +627,7 @@ class ModemTCPServer:
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server_socket.bind((self.host, self.port))
         self.server_socket.listen(5)
-        self.server_socket.settimeout(1.0)  # Allow checking shutdown flag
+        self.server_socket.settimeout(0.5)  # Shorter timeout for responsive shutdown
 
         logging.info(f"TCP server listening on {self.host}:{self.port}")
 
@@ -892,7 +922,7 @@ def main():
 
         # Start serial monitor thread
         serial_thread = threading.Thread(
-            target=monitor_serial_port, args=(state_machine,), daemon=True
+            target=monitor_serial_port, args=(state_machine,), daemon=False
         )
         serial_thread.start()
 
@@ -901,13 +931,28 @@ def main():
         tcp_server.start()
 
     except KeyboardInterrupt:
-        logging.info("Interrupted by user")
+        logging.info("Interrupted by user (Ctrl+C)")
+        # Set shutdown flag immediately
+        state_machine.shutdown_flag.set()
     except Exception as e:
         logging.error(f"Fatal error: {e}", exc_info=True)
+        state_machine.shutdown_flag.set()
     finally:
         # Cleanup
         logging.info("Shutting down...")
-        sbc_disconnect(serial_connection)
+
+        # Give threads a moment to finish
+        if 'serial_thread' in locals():
+            serial_thread.join(timeout=2.0)
+            if serial_thread.is_alive():
+                logging.warning("Serial monitor thread did not exit cleanly")
+
+        # Close serial connection
+        try:
+            sbc_disconnect(serial_connection)
+        except Exception as e:
+            logging.error(f"Error closing serial connection: {e}")
+
         logging.info("Modem Manager stopped")
         sys.exit(0)
 
