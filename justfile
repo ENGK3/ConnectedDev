@@ -3,8 +3,8 @@
 #target := "172.27.17.9"
 #target := "172.20.10.141"
 #target := "172.20.10.93"
-target := "172.20.10.223"   # Gateworks Target
-#target := "172.27.17.41"
+#target := "172.20.10.223"   # Gateworks Target
+target := "172.27.17.41"
 
 #nuser := "root"
 nuser := "kuser"
@@ -38,10 +38,14 @@ sounds:
     scp -r sounds {{nuser}}@{{target}}:/mnt/data/.
     scp asound.state {{nuser}}@{{target}}:/mnt/data/asound.state
 
-modem:
+modem: k3_config
     scp place_call.py {{nuser}}@{{target}}:/mnt/data/place_call.py
     scp check_reg.py {{nuser}}@{{target}}:/mnt/data/check_reg.py
     scp modem_utils.py {{nuser}}@{{target}}:/mnt/data/modem_utils.py
+    scp manage_modem.py {{nuser}}@{{target}}:/mnt/data/manage_modem.py
+    scp modem_manager_client.py {{nuser}}@{{target}}:/mnt/data/modem_manager_client.py
+    scp modem_manager.service {{nuser}}@{{target}}:/mnt/data/modem_manager.service
+    scp VOIP/voip_call_monitor_tcp_new.py {{nuser}}@{{target}}:/mnt/data/voip_call_monitor_tcp_new.py
     scp send_EDC_info.py {{nuser}}@{{target}}:/mnt/data/send_EDC_info.py
     scp K3_config_settings {{nuser}}@{{target}}:/mnt/data/K3_config_settings
 
