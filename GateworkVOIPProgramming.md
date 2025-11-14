@@ -63,6 +63,35 @@ answered automatically, places the call to the number provided (EDC number).
 1. Once connected the call is automatically added to the 'elevator_conference' as
 the admin of the call.
 
+
+┌─────────────────────────────────────────────────────────────┐
+│ Call Flow - Both calls stay active for audio bridge         │
+└─────────────────────────────────────────────────────────────┘
+
+1. Incoming VOIP call arrives
+   ├─> Accept baresip call (CALL_ESTABLISHED)
+   └─> Request modem manager to place call
+
+2. Modem call connects (status: success)
+   ├─> Both calls are NOW ACTIVE ✓
+   ├─> Audio bridge is working ✓
+   └─> Start background monitor thread
+
+3. Background thread polls modem status every 2s
+   └─> Watches for call_active: false
+
+4. Call termination (two scenarios):
+
+   A. Modem call ends first:
+      ├─> Monitor detects call_active: false
+      ├─> Monitor hangs up baresip call
+      └─> Both calls cleaned up ✓
+
+   B. VOIP call ends first (CALL_CLOSED):
+      ├─> Send hangup command to modem manager
+      ├─> Modem manager terminates call
+      └─> Both calls cleaned up ✓
+
 ## Installing OS Packages
 
 Before running updates for the packages, make sure that the eth0 is disabled, or

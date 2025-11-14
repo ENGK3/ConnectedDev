@@ -174,14 +174,26 @@ class ModemStateMachine:
 
         if current_state != ModemState.IDLE:
             # Queue the command for later processing
+            # NOTE: We don't store the client socket because it will timeout
+            # before the queued command is processed
             logging.info(
                 f"Modem busy (state: {current_state.value}), "
                 f"queueing place_call request {request.request_id}"
             )
-            self.command_queue.put(request)
+            # Clear client socket to prevent sending to timed-out connection
+            queued_request = CommandRequest(
+                command=request.command,
+                params=request.params,
+                request_id=request.request_id,
+                client_socket=None  # Don't store socket - it will timeout
+            )
+            self.command_queue.put(queued_request)
             return CommandResponse(
-                status="pending",
-                message=f"Modem busy in {current_state.value} state, command queued",
+                status="error",
+                message=(
+                    f"Modem busy in {current_state.value} state - "
+                    f"call cannot be placed now"
+                ),
                 request_id=request.request_id,
             )
 
@@ -222,14 +234,19 @@ class ModemStateMachine:
     def _place_call_worker(self, number: str, no_audio_routing: bool, request_id: str):
         """Worker thread for placing calls."""
         try:
+            logging.info(f"Worker thread started for {number}")
+
             # Configure modem for calling
+            logging.info("Configuring modem for outgoing call...")
             self._configure_modem_for_call()
+            logging.info("Modem configuration complete")
 
             with self.serial_lock:
                 # Flush any pending data
                 self.serial.reset_input_buffer()
 
                 # Place the call
+                logging.info(f"Acquiring serial lock to dial {number}")
                 dial_response = sbc_cmd(f"ATD{number};\r", self.serial, verbose=True)
 
             # Check if dial command failed immediately
@@ -584,7 +601,14 @@ class ModemStateMachine:
                         (response.to_json() + "\n").encode()
                     )
                 except Exception as e:
-                    logging.error(f"Failed to send async response: {e}")
+                    logging.warning(
+                        f"Failed to send async response "
+                        f"(client may have disconnected): {e}"
+                    )
+            else:
+                logging.debug(
+                    f"No client socket for request {request_id} - response not sent"
+                )
 
     def _process_command_queue(self):
         """Process any queued commands."""
@@ -596,10 +620,17 @@ class ModemStateMachine:
                 # Re-route to appropriate handler
                 if request.command == "place_call":
                     response = self.handle_place_call(request)
+                    # Note: client_socket will be None for queued commands
+                    # Response will be logged but not sent back to client
                     if request.client_socket and response.status != "pending":
-                        request.client_socket.sendall(
-                            (response.to_json() + "\n").encode()
-                        )
+                        try:
+                            request.client_socket.sendall(
+                                (response.to_json() + "\n").encode()
+                            )
+                        except Exception as e:
+                            logging.warning(
+                                f"Could not send response to queued command: {e}"
+                            )
         except queue.Empty:
             pass
         except Exception as e:
@@ -740,6 +771,14 @@ def monitor_serial_port(state_machine: ModemStateMachine):
 
     while not state_machine.shutdown_flag.is_set():
         try:
+            # Check if worker thread needs the serial port
+            # If placing a call, give it priority by sleeping briefly
+            current_state = state_machine.get_state()
+            if current_state == ModemState.PLACING_CALL:
+                # Give the worker thread time to configure and place call
+                time.sleep(0.1)
+                continue
+
             # Set short timeout to allow checking shutdown flag
             with state_machine.serial_lock:
                 state_machine.serial.timeout = 0.5
