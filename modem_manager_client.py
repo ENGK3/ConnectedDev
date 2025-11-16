@@ -46,7 +46,9 @@ class ModemManagerClient:
             logging.info(f"Connected to modem manager at {self.host}:{self.port}")
             return True
         except Exception as e:
-            logging.error(f"Failed to connect to modem manager: {e}")
+            logging.error(
+                f"Failed to connect to modem manager at {self.host}:{self.port}: {e}"
+            )
             self.socket = None
             return False
 
@@ -330,7 +332,7 @@ if __name__ == "__main__":
         client = ModemManagerClient(args.host, args.port, args.timeout)
 
         if not client.connect():
-            logging.error("Failed to connect to server")
+            logging.error(f"Failed to connect to server at {args.host}:{args.port}")
             sys.exit(1)
 
         # Execute command

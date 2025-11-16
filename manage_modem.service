@@ -1,0 +1,26 @@
+[Unit]
+Description=Modem Manager - Centralized modem control service
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /mnt/data/manage_modem.py \
+    --port 5555 \
+    --host 0.0.0.0 \
+    --modem /dev/ttyUSB2 \
+    --baud 115200 \
+    --log-level INFO \
+    --log-file /mnt/data/modem_manager.log
+WorkingDirectory=/mnt/data
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+User=root
+
+# Resource limits
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

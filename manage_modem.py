@@ -139,6 +139,7 @@ class ModemStateMachine:
         self.command_queue = queue.Queue()
         self.pending_requests = {}  # request_id -> CommandRequest
         self.shutdown_flag = threading.Event()
+        self.incoming_call_callbacks = []  # Callbacks for incoming call notifications
 
     def get_state(self) -> ModemState:
         """Thread-safe state getter."""
@@ -520,6 +521,21 @@ class ModemStateMachine:
         self.set_state(ModemState.CALL_ACTIVE)
         logging.info(f"Incoming call from {caller_number} is now active")
 
+        # Notify any registered callbacks about incoming call
+        self._notify_incoming_call(caller_number)
+
+    def _notify_incoming_call(self, caller_number: str):
+        """Notify registered callbacks about incoming call."""
+        for callback in self.incoming_call_callbacks:
+            try:
+                callback(caller_number)
+            except Exception as e:
+                logging.error(f"Error in incoming call callback: {e}")
+
+    def register_incoming_call_callback(self, callback):
+        """Register a callback for incoming call notifications."""
+        self.incoming_call_callbacks.append(callback)
+
     def _configure_modem_for_incoming_calls(self):
         """Configure modem to detect and report incoming calls."""
         logging.info("Configuring modem for incoming call detection")
@@ -651,6 +667,8 @@ class ModemTCPServer:
         self.port = port
         self.server_socket = None
         self.client_threads = []
+        self.notification_clients = []  # Clients subscribed to notifications
+        self.notification_lock = threading.Lock()
 
     def start(self):
         """Start the TCP server."""
@@ -686,6 +704,8 @@ class ModemTCPServer:
 
     def _handle_client(self, client_socket: socket.socket, client_address):
         """Handle individual client connection."""
+        notification_mode = False
+
         try:
             # Set timeout for client socket
             client_socket.settimeout(60.0)
@@ -725,6 +745,17 @@ class ModemTCPServer:
                     if response:
                         client_socket.sendall((response.to_json() + "\n").encode())
 
+                        # Check if entering notification mode
+                        if response.data and response.data.get("notification_mode"):
+                            notification_mode = True
+                            logging.info(
+                                f"Client {client_address} entering "
+                                "notification-only mode"
+                            )
+                            # Enter notification mode - keep socket alive but don't read
+                            self._notification_mode(client_socket, client_address)
+                            break  # Exit handler loop
+
                 except json.JSONDecodeError as e:
                     logging.error(f"Invalid JSON from {client_address}: {e}")
                     error_response = CommandResponse(
@@ -737,8 +768,36 @@ class ModemTCPServer:
         except Exception as e:
             logging.error(f"Error handling client {client_address}: {e}")
         finally:
+            if not notification_mode:
+                # Only close if not in notification mode
+                # (notification mode handles its own cleanup)
+                client_socket.close()
+                logging.info(f"Client {client_address} disconnected")
+
+    def _notification_mode(self, client_socket: socket.socket, client_address):
+        """Keep connection alive for notification-only clients.
+
+        Once a client subscribes to notifications, this method keeps the socket
+        alive without reading from it, allowing the client to receive push
+        notifications.
+        """
+        try:
+            logging.info(f"Notification mode active for {client_address}")
+            # Keep socket alive - notifications are pushed via broadcast_incoming_call
+            # Don't read from socket to avoid competing with client's read thread
+            while not self.state_machine.shutdown_flag.is_set():
+                time.sleep(1.0)
+
+        except Exception as e:
+            logging.error(f"Error in notification mode for {client_address}: {e}")
+        finally:
+            # Remove from notification clients
+            with self.notification_lock:
+                if client_socket in self.notification_clients:
+                    self.notification_clients.remove(client_socket)
+
             client_socket.close()
-            logging.info(f"Client {client_address} disconnected")
+            logging.info(f"Notification client {client_address} disconnected")
 
     def _route_command(self, request: CommandRequest) -> Optional[CommandResponse]:
         """Route command to appropriate handler."""
@@ -750,6 +809,8 @@ class ModemTCPServer:
             return self.state_machine.handle_hangup(request)
         elif command == "status":
             return self.state_machine.handle_status(request)
+        elif command == "subscribe_notifications":
+            return self._handle_subscribe(request)
         elif command == "shutdown":
             return self.state_machine.handle_shutdown(request)
         else:
@@ -759,9 +820,114 @@ class ModemTCPServer:
                 request_id=request.request_id,
             )
 
+    def _handle_subscribe(self, request: CommandRequest) -> CommandResponse:
+        """Handle notification subscription request.
 
-def monitor_serial_port(state_machine: ModemStateMachine):
-    """Monitor serial port for incoming calls and events."""
+        Returns a special response that signals the handler to enter notification mode.
+        """
+        if request.client_socket:
+            with self.notification_lock:
+                if request.client_socket not in self.notification_clients:
+                    self.notification_clients.append(request.client_socket)
+            logging.info("Client subscribed to notifications")
+
+            # Return response with special flag to enter notification mode
+            response = CommandResponse(
+                status="success",
+                message="Subscribed to incoming call notifications",
+                request_id=request.request_id,
+            )
+            response.data = {"notification_mode": True}
+            return response
+        else:
+            return CommandResponse(
+                status="error",
+                message="No client socket available",
+                request_id=request.request_id,
+            )
+
+    def broadcast_incoming_call(self, caller_number: str):
+        """Broadcast incoming call notification to subscribed clients."""
+        notification = {
+            "type": "incoming_call",
+            "caller_number": caller_number,
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        # Send as newline-delimited JSON (not netstring)
+        message = json.dumps(notification) + "\n"
+
+        logging.debug(f"Broadcasting notification: {message.strip()}")
+
+        with self.notification_lock:
+            dead_clients = []
+            for client_socket in self.notification_clients:
+                try:
+                    client_socket.sendall(message.encode())
+                    logging.info(
+                        f"Sent incoming call notification to "
+                        f"{client_socket.getpeername()}: {caller_number}"
+                    )
+                except Exception as e:
+                    logging.warning(
+                        f"Failed to send notification to "
+                        f"{client_socket.getpeername()}: {e}"
+                    )
+                    dead_clients.append(client_socket)
+
+            # Remove dead clients
+            for client_socket in dead_clients:
+                self.notification_clients.remove(client_socket)
+                try:
+                    client_socket.close()
+                except Exception:
+                    pass
+
+    def broadcast_call_ended(self, reason: str = "unknown"):
+        """Broadcast call ended notification to subscribed clients."""
+        notification = {
+            "type": "call_ended",
+            "reason": reason,
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        # Send as newline-delimited JSON (not netstring)
+        message = json.dumps(notification) + "\n"
+
+        logging.debug(f"Broadcasting call ended notification: {message.strip()}")
+
+        with self.notification_lock:
+            dead_clients = []
+            for client_socket in self.notification_clients:
+                try:
+                    client_socket.sendall(message.encode())
+                    logging.info(
+                        f"Sent call ended notification to "
+                        f"{client_socket.getpeername()}: {reason}"
+                    )
+                except Exception as e:
+                    logging.warning(
+                        f"Failed to send notification to "
+                        f"{client_socket.getpeername()}: {e}"
+                    )
+                    dead_clients.append(client_socket)
+
+            # Remove dead clients
+            for client_socket in dead_clients:
+                self.notification_clients.remove(client_socket)
+                try:
+                    client_socket.close()
+                except Exception:
+                    pass
+
+
+def monitor_serial_port(state_machine: ModemStateMachine, tcp_server=None):
+    """Monitor serial port for incoming calls and events.
+
+    Args:
+        state_machine: ModemStateMachine instance
+        tcp_server: Optional ModemTCPServer for broadcasting notifications
+    """
     logging.info("Starting serial port monitor")
 
     # Configure modem for incoming call detection
@@ -827,6 +993,10 @@ def monitor_serial_port(state_machine: ModemStateMachine):
                 if current_state in [ModemState.CALL_ACTIVE, ModemState.PLACING_CALL]:
                     logging.info(f"Call ended: {termination_reason}")
                     state_machine.set_state(ModemState.CALL_ENDING)
+
+                    # Broadcast call ended notification to subscribed clients
+                    if tcp_server:
+                        tcp_server.broadcast_call_ended(termination_reason)
 
                     # Cleanup audio if active
                     if state_machine.call_info.audio_modules:
@@ -959,14 +1129,23 @@ def main():
         # Create state machine
         state_machine = ModemStateMachine(serial_connection, whitelist_dict)
 
-        # Start serial monitor thread
+        # Create TCP server
+        tcp_server = ModemTCPServer(state_machine, args.host, args.port)
+
+        # Register callback to broadcast incoming calls to subscribed clients
+        state_machine.register_incoming_call_callback(
+            tcp_server.broadcast_incoming_call
+        )
+
+        # Start serial monitor thread (pass tcp_server for call_ended broadcasts)
         serial_thread = threading.Thread(
-            target=monitor_serial_port, args=(state_machine,), daemon=False
+            target=monitor_serial_port,
+            args=(state_machine, tcp_server),
+            daemon=False,
         )
         serial_thread.start()
 
         # Start TCP server (blocking)
-        tcp_server = ModemTCPServer(state_machine, args.host, args.port)
         tcp_server.start()
 
     except KeyboardInterrupt:

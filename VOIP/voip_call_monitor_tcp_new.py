@@ -219,6 +219,100 @@ def monitor_baresip_output(proc, stop_event=None):
         logging.debug(f"Baresip output monitor stopped: {e}")
 
 
+def monitor_modem_notifications(
+    modem_manager_host,
+    modem_manager_port,
+    stop_event,
+    incoming_call_callback,
+    call_ended_callback=None,
+):
+    """Monitor modem manager for incoming cellular call notifications.
+
+    Args:
+        modem_manager_host: Modem manager host
+        modem_manager_port: Modem manager port
+        stop_event: Event to signal when to stop
+        incoming_call_callback: Function to call when incoming call received
+        call_ended_callback: Optional function to call when call ends
+    """
+    while not stop_event.is_set():
+        try:
+            # Connect to modem manager
+            client = ModemManagerClient(
+                modem_manager_host, modem_manager_port, timeout=10.0
+            )
+            if not client.connect():
+                logging.error("Failed to connect to modem manager for notifications")
+                time.sleep(5)
+                continue
+
+            # Subscribe to notifications
+            subscribe_request = {
+                "command": "subscribe_notifications",
+                "params": {},
+                "request_id": f"subscribe-{time.time()}",
+            }
+
+            if not client.socket:
+                logging.error("No socket connection")
+                time.sleep(5)
+                continue
+
+            client.socket.sendall((json.dumps(subscribe_request) + "\n").encode())
+
+            # Read subscription response
+            response = json.loads(client.socket.recv(4096).decode().strip())
+            if response.get("status") != "success":
+                logging.error(f"Failed to subscribe: {response.get('message')}")
+                client.disconnect()
+                time.sleep(5)
+                continue
+
+            logging.info("Subscribed to modem manager notifications")
+
+            # Listen for notifications
+            while not stop_event.is_set():
+                try:
+                    if not client.socket:
+                        break
+                    data = client.socket.recv(4096)
+                    if not data:
+                        logging.warning("Modem manager notification connection closed")
+                        break
+
+                    notification = json.loads(data.decode().strip())
+
+                    if notification.get("type") == "incoming_call":
+                        caller_number = notification.get("caller_number")
+                        logging.info(
+                            f"Received incoming cellular call notification: "
+                            f"{caller_number}"
+                        )
+                        incoming_call_callback(caller_number)
+
+                    elif notification.get("type") == "call_ended":
+                        reason = notification.get("reason", "unknown")
+                        logging.info(
+                            f"Received call ended notification: {reason}"
+                        )
+                        if call_ended_callback:
+                            call_ended_callback(reason)
+
+                except socket.timeout:
+                    continue
+                except json.JSONDecodeError as e:
+                    logging.error(f"Invalid notification JSON: {e}")
+                except Exception as e:
+                    logging.error(f"Error receiving notification: {e}")
+                    break
+
+            client.disconnect()
+
+        except Exception as e:
+            logging.error(f"Error in notification monitor: {e}")
+            time.sleep(5)
+
+
 def monitor_baresip_socket(
     sock,
     phone_number,
@@ -241,7 +335,109 @@ def monitor_baresip_socket(
     buffer = ""
     current_call_id = None  # Track the current call ID
 
+    def handle_incoming_cellular_call(caller_number):
+        """Handle incoming cellular call - make baresip join conference as admin."""
+        nonlocal call_in_progress, current_call_id, sock
+
+        if call_in_progress:
+            logging.warning(
+                f"Cannot handle incoming cellular call from {caller_number} - "
+                "VOIP call already in progress"
+            )
+            return
+
+        logging.info(
+            f"Incoming cellular call from {caller_number}, "
+            "joining conference as admin..."
+        )
+
+        # Make baresip dial extension 9877 to join as admin
+        try:
+            # Create a fake call ID for tracking
+            current_call_id = f"cellular-{time.time()}"
+            call_in_progress = True
+
+            # Baresip dial command format:
+            # {"command": "dial", "params": "sip:extension@host"}
+            sip_uri = "sip:9877@192.168.80.10"
+
+            logging.info(f"Dialing baresip to: {sip_uri}")
+
+            # Build proper dial command with params field
+            cmd_obj = {"command": "dial", "params": sip_uri}
+            json_cmd = json.dumps(cmd_obj)
+            netstring = f"{len(json_cmd)}:{json_cmd},"
+
+            # Send to baresip socket (not modem_manager!)
+            data_to_send = netstring.encode("utf-8")
+            logging.debug(
+                f"Sending to baresip socket (fileno={sock.fileno()}): "
+                f"{netstring.strip()}"
+            )
+            sock.sendall(data_to_send)
+            logging.info(
+                f"Successfully sent dial command to baresip "
+                f"({len(data_to_send)} bytes): {sip_uri}"
+            )
+
+        except Exception as e:
+            logging.error(f"Error handling incoming cellular call: {e}", exc_info=True)
+            call_in_progress = False
+            current_call_id = None
+
+    def handle_cellular_call_ended(reason):
+        """Handle cellular call ended - hangup baresip call."""
+        nonlocal call_in_progress, current_call_id, sock
+
+        if not call_in_progress:
+            logging.debug(
+                f"Received call ended notification but no call in progress: {reason}"
+            )
+            return
+
+        logging.info(
+            f"Cellular call ended ({reason}), hanging up baresip conference call..."
+        )
+
+        try:
+            # Send hangup command to baresip
+            if current_call_id:
+                # Use the send_baresip_command helper
+                success = send_baresip_command(sock, "hangup", current_call_id)
+                if success:
+                    logging.info(
+                        f"Sent hangup command for call {current_call_id}"
+                    )
+                else:
+                    logging.error(
+                        f"Failed to send hangup command for call {current_call_id}"
+                    )
+
+            # Reset state
+            call_in_progress = False
+            current_call_id = None
+
+        except Exception as e:
+            logging.error(f"Error handling cellular call ended: {e}", exc_info=True)
+            call_in_progress = False
+            current_call_id = None
+
     try:
+        # Start notification monitor in background thread
+        notification_thread = threading.Thread(
+            target=monitor_modem_notifications,
+            args=(
+                modem_manager_host,
+                modem_manager_port,
+                stop_event,
+                handle_incoming_cellular_call,
+                handle_cellular_call_ended,
+            ),
+            daemon=True,
+        )
+        notification_thread.start()
+        logging.info("Started modem notification monitor thread")
+
         while True:
             if stop_event and stop_event.is_set():
                 logging.info("Stop event detected. Exiting monitor loop.")
@@ -268,6 +464,8 @@ def monitor_baresip_socket(
                         EVENT_CALL_ESTABLISHED,
                         EVENT_CALL_CLOSED,
                         EVENT_CALL_INCOMING,
+                        "CALL_OUTGOING",  # Add outgoing call event
+                        "CALL_RINGING",  # Add ringing event
                     ]:
                         logging.info(
                             f"[BARESIP EVENT] {event_type}: "
@@ -278,7 +476,10 @@ def monitor_baresip_socket(
                             f"[BARESIP EVENT JSON] {json.dumps(event, indent=2)}"
                         )
                     else:
-                        logging.debug(f"[BARESIP EVENT] {event_type}")
+                        # Log ALL events at INFO level temporarily for debugging
+                        logging.info(
+                            f"[BARESIP EVENT] {event_type}: {json.dumps(event)}"
+                        )
 
                     # Check for call established
                     if event_type == EVENT_CALL_ESTABLISHED:
