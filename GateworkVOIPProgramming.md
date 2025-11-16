@@ -92,6 +92,28 @@ the admin of the call.
       ├─> Modem manager terminates call
       └─> Both calls cleaned up ✓
 
+
+┌─────────────────────────────────────────────────────────────────┐
+│ Incoming Cellular Call Flow                                     │
+└─────────────────────────────────────────────────────────────────┘
+
+1. Cell phone calls → manage_modem
+   ├─> Checks whitelist
+   ├─> Answers call
+   ├─> Sets up audio bridge (cellular ↔ PulseAudio)
+   └─> Broadcasts notification to subscribers
+
+2. voip_call_monitor receives notification
+   ├─> Extracts caller_number
+   └─> Makes baresip dial extension 9877
+
+3. Baresip dials 9877
+   ├─> Asterisk answers
+   └─> Joins elevator_conference as ADMIN (default_admin profile)
+
+4. Audio flows:
+   Cellular ↔ PulseAudio ↔ Baresip ↔ ConfBridge ↔ Elevators
+
 ## Installing OS Packages
 
 Before running updates for the packages, make sure that the eth0 is disabled, or
@@ -389,12 +411,17 @@ MDL="Q01"
 APN="broadband"
 UTM="02EBA09E"
 bat_voltage="1323"
+
+WHITELIST="9723256826,9724620611,8668073545,9729560535,9729560536"
+MASTER_ANSWER_TO="15"
 ```
 
 The bat_voltage and UTM and APN will eventually be read in real time and removed from
 the config file.
 
 This file can be edited during installation to report back the desired information.
+
+The variable 'WHITELIST' is used to control which incoming call numbers will be answered.
 
 ## Setup of Viking phone
 
