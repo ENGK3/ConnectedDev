@@ -11,6 +11,7 @@ import logging
 import sys
 
 import aiohttp
+from dotenv import dotenv_values
 
 # Configuration
 ARI_HOST = "127.0.0.1"
@@ -25,7 +26,10 @@ logger = logging.getLogger(__name__)
 
 ADMIN_EXT_MASTER = "201"
 ADMIN_EXT_EDC = "200"
-ADMIN_TIMEOUT_SECONDS = 15  # Timeout for extension 201 to answer
+
+# Load MASTER_ANSWER_TO from K3_config_settings file
+config = dotenv_values("/mnt/data/K3_config_settings")
+ADMIN_TIMEOUT_SECONDS = int(config.get("MASTER_ANSWER_TO", 15))
 
 
 class ARIConfMonitor:
