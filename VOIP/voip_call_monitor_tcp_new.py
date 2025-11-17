@@ -37,7 +37,7 @@ EVENT_CALL_INCOMING = "CALL_INCOMING"
 EVENT_CALL_RINGING = "CALL_RINGING"
 
 
-def send_baresip_command(sock, command, call_id=None):
+def send_baresip_command(sock, command, call_id=None, params=None):
     """Send a command to baresip via TCP socket using JSON netstring format
 
     Baresip expects commands in JSON netstring format:
@@ -45,8 +45,9 @@ def send_baresip_command(sock, command, call_id=None):
 
     Args:
         sock: Socket connection to baresip
-        command: Command string to send to baresip (e.g., "hangup", "accept")
+        command: Command string to send to baresip (e.g., "hangup", "accept", "dtmf")
         call_id: Optional call ID for commands that target specific calls
+        params: Optional parameters for the command (e.g., DTMF digit)
 
     Returns:
         True if command was sent successfully, False otherwise
@@ -58,6 +59,10 @@ def send_baresip_command(sock, command, call_id=None):
         # Add call ID if provided
         if call_id:
             cmd_obj["id"] = call_id
+
+        # Add params if provided
+        if params:
+            cmd_obj["params"] = params
 
         # Convert to JSON string
         json_cmd = json.dumps(cmd_obj)
@@ -225,6 +230,7 @@ def monitor_modem_notifications(
     stop_event,
     incoming_call_callback,
     call_ended_callback=None,
+    dtmf_callback=None,
 ):
     """Monitor modem manager for incoming cellular call notifications.
 
@@ -234,6 +240,7 @@ def monitor_modem_notifications(
         stop_event: Event to signal when to stop
         incoming_call_callback: Function to call when incoming call received
         call_ended_callback: Optional function to call when call ends
+        dtmf_callback: Optional function to call when DTMF digit received
     """
     while not stop_event.is_set():
         try:
@@ -298,6 +305,14 @@ def monitor_modem_notifications(
                         if call_ended_callback:
                             call_ended_callback(reason)
 
+                    elif notification.get("type") == "dtmf_received":
+                        digit = notification.get("digit")
+                        logging.info(
+                            f"Received DTMF notification: {digit}"
+                        )
+                        if dtmf_callback:
+                            dtmf_callback(digit)
+
                 except socket.timeout:
                     continue
                 except json.JSONDecodeError as e:
@@ -359,7 +374,7 @@ def monitor_baresip_socket(
 
             # Baresip dial command format:
             # {"command": "dial", "params": "sip:extension@host"}
-            sip_uri = "sip:9877@192.168.80.10"
+            sip_uri = "sip:101@192.168.80.10"
 
             logging.info(f"Dialing baresip to: {sip_uri}")
 
@@ -384,6 +399,36 @@ def monitor_baresip_socket(
             logging.error(f"Error handling incoming cellular call: {e}", exc_info=True)
             call_in_progress = False
             current_call_id = None
+
+    def handle_dtmf_received(digit):
+        """Handle DTMF digit received from cellular modem - forward to baresip."""
+        nonlocal call_in_progress, current_call_id, sock
+
+        if not call_in_progress or not current_call_id:
+            logging.debug(
+                f"Received DTMF digit {digit} but no call in progress, ignoring"
+            )
+            return
+
+        logging.info(
+            f"DTMF received from cellular: {digit}, "
+            f"forwarding to baresip call {current_call_id}"
+        )
+
+        try:
+            # Send DTMF to baresip
+            # Per baresip documentation: DTMF digits are single-char commands
+            # The digit itself is the command (no "dtmf" wrapper needed)
+            # Format for netstring: 1:<digit>,
+            # Note: We don't use send_baresip_command here because it wraps
+            # in JSON which isn't needed for simple single-character commands
+            netstring = f"1:{digit},"
+            sock.sendall(netstring.encode("utf-8"))
+            logging.info(
+                f"Successfully sent DTMF {digit} to baresip (netstring: {netstring})"
+            )
+        except Exception as e:
+            logging.error(f"Error forwarding DTMF to baresip: {e}", exc_info=True)
 
     def handle_cellular_call_ended(reason):
         """Handle cellular call ended - hangup baresip call."""
@@ -432,6 +477,7 @@ def monitor_baresip_socket(
                 stop_event,
                 handle_incoming_cellular_call,
                 handle_cellular_call_ended,
+                handle_dtmf_received,
             ),
             daemon=True,
         )
