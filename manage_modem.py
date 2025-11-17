@@ -34,6 +34,7 @@ DEFAULT_TCP_PORT = 5555
 DEFAULT_TCP_HOST = "0.0.0.0"
 DEFAULT_CONFIG_FILE = "/mnt/data/K3_config_settings"
 DEFAULT_WHITELIST = ["+19723256826", "+19723105316"]
+DEFAULT_ENABLE_AUDIO_ROUTING = True  # Enable for POOL, disable for elevator
 
 # AT Commands
 AT_ANSWER = "ATA\r"
@@ -41,21 +42,21 @@ AT_HANGUP = "AT+CHUP\r"
 AT_CLIP_ENABLE = "AT+CLIP=1\r"
 
 
-def load_whitelist_from_config(config_file: str) -> Dict[str, bool]:
+def load_config(config_file: str) -> tuple[Dict[str, bool], bool]:
     """
-    Load whitelist from config file and return as dictionary.
+    Load configuration from config file.
 
     Args:
         config_file: Path to K3_config_settings file
 
     Returns:
-        Dictionary with phone numbers as keys (normalized with + prefix)
+        Tuple of (whitelist dict with phone numbers as keys, enable_audio_routing flag)
     """
     whitelist_dict = {}
 
     if not os.path.exists(config_file):
         logging.warning(f"Config file not found: {config_file}")
-        return whitelist_dict
+        return whitelist_dict, DEFAULT_ENABLE_AUDIO_ROUTING
 
     try:
         # Load config file using dotenv
@@ -64,7 +65,10 @@ def load_whitelist_from_config(config_file: str) -> Dict[str, bool]:
         whitelist_str = config.get("WHITELIST", "")
         if not whitelist_str:
             logging.warning("WHITELIST not found in config file")
-            return whitelist_dict
+            # Still load audio routing setting
+            enable_audio = config.get("ENABLE_AUDIO_ROUTING", "true").lower()
+            enable_audio_routing = enable_audio in ["true", "1", "yes", "on"]
+            return whitelist_dict, enable_audio_routing
 
         # Parse comma-separated numbers
         numbers = [num.strip() for num in whitelist_str.split(",")]
@@ -79,10 +83,16 @@ def load_whitelist_from_config(config_file: str) -> Dict[str, bool]:
 
         logging.info(f"Loaded {len(whitelist_dict)} numbers from whitelist")
 
-    except Exception as e:
-        logging.error(f"Error loading whitelist from config: {e}", exc_info=True)
+        # Load audio routing setting
+        enable_audio = config.get("ENABLE_AUDIO_ROUTING", "true").lower()
+        enable_audio_routing = enable_audio in ["true", "1", "yes", "on"]
+        logging.info(f"Audio routing enabled: {enable_audio_routing}")
 
-    return whitelist_dict
+    except Exception as e:
+        logging.error(f"Error loading config: {e}", exc_info=True)
+        enable_audio_routing = DEFAULT_ENABLE_AUDIO_ROUTING
+
+    return whitelist_dict, enable_audio_routing
 
 
 class ModemState(enum.Enum):
@@ -129,9 +139,16 @@ class CommandResponse:
 class ModemStateMachine:
     """State machine for managing modem operations."""
 
-    def __init__(self, serial_connection: serial.Serial, whitelist: Dict[str, bool]):
+    def __init__(
+        self,
+        serial_connection: serial.Serial,
+        whitelist: Dict[str, bool],
+        enable_audio_routing: bool = True,
+    ):
         self.serial = serial_connection
         self.whitelist = whitelist  # Dictionary of allowed numbers
+        # Enable audio loopback for POOL, disable for elevator
+        self.enable_audio_routing = enable_audio_routing
         self.state = ModemState.IDLE
         self.call_info = CallInfo()
         self.state_lock = threading.Lock()
@@ -510,7 +527,16 @@ class ModemStateMachine:
         time.sleep(1)
 
         # Setup audio and transition to active
-        audio_modules = self._start_audio_bridge()
+        audio_modules = None
+        if self.enable_audio_routing:
+            audio_modules = self._start_audio_bridge()
+            if audio_modules and audio_modules[0] and audio_modules[1]:
+                logging.info(f"Audio bridge started for incoming call: {audio_modules}")
+            else:
+                logging.warning("Audio routing enabled but failed to start bridge")
+        else:
+            logging.info("Audio routing disabled - no audio bridge for incoming call")
+
         self.call_info = CallInfo(
             number=caller_number,
             direction="incoming",
@@ -920,6 +946,40 @@ class ModemTCPServer:
                 except Exception:
                     pass
 
+    def broadcast_dtmf(self, digit: str):
+        """Broadcast DTMF digit notification to all registered notification clients."""
+        notification = {
+            "type": "dtmf_received",
+            "digit": digit,
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        message = json.dumps(notification) + "\n"
+
+        with self.notification_lock:
+            dead_clients = []
+            for client_socket in self.notification_clients:
+                try:
+                    client_socket.sendall(message.encode())
+                    logging.debug(
+                        f"Sent DTMF notification to "
+                        f"{client_socket.getpeername()}: {digit}"
+                    )
+                except Exception as e:
+                    logging.warning(
+                        f"Failed to send DTMF notification to "
+                        f"{client_socket.getpeername()}: {e}"
+                    )
+                    dead_clients.append(client_socket)
+
+            # Remove dead clients
+            for client_socket in dead_clients:
+                self.notification_clients.remove(client_socket)
+                try:
+                    client_socket.close()
+                except Exception:
+                    pass
+
 
 def monitor_serial_port(state_machine: ModemStateMachine, tcp_server=None):
     """Monitor serial port for incoming calls and events.
@@ -970,6 +1030,20 @@ def monitor_serial_port(state_machine: ModemStateMachine, tcp_server=None):
 
                     # Handle the incoming call
                     state_machine.handle_incoming_call(caller_number)
+
+            # Detect DTMF events
+            if line.startswith("#DTMFEV:"):
+                # Example: #DTMFEV: *,1 or #DTMFEV: 5,1
+                parts = line.split(":")
+                if len(parts) >= 2:
+                    dtmf_parts = parts[1].strip().split(",")
+                    if dtmf_parts:
+                        dtmf_digit = dtmf_parts[0].strip()
+                        logging.info(f"DTMF detected: {dtmf_digit}")
+
+                        # Broadcast DTMF to subscribed clients
+                        if tcp_server and current_state == ModemState.CALL_ACTIVE:
+                            tcp_server.broadcast_dtmf(dtmf_digit)
 
             # Detect call state changes and terminations
             call_ended = False
@@ -1098,19 +1172,23 @@ def main():
     logging.info(f"Modem Port: {args.modem} @ {args.baud} baud")
     logging.info("=" * 60)
 
-    # Load whitelist from config file or command line
+    # Load configuration from config file or command line
+    enable_audio_routing = DEFAULT_ENABLE_AUDIO_ROUTING  # Default value
+
     if args.whitelist:
-        # Command line override
+        # Command line override for whitelist
         logging.info("Using whitelist from command line")
         whitelist_dict = {}
         for num in args.whitelist:
             normalized = num if num.startswith("+") else f"+1{num}"
             whitelist_dict[normalized] = True
         logging.info(f"Whitelist: {list(whitelist_dict.keys())}")
+        # Still load audio routing setting from config
+        _, enable_audio_routing = load_config(args.config_file)
     else:
         # Load from config file
-        logging.info(f"Loading whitelist from config: {args.config_file}")
-        whitelist_dict = load_whitelist_from_config(args.config_file)
+        logging.info(f"Loading configuration from: {args.config_file}")
+        whitelist_dict, enable_audio_routing = load_config(args.config_file)
 
         if not whitelist_dict:
             logging.warning("No whitelist loaded, using defaults")
@@ -1127,7 +1205,11 @@ def main():
 
     try:
         # Create state machine
-        state_machine = ModemStateMachine(serial_connection, whitelist_dict)
+        state_machine = ModemStateMachine(
+            serial_connection, whitelist_dict, enable_audio_routing
+        )
+        audio_status = 'ENABLED' if enable_audio_routing else 'DISABLED'
+        logging.info(f"Audio routing: {audio_status}")
 
         # Create TCP server
         tcp_server = ModemTCPServer(state_machine, args.host, args.port)
