@@ -152,7 +152,7 @@ load-module module-filter-apply
 .nofail
 .include /etc/pulse/default.pa.d
 
-set-card-profile alsa_card.usb-Android_LE910C1-NF_0123456789ABCDEF-04 output:mono-fallback+input:mono-fallback
-set-default-sink alsa_output.usb-Android_LE910C1-NF_0123456789ABCDEF-04.mono-fallback
-set-default-source alsa_input.usb-Android_LE910C1-NF_0123456789ABCDEF-04.mono-fallback
+set-card-profile alsa_card.usb-Android_LE910C1-NF_0123456789ABCDEF-03 output:mono-fallback+input:mono-fallback
+set-default-sink alsa_output.usb-Android_LE910C1-NF_0123456789ABCDEF-03.mono-fallback
+set-default-source alsa_input.usb-Android_LE910C1-NF_0123456789ABCDEF-03.mono-fallback
 .fail
