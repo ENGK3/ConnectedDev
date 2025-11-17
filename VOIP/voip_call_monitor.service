@@ -1,6 +1,6 @@
 [Unit]
 Description=VoIP Call Monitor TCP Service
-After=network.target asterisk.service
+After=network.target asterisk.service manage_modem.service
 Requires=asterisk.service
 # Wait for device to be available
 After=dev-ttyUSB2.device

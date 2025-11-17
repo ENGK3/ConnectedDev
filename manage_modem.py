@@ -1149,7 +1149,7 @@ def main():
     parser.add_argument(
         "--log-file",
         type=str,
-        default="/mnt/data/modem_manager.log",
+        default="/mnt/data/calls.log",
         help="Log file path",
     )
 

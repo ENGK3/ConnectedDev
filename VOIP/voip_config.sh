@@ -53,3 +53,9 @@ cp /mnt/data/voip_ari_conference.service /etc/systemd/system/.
 systemctl daemon-reload
 systemctl enable voip_ari_conference.service
 systemctl start voip_ari_conference.service
+
+
+cp /mnt/data/manage_modem.service /etc/systemd/system/.
+systemctl daemon-reload
+systemctl enable manage_modem.service
+systemctl start manage_modem.service
