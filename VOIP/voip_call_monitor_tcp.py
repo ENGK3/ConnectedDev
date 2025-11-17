@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Monitor baresip via TCP socket interface and handle incoming calls.
+Monitor baresip via TCP socket interface and handle incoming calls using Modem Manager.
 
 This script connects to baresip's TCP control interface to monitor call events.
-When an incoming call is established, it launches place_call.py to handle
-the audio routing. After place_call.py completes, the incoming call is terminated.
+When an incoming call is established, it uses the modem_manager_client to place
+an outgoing call for audio routing. This version coordinates with the centralized
+modem manager instead of calling place_call.py directly.
 """
 
 import argparse
@@ -17,10 +18,17 @@ import sys
 import threading
 import time
 
+# Import modem manager client
+from modem_manager_client import ModemManagerClient
+
 # Baresip settings
 BARESIP_CMD = "/usr/bin/baresip"
 BARESIP_HOST = "localhost"
 BARESIP_PORT = 4444  # Default baresip control port
+
+# Modem Manager settings
+MODEM_MANAGER_HOST = "localhost"
+MODEM_MANAGER_PORT = 5555
 
 # Event types from baresip JSON events
 EVENT_CALL_ESTABLISHED = "CALL_ESTABLISHED"
@@ -29,29 +37,7 @@ EVENT_CALL_INCOMING = "CALL_INCOMING"
 EVENT_CALL_RINGING = "CALL_RINGING"
 
 
-def get_audio_routing_cmd(phone_number, skip_rerouting=False):
-    """Construct the audio routing command with the given phone number and extension
-
-    Args:
-        phone_number: Phone number to dial
-        skip_rerouting: If True, adds -r flag to skip audio re-routing
-
-    Returns:
-        List of command arguments for subprocess
-    """
-    cmd = [
-        "/usr/bin/python3",
-        "/mnt/data/place_call.py",
-        "-n",
-        phone_number,
-        "-v",
-    ]
-    if skip_rerouting:
-        cmd.append("-r")
-    return cmd
-
-
-def send_baresip_command(sock, command, call_id=None):
+def send_baresip_command(sock, command, call_id=None, params=None):
     """Send a command to baresip via TCP socket using JSON netstring format
 
     Baresip expects commands in JSON netstring format:
@@ -59,8 +45,9 @@ def send_baresip_command(sock, command, call_id=None):
 
     Args:
         sock: Socket connection to baresip
-        command: Command string to send to baresip (e.g., "hangup", "accept")
+        command: Command string to send to baresip (e.g., "hangup", "accept", "dtmf")
         call_id: Optional call ID for commands that target specific calls
+        params: Optional parameters for the command (e.g., DTMF digit)
 
     Returns:
         True if command was sent successfully, False otherwise
@@ -72,6 +59,10 @@ def send_baresip_command(sock, command, call_id=None):
         # Add call ID if provided
         if call_id:
             cmd_obj["id"] = call_id
+
+        # Add params if provided
+        if params:
+            cmd_obj["params"] = params
 
         # Convert to JSON string
         json_cmd = json.dumps(cmd_obj)
@@ -233,21 +224,266 @@ def monitor_baresip_output(proc, stop_event=None):
         logging.debug(f"Baresip output monitor stopped: {e}")
 
 
-def monitor_baresip_socket(sock, phone_number, skip_rerouting=False, stop_event=None):
-    """Monitor baresip TCP socket and handle incoming calls
+def monitor_modem_notifications(
+    modem_manager_host,
+    modem_manager_port,
+    stop_event,
+    incoming_call_callback,
+    call_ended_callback=None,
+    dtmf_callback=None,
+):
+    """Monitor modem manager for incoming cellular call notifications.
+
+    Args:
+        modem_manager_host: Modem manager host
+        modem_manager_port: Modem manager port
+        stop_event: Event to signal when to stop
+        incoming_call_callback: Function to call when incoming call received
+        call_ended_callback: Optional function to call when call ends
+        dtmf_callback: Optional function to call when DTMF digit received
+    """
+    while not stop_event.is_set():
+        try:
+            # Connect to modem manager
+            client = ModemManagerClient(
+                modem_manager_host, modem_manager_port, timeout=10.0
+            )
+            if not client.connect():
+                logging.error("Failed to connect to modem manager for notifications")
+                time.sleep(5)
+                continue
+
+            # Subscribe to notifications
+            subscribe_request = {
+                "command": "subscribe_notifications",
+                "params": {},
+                "request_id": f"subscribe-{time.time()}",
+            }
+
+            if not client.socket:
+                logging.error("No socket connection")
+                time.sleep(5)
+                continue
+
+            client.socket.sendall((json.dumps(subscribe_request) + "\n").encode())
+
+            # Read subscription response
+            response = json.loads(client.socket.recv(4096).decode().strip())
+            if response.get("status") != "success":
+                logging.error(f"Failed to subscribe: {response.get('message')}")
+                client.disconnect()
+                time.sleep(5)
+                continue
+
+            logging.info("Subscribed to modem manager notifications")
+
+            # Listen for notifications
+            while not stop_event.is_set():
+                try:
+                    if not client.socket:
+                        break
+                    data = client.socket.recv(4096)
+                    if not data:
+                        logging.warning("Modem manager notification connection closed")
+                        break
+
+                    notification = json.loads(data.decode().strip())
+
+                    if notification.get("type") == "incoming_call":
+                        caller_number = notification.get("caller_number")
+                        logging.info(
+                            f"Received incoming cellular call notification: "
+                            f"{caller_number}"
+                        )
+                        incoming_call_callback(caller_number)
+
+                    elif notification.get("type") == "call_ended":
+                        reason = notification.get("reason", "unknown")
+                        logging.info(
+                            f"Received call ended notification: {reason}"
+                        )
+                        if call_ended_callback:
+                            call_ended_callback(reason)
+
+                    elif notification.get("type") == "dtmf_received":
+                        digit = notification.get("digit")
+                        logging.info(
+                            f"Received DTMF notification: {digit}"
+                        )
+                        if dtmf_callback:
+                            dtmf_callback(digit)
+
+                except socket.timeout:
+                    continue
+                except json.JSONDecodeError as e:
+                    logging.error(f"Invalid notification JSON: {e}")
+                except Exception as e:
+                    logging.error(f"Error receiving notification: {e}")
+                    break
+
+            client.disconnect()
+
+        except Exception as e:
+            logging.error(f"Error in notification monitor: {e}")
+            time.sleep(5)
+
+
+def monitor_baresip_socket(
+    sock,
+    phone_number,
+    skip_rerouting=False,
+    stop_event=None,
+    modem_manager_host=MODEM_MANAGER_HOST,
+    modem_manager_port=MODEM_MANAGER_PORT,
+):
+    """Monitor baresip TCP socket and handle incoming calls using Modem Manager
 
     Args:
         sock: Socket connection to baresip
         phone_number: Phone number to dial for audio routing
         skip_rerouting: If True, skip audio re-routing
         stop_event: Threading event to signal when to stop monitoring
+        modem_manager_host: Modem manager server host
+        modem_manager_port: Modem manager server port
     """
     call_in_progress = False
-    audio_proc = None
     buffer = ""
     current_call_id = None  # Track the current call ID
 
+    def handle_incoming_cellular_call(caller_number):
+        """Handle incoming cellular call - make baresip join conference as admin."""
+        nonlocal call_in_progress, current_call_id, sock
+
+        if call_in_progress:
+            logging.warning(
+                f"Cannot handle incoming cellular call from {caller_number} - "
+                "VOIP call already in progress"
+            )
+            return
+
+        logging.info(
+            f"Incoming cellular call from {caller_number}, "
+            "joining conference as admin..."
+        )
+
+        # Make baresip dial extension 9877 to join as admin
+        try:
+            # Create a fake call ID for tracking
+            current_call_id = f"cellular-{time.time()}"
+            call_in_progress = True
+
+            # Baresip dial command format:
+            # {"command": "dial", "params": "sip:extension@host"}
+            sip_uri = "sip:101@192.168.80.10"
+
+            logging.info(f"Dialing baresip to: {sip_uri}")
+
+            # Build proper dial command with params field
+            cmd_obj = {"command": "dial", "params": sip_uri}
+            json_cmd = json.dumps(cmd_obj)
+            netstring = f"{len(json_cmd)}:{json_cmd},"
+
+            # Send to baresip socket (not modem_manager!)
+            data_to_send = netstring.encode("utf-8")
+            logging.debug(
+                f"Sending to baresip socket (fileno={sock.fileno()}): "
+                f"{netstring.strip()}"
+            )
+            sock.sendall(data_to_send)
+            logging.info(
+                f"Successfully sent dial command to baresip "
+                f"({len(data_to_send)} bytes): {sip_uri}"
+            )
+
+        except Exception as e:
+            logging.error(f"Error handling incoming cellular call: {e}", exc_info=True)
+            call_in_progress = False
+            current_call_id = None
+
+    def handle_dtmf_received(digit):
+        """Handle DTMF digit received from cellular modem - forward to baresip."""
+        nonlocal call_in_progress, current_call_id, sock
+
+        if not call_in_progress or not current_call_id:
+            logging.debug(
+                f"Received DTMF digit {digit} but no call in progress, ignoring"
+            )
+            return
+
+        logging.info(
+            f"DTMF received from cellular: {digit}, "
+            f"forwarding to baresip call {current_call_id}"
+        )
+
+        try:
+            # Send DTMF to baresip
+            # Per baresip documentation: DTMF digits are single-char commands
+            # The digit itself is the command (no "dtmf" wrapper needed)
+            # Format for netstring: 1:<digit>,
+            # Note: We don't use send_baresip_command here because it wraps
+            # in JSON which isn't needed for simple single-character commands
+            netstring = f"1:{digit},"
+            sock.sendall(netstring.encode("utf-8"))
+            logging.info(
+                f"Successfully sent DTMF {digit} to baresip (netstring: {netstring})"
+            )
+        except Exception as e:
+            logging.error(f"Error forwarding DTMF to baresip: {e}", exc_info=True)
+
+    def handle_cellular_call_ended(reason):
+        """Handle cellular call ended - hangup baresip call."""
+        nonlocal call_in_progress, current_call_id, sock
+
+        if not call_in_progress:
+            logging.debug(
+                f"Received call ended notification but no call in progress: {reason}"
+            )
+            return
+
+        logging.info(
+            f"Cellular call ended ({reason}), hanging up baresip conference call..."
+        )
+
+        try:
+            # Send hangup command to baresip
+            if current_call_id:
+                # Use the send_baresip_command helper
+                success = send_baresip_command(sock, "hangup", current_call_id)
+                if success:
+                    logging.info(
+                        f"Sent hangup command for call {current_call_id}"
+                    )
+                else:
+                    logging.error(
+                        f"Failed to send hangup command for call {current_call_id}"
+                    )
+
+            # Reset state
+            call_in_progress = False
+            current_call_id = None
+
+        except Exception as e:
+            logging.error(f"Error handling cellular call ended: {e}", exc_info=True)
+            call_in_progress = False
+            current_call_id = None
+
     try:
+        # Start notification monitor in background thread
+        notification_thread = threading.Thread(
+            target=monitor_modem_notifications,
+            args=(
+                modem_manager_host,
+                modem_manager_port,
+                stop_event,
+                handle_incoming_cellular_call,
+                handle_cellular_call_ended,
+                handle_dtmf_received,
+            ),
+            daemon=True,
+        )
+        notification_thread.start()
+        logging.info("Started modem notification monitor thread")
+
         while True:
             if stop_event and stop_event.is_set():
                 logging.info("Stop event detected. Exiting monitor loop.")
@@ -264,30 +500,32 @@ def monitor_baresip_socket(sock, phone_number, skip_rerouting=False, stop_event=
                 buffer += data.decode("utf-8", errors="ignore")
 
                 # Parse any complete events in the buffer
-                # Events are in format: <length>:{JSON},
-                # We need to process them as they arrive
                 events, buffer = parse_baresip_event(buffer)
 
                 for event in events:
                     event_type = event.get("type", "UNKNOWN")
 
-                    # Log the event at INFO level for important events, DEBUG for others
+                    # Log the event
                     if event_type in [
                         EVENT_CALL_ESTABLISHED,
                         EVENT_CALL_CLOSED,
                         EVENT_CALL_INCOMING,
+                        "CALL_OUTGOING",  # Add outgoing call event
+                        "CALL_RINGING",  # Add ringing event
                     ]:
                         logging.info(
                             f"[BARESIP EVENT] {event_type}: "
                             f"{event.get('peeruri', 'N/A')} "
                             f"({event.get('peerdisplayname', 'N/A')})"
                         )
-                        # Print full JSON event for call state changes
                         logging.info(
                             f"[BARESIP EVENT JSON] {json.dumps(event, indent=2)}"
                         )
                     else:
-                        logging.debug(f"[BARESIP EVENT] {event_type}")
+                        # Log ALL events at INFO level temporarily for debugging
+                        logging.info(
+                            f"[BARESIP EVENT] {event_type}: {json.dumps(event)}"
+                        )
 
                     # Check for call established
                     if event_type == EVENT_CALL_ESTABLISHED:
@@ -303,60 +541,196 @@ def monitor_baresip_socket(sock, phone_number, skip_rerouting=False, stop_event=
 
                         logging.info(
                             f"Call established (ID: {current_call_id}). "
-                            f"Routing audio call..."
+                            f"Routing audio call via Modem Manager..."
                         )
                         call_in_progress = True
 
-                        # Launch place_call.py
-                        audio_cmd = get_audio_routing_cmd(phone_number, skip_rerouting)
-                        logging.info(f"Executing: {' '.join(audio_cmd)}")
-                        audio_proc = subprocess.Popen(
-                            audio_cmd,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            text=True,
-                        )
-
-                        # Wait for place_call.py to complete
-                        logging.info("Waiting for place_call.py to complete...")
-                        returncode = audio_proc.wait()
-
-                        # Capture and log stdout and stderr
-                        stdout_output = ""
-                        stderr_output = ""
-                        if audio_proc.stdout:
-                            stdout_output = audio_proc.stdout.read()
-                        if audio_proc.stderr:
-                            stderr_output = audio_proc.stderr.read()
-
-                        if returncode == 0:
-                            logging.info("place_call.py completed successfully.")
-                            if stdout_output:
-                                logging.info(f"place_call.py stdout:\n{stdout_output}")
-                        else:
-                            logging.warning(
-                                f"place_call.py exited with code {returncode}"
+                        # Use modem manager client to place call
+                        try:
+                            client = ModemManagerClient(
+                                modem_manager_host, modem_manager_port, timeout=35.0
                             )
-                            if stdout_output:
-                                logging.warning(
-                                    f"place_call.py stdout:\n{stdout_output}"
+                            if not client.connect():
+                                logging.error(
+                                    "Failed to connect to modem manager. "
+                                    "Terminating baresip call."
                                 )
-                            if stderr_output:
-                                logging.error(f"place_call.py stderr:\n{stderr_output}")
+                                send_baresip_command(sock, "hangup", current_call_id)
+                                call_in_progress = False
+                                current_call_id = None
+                                continue
 
-                        # Terminate the baresip call now that place_call.py is done
-                        logging.info(
-                            f"Terminating baresip call (ID: {current_call_id})..."
-                        )
-                        # Send hangup command with call ID
-                        send_baresip_command(sock, "hangup", current_call_id)
-                        time.sleep(1)  # Give some time for the hangup to process
+                            # Place the call
+                            logging.info(
+                                f"Requesting modem manager to place call to "
+                                f"{phone_number}"
+                            )
+                            response = client.place_call(phone_number, skip_rerouting)
 
-                        call_in_progress = False
-                        audio_proc = None
-                        current_call_id = None
+                            logging.info(
+                                f"Modem manager response: {response.get('status')} - "
+                                f"{response.get('message')}"
+                            )
 
-                        logging.info("Ready for next incoming call...")
+                            # Handle response based on status
+                            if response.get("status") == "error":
+                                # Modem is busy or error occurred
+                                logging.warning(
+                                    f"Call placement failed: {response.get('message')}"
+                                )
+                                # Terminate baresip call since we can't route audio
+                                send_baresip_command(sock, "hangup", current_call_id)
+                                call_in_progress = False
+                                current_call_id = None
+                                client.disconnect()
+                                continue
+
+                            # Wait for final response if pending
+                            call_success = False
+                            if response.get("status") == "pending":
+                                logging.info(
+                                    "Call placement pending, waiting for completion..."
+                                )
+                                # The response will come asynchronously
+                                if client.socket:
+                                    final_response = json.loads(
+                                        client.socket.recv(4096).decode().strip()
+                                    )
+                                    status = final_response.get('status')
+                                    msg = final_response.get('message')
+                                    logging.info(
+                                        f"Final response: {status} - {msg}"
+                                    )
+
+                                    if final_response.get("status") == "success":
+                                        logging.info(
+                                            "Audio routing call completed successfully"
+                                        )
+                                        call_success = True
+                                    else:
+                                        logging.warning(
+                                            f"Audio routing call failed: "
+                                            f"{final_response.get('message')}"
+                                        )
+
+                            elif response.get("status") == "success":
+                                logging.info(
+                                    "Audio routing call completed successfully"
+                                )
+                                call_success = True
+
+                            # Disconnect the call placement client
+                            client.disconnect()
+
+                            # Only start monitoring if call was successful
+                            if not call_success:
+                                logging.warning(
+                                    "Call not successful, skipping monitoring"
+                                )
+                                send_baresip_command(sock, "hangup", current_call_id)
+                                call_in_progress = False
+                                current_call_id = None
+                                continue
+
+                            logging.info(
+                                "Both calls are now active. "
+                                "Monitoring for call termination..."
+                            )
+
+                            # Start monitoring modem call status in background
+                            def monitor_modem_call(
+                                modem_host,
+                                modem_port,
+                                sock_ref,
+                                call_id_ref,
+                            ):
+                                """Monitor modem call and hang up baresip"""
+                                monitor_client = None
+                                try:
+                                    # Create new client for monitoring
+                                    monitor_client = ModemManagerClient(
+                                        modem_host, modem_port, timeout=5.0
+                                    )
+                                    if not monitor_client.connect():
+                                        logging.error(
+                                            "Monitor thread: Failed to connect"
+                                        )
+                                        return
+
+                                    logging.info(
+                                        "Monitor thread started, polling every 2s"
+                                    )
+
+                                    while True:
+                                        time.sleep(2)  # Poll every 2 seconds
+
+                                        # Check modem status
+                                        try:
+                                            status_response = (
+                                                monitor_client.get_status()
+                                            )
+                                            call_active = status_response.get(
+                                                "data", {}
+                                            ).get("call_active", False)
+
+                                            logging.debug(
+                                                f"Monitor poll: "
+                                                f"call_active={call_active}"
+                                            )
+
+                                            if not call_active:
+                                                logging.info(
+                                                    "Modem call ended, "
+                                                    "terminating baresip call"
+                                                )
+                                                send_baresip_command(
+                                                    sock_ref, "hangup", call_id_ref
+                                                )
+                                                break
+                                        except Exception as e:
+                                            logging.error(
+                                                f"Error checking modem status: {e}",
+                                                exc_info=True
+                                            )
+                                            break
+
+                                    if monitor_client:
+                                        monitor_client.disconnect()
+                                        logging.info("Monitor thread disconnected")
+                                except Exception as e:
+                                    logging.error(
+                                        f"Error in modem call monitor: {e}",
+                                        exc_info=True
+                                    )
+                                finally:
+                                    if monitor_client:
+                                        try:
+                                            monitor_client.disconnect()
+                                        except Exception:
+                                            pass
+
+                            # Start monitoring thread with captured values
+                            monitor_thread = threading.Thread(
+                                target=monitor_modem_call,
+                                args=(
+                                    modem_manager_host,
+                                    modem_manager_port,
+                                    sock,
+                                    current_call_id
+                                ),
+                                daemon=True
+                            )
+                            monitor_thread.start()
+
+                        except Exception as e:
+                            logging.error(
+                                f"Error communicating with modem manager: {e}",
+                                exc_info=True,
+                            )
+                            # On error, clean up
+                            send_baresip_command(sock, "hangup", current_call_id)
+                            call_in_progress = False
+                            current_call_id = None
 
                     # Check for call closed/terminated
                     elif event_type == EVENT_CALL_CLOSED:
@@ -367,22 +741,30 @@ def monitor_baresip_socket(sock, phone_number, skip_rerouting=False, stop_event=
 
                         if call_in_progress:
                             logging.info(
-                                "Call closed detected while call was in progress."
+                                "VOIP call closed while modem call in progress. "
+                                "Hanging up modem call..."
                             )
-                            # Terminate audio routing if still running
-                            if audio_proc and audio_proc.poll() is None:
-                                logging.info("Terminating audio routing process...")
-                                audio_proc.terminate()
-                                try:
-                                    audio_proc.wait(timeout=3)
-                                except subprocess.TimeoutExpired:
-                                    logging.warning(
-                                        "Audio process did not terminate, killing it..."
+
+                            # Tell modem manager to hang up
+                            try:
+                                hangup_client = ModemManagerClient(
+                                    modem_manager_host, modem_manager_port, timeout=5.0
+                                )
+                                if hangup_client.connect():
+                                    hangup_response = hangup_client.hangup()
+                                    logging.info(
+                                        f"Modem hangup response: "
+                                        f"{hangup_response.get('status')}"
                                     )
-                                    audio_proc.kill()
+                                    hangup_client.disconnect()
+                            except Exception as e:
+                                logging.error(
+                                    f"Error hanging up modem call: {e}"
+                                )
+
                             call_in_progress = False
-                            audio_proc = None
                             current_call_id = None
+
                         logging.info(
                             "Call terminated. Waiting for next incoming call..."
                         )
@@ -396,22 +778,12 @@ def monitor_baresip_socket(sock, phone_number, skip_rerouting=False, stop_event=
 
     except Exception as e:
         logging.error(f"Exception in monitor loop: {e}")
-    finally:
-        # Clean up any running audio process
-        if audio_proc and audio_proc.poll() is None:
-            logging.info("Cleaning up audio routing process...")
-            audio_proc.terminate()
-            try:
-                audio_proc.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                audio_proc.kill()
 
 
 def main():
     """Main function to parse arguments and start monitoring"""
-    # Parse command line arguments
     parser = argparse.ArgumentParser(
-        description="Monitor Baresip and route audio calls"
+        description="Monitor Baresip and route audio calls via Modem Manager"
     )
     parser.add_argument(
         "-n",
@@ -423,14 +795,26 @@ def main():
         "-r",
         "--skip-rerouting",
         action="store_true",
-        help="Skip audio re-routing (pass -r to place_call.py)",
+        help="Skip audio re-routing",
+    )
+    parser.add_argument(
+        "--modem-host",
+        default=MODEM_MANAGER_HOST,
+        help=f"Modem manager host (default: {MODEM_MANAGER_HOST})",
+    )
+    parser.add_argument(
+        "--modem-port",
+        type=int,
+        default=MODEM_MANAGER_PORT,
+        help=f"Modem manager port (default: {MODEM_MANAGER_PORT})",
     )
     args = parser.parse_args()
 
-    logging.info("Starting Baresip call monitor")
+    logging.info("Starting Baresip call monitor (using Modem Manager)")
     logging.info(f"Will dial number: {args.number}")
+    logging.info(f"Modem Manager: {args.modem_host}:{args.modem_port}")
     if args.skip_rerouting:
-        logging.info("Audio re-routing will be skipped (-r flag set)")
+        logging.info("Audio re-routing will be skipped")
     logging.info("Press Ctrl+C to exit.")
 
     stop_event = threading.Event()
@@ -458,7 +842,14 @@ def main():
             sys.exit(1)
 
         # Start monitoring in main thread
-        monitor_baresip_socket(sock, args.number, args.skip_rerouting, stop_event)
+        monitor_baresip_socket(
+            sock,
+            args.number,
+            args.skip_rerouting,
+            stop_event,
+            args.modem_host,
+            args.modem_port,
+        )
 
     except KeyboardInterrupt:
         logging.info("Ctrl+C detected. Shutting down...")
