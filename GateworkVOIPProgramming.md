@@ -414,6 +414,7 @@ bat_voltage="1323"
 
 WHITELIST="9723256826,9724620611,8668073545,9729560535,9729560536"
 MASTER_ANSWER_TO="15"
+ENABLE_AUDIO_ROUTING="OFF"
 ```
 
 The bat_voltage and UTM and APN will eventually be read in real time and removed from
@@ -422,6 +423,9 @@ the config file.
 This file can be edited during installation to report back the desired information.
 
 The variable 'WHITELIST' is used to control which incoming call numbers will be answered.
+
+The ENABLE_AUDIO_ROUTING is used to define whether or not the audio loop back is needed. (This is
+currently untested in the pool config.)
 
 ## Setup of Viking phone
 
@@ -464,3 +468,20 @@ same command line.
 ## Updating Procedure
 
 **TODO : ** Add instructions on how to update when you have a tar file on the system.
+
+
+## Implementation Details
+
+Cellular Call → Modem (#DTMFEV: *,1)
+               ↓
+manage_modem.py (detects & broadcasts)
+               ↓
+TCP notification: {"type": "dtmf_received", "digit": "*"}
+               ↓
+voip_call_monitor_tcp_new.py (receives notification)
+               ↓
+Baresip command: {"command": "dtmf", "params": "*"}
+               ↓
+Asterisk ConfBridge (receives DTMF via RTP)
+               ↓
+elevator_admin_menu triggers (*5 or 5 → addcallers context)
