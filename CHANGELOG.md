@@ -2,12 +2,16 @@
 
 ## Version V00.03.02
 
-
 ### Added
 
 Added the ability for extension 201 to join the elevator conference in progress.
 The 'elevator conference' will now only end when the last conference admin leaves
 the conference.
+
+Added a new program manage_modem.py to replace place_call.py. This program introduced
+a different way to interface with the voip_call_monitor_tcp program (now a socket), so
+that call status can be communicated to the voip_call_monitor_tcp program. This was
+primarily for adding the answer functionality.
 
 ### Changed
 
@@ -18,6 +22,9 @@ the conference.
 The first time an LTE call is attempted it does not complete. It is not clear why.
 There is a ticket filed with Telit on this but to this point it has not been responded
 to or resolved.
+
+The modem will answer the incoming LTE call, and dial the correct extension, but at the moment
+the audio path is failing somewhere along the way.
 
 ---
 
