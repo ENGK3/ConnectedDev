@@ -567,8 +567,13 @@ class ModemStateMachine:
         logging.info("Configuring modem for incoming call detection")
         at_cmd_set = [
             "ATE1\r",  # Enable command echo
+            "AT#DVI=0\r",  # Digital voice interface
+            "AT#DTMF=1\r",  # Enable DTMF detection
             "AT+CLIP=1\r",  # Enable caller ID presentation
             "AT+CMEE=2\r",  # Enable verbose error reporting
+            "AT#ADSPC=6\r",  # Audio/Speech configuration
+            "AT#PCMRXG=1000\r",  # PCM receive gain
+            "AT#AUSBC=1\r",  # Audio sub-channel
             "AT+CMER=2,0,0,2\r",  # Enable unsolicited result codes for events
             "AT+CIND=0,0,1,0,1,1,1,1,0,1,1\r",  # Configure indicators
         ]
@@ -890,15 +895,27 @@ class ModemTCPServer:
             for client_socket in self.notification_clients:
                 try:
                     client_socket.sendall(message.encode())
-                    logging.info(
-                        f"Sent incoming call notification to "
-                        f"{client_socket.getpeername()}: {caller_number}"
-                    )
+                    try:
+                        peer_name = client_socket.getpeername()
+                        logging.info(
+                            f"Sent incoming call notification to "
+                            f"{peer_name}: {caller_number}"
+                        )
+                    except Exception:
+                        logging.info(
+                            f"Sent incoming call notification to "
+                            f"client: {caller_number}"
+                        )
                 except Exception as e:
-                    logging.warning(
-                        f"Failed to send notification to "
-                        f"{client_socket.getpeername()}: {e}"
-                    )
+                    try:
+                        peer_name = client_socket.getpeername()
+                        logging.warning(
+                            f"Failed to send notification to {peer_name}: {e}"
+                        )
+                    except Exception:
+                        logging.warning(
+                            f"Failed to send notification to disconnected client: {e}"
+                        )
                     dead_clients.append(client_socket)
 
             # Remove dead clients
@@ -927,15 +944,25 @@ class ModemTCPServer:
             for client_socket in self.notification_clients:
                 try:
                     client_socket.sendall(message.encode())
-                    logging.info(
-                        f"Sent call ended notification to "
-                        f"{client_socket.getpeername()}: {reason}"
-                    )
+                    try:
+                        peer_name = client_socket.getpeername()
+                        logging.info(
+                            f"Sent call ended notification to {peer_name}: {reason}"
+                        )
+                    except Exception:
+                        logging.info(
+                            f"Sent call ended notification to client: {reason}"
+                        )
                 except Exception as e:
-                    logging.warning(
-                        f"Failed to send notification to "
-                        f"{client_socket.getpeername()}: {e}"
-                    )
+                    try:
+                        peer_name = client_socket.getpeername()
+                        logging.warning(
+                            f"Failed to send notification to {peer_name}: {e}"
+                        )
+                    except Exception:
+                        logging.warning(
+                            f"Failed to send notification to disconnected client: {e}"
+                        )
                     dead_clients.append(client_socket)
 
             # Remove dead clients
@@ -961,15 +988,26 @@ class ModemTCPServer:
             for client_socket in self.notification_clients:
                 try:
                     client_socket.sendall(message.encode())
-                    logging.debug(
-                        f"Sent DTMF notification to "
-                        f"{client_socket.getpeername()}: {digit}"
-                    )
+                    try:
+                        peer_name = client_socket.getpeername()
+                        logging.debug(
+                            f"Sent DTMF notification to {peer_name}: {digit}"
+                        )
+                    except Exception:
+                        logging.debug(
+                            f"Sent DTMF notification to client: {digit}"
+                        )
                 except Exception as e:
-                    logging.warning(
-                        f"Failed to send DTMF notification to "
-                        f"{client_socket.getpeername()}: {e}"
-                    )
+                    try:
+                        peer_name = client_socket.getpeername()
+                        logging.warning(
+                            f"Failed to send DTMF notification to {peer_name}: {e}"
+                        )
+                    except Exception:
+                        logging.warning(
+                            f"Failed to send DTMF notification to "
+                            f"disconnected client: {e}"
+                        )
                     dead_clients.append(client_socket)
 
             # Remove dead clients
