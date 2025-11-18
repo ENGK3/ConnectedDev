@@ -64,55 +64,50 @@ answered automatically, places the call to the number provided (EDC number).
 the admin of the call.
 
 
-┌─────────────────────────────────────────────────────────────┐
-│ Call Flow - Both calls stay active for audio bridge         │
-└─────────────────────────────────────────────────────────────┘
+Call Flow - Both calls stay active for audio bridge
 
 1. Incoming VOIP call arrives
-   ├─> Accept baresip call (CALL_ESTABLISHED)
-   └─> Request modem manager to place call
+   -> Accept baresip call (CALL_ESTABLISHED)
+   -> Request modem manager to place call
 
 2. Modem call connects (status: success)
-   ├─> Both calls are NOW ACTIVE ✓
-   ├─> Audio bridge is working ✓
-   └─> Start background monitor thread
+   -> Both calls are NOW ACTIVE
+   -> Audio bridge is working
+   -> Start background monitor thread
 
 3. Background thread polls modem status every 2s
-   └─> Watches for call_active: false
+   -> Watches for call_active: false
 
 4. Call termination (two scenarios):
 
    A. Modem call ends first:
-      ├─> Monitor detects call_active: false
-      ├─> Monitor hangs up baresip call
-      └─> Both calls cleaned up ✓
+      -> Monitor detects call_active: false
+      -> Monitor hangs up baresip call
+      -> Both calls cleaned up
 
    B. VOIP call ends first (CALL_CLOSED):
-      ├─> Send hangup command to modem manager
-      ├─> Modem manager terminates call
-      └─> Both calls cleaned up ✓
+      -> Send hangup command to modem manager
+      -> Modem manager terminates call
+      -> Both calls cleaned up
 
-
-┌─────────────────────────────────────────────────────────────────┐
-│ Incoming Cellular Call Flow                                     │
-└─────────────────────────────────────────────────────────────────┘
+ Incoming Cellular Call Flow
 
 1. Cell phone calls → manage_modem
-   ├─> Checks whitelist
-   ├─> Answers call
-   ├─> Sets up audio bridge (cellular ↔ PulseAudio)
-   └─> Broadcasts notification to subscribers
+   -> Checks whitelist
+   -> Answers call
+   -> Sets up audio bridge (cellular <-> PulseAudio)
+   -> Broadcasts notification to subscribers
 
 2. voip_call_monitor receives notification
-   ├─> Extracts caller_number
-   └─> Makes baresip dial extension 9877
+   -> Extracts caller_number
+   -> Makes baresip dial extension 9877
 
 3. Baresip dials 9877
-   ├─> Asterisk answers
-   └─> Joins elevator_conference as ADMIN (default_admin profile)
+   -> Asterisk answers
+   -> Joins elevator_conference as ADMIN (default_admin profile)
 
 4. Audio flows:
-   Cellular ↔ PulseAudio ↔ Baresip ↔ ConfBridge ↔ Elevators
+   Cellular <-> PulseAudio <-> Baresip <-> ConfBridge <-> Elevators
 
 ## Installing OS Packages
 
