@@ -15,6 +15,9 @@ primarily for adding the answer functionality.
 
 ### Changed
 
+Master phone password in the pjsip.conf file change to make it easy for the phone
+to be registered from the phone.
+
 ### Removed
 
 ### Known Issues
