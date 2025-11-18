@@ -59,3 +59,11 @@ cp /mnt/data/manage_modem.service /etc/systemd/system/.
 systemctl daemon-reload
 systemctl enable manage_modem.service
 systemctl start manage_modem.service
+
+cp get_sensor_data.service get_sensor_data.timer /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable get_sensor_data.timer
+systemctl start get_sensor_data.timer
+
+#systemctl status get_sensor_data.timer
+#systemctl list-timers get_sensor_data.timer

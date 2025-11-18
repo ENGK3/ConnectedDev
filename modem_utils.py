@@ -258,7 +258,7 @@ def check_network_status(
 
 def get_modem_info(
     serial_connection: serial.Serial, verbose: bool = False
-) -> Tuple[str, str, str]:
+) -> Tuple[str, str, str, str, str, str, str, str, str, str]:
     """
     Retrieve modem identification information from the Telit LE910C1.
 
@@ -275,11 +275,107 @@ def get_modem_info(
         Tuple of (ICCID, IMEI, IMSI)
         Returns empty strings for any values that could not be retrieved
     """
+    facility_lock = ""
+    signal_quality = ""
+    ims_reg = ""
+    network = ""
+    temp = ""
+    rsrq = ""
+    rsrp = ""
     iccid = ""
     imei = ""
     imsi = ""
 
     try:
+        # Get facility lock status
+        # AT command: AT+CLCK = "SC", 2
+        # Response format:  +CLCK: <facility_lock>
+        response = sbc_cmd_with_timeout("AT+CLCK = \"SC\", 2\r", serial_connection, verbose=False)
+        if "+CLCK:" in response:
+            for line in response.split("\n"):
+                if "+CLCK:" in line:
+                    facility_lock = line.split(":")[1].strip()
+                    break
+
+        if verbose and facility_lock:
+            logging.info("=" * 60)
+            logging.info(f"FACILITY_LOCK: {facility_lock}")
+        
+        # Get signal quality
+        # AT command: AT+CSQ
+        # Response format:  +CSQ: <signal_quality>, <sq>
+        response = sbc_cmd_with_timeout("AT+CSQ\r", serial_connection, verbose=False)
+        if "+CSQ:" in response:
+            for line in response.split("\n"):
+                if "+CSQ:" in line:
+                    signal_quality = line.split(",")[0].strip().split(":")[1].strip()
+                    break
+
+        if verbose and signal_quality:
+            logging.info("=" * 60)
+            logging.info(f"SIGNAL_QUALITY: {signal_quality}")
+        
+        # Get IMS registration status
+        # AT command: AT+CIREG?
+        # Response format: +CIREG: <mode>, <ims_reg>
+        response = sbc_cmd_with_timeout("AT+CIREG?\r", serial_connection, verbose=False)
+        if "+CIREG:" in response:
+            for line in response.split("\n"):
+                if "+CIREG:" in line:
+                    ims_reg = line.split(",")[1].strip()
+                    break
+
+        if verbose and ims_reg:
+            logging.info("=" * 60)
+            logging.info(f"IMS_REGISTRATION: {ims_reg}")
+        
+        # Get current network technology (2G, 3G, 4G)
+        # AT command: AT+COPS?
+        # Response format: +COPS: <mode>, <format>, <oper>, <network>
+        response = sbc_cmd_with_timeout("AT+COPS?\r", serial_connection, verbose=False)
+        if "+COPS:" in response:
+            for line in response.split("\n"):
+                if "+COPS:" in line:
+                    network = line.split(",")[3].strip()
+                    break
+
+        if verbose and network:
+            logging.info("=" * 60)
+            logging.info(f"NETWORK: {network}")
+        
+        # Get Telit temperature in celsius
+        # AT command: AT#TEMPMON=1
+        # Response format: #TEMPMEAS: <range>, <temp>
+        response = sbc_cmd_with_timeout("AT#TEMPMON=1\r", serial_connection, verbose=False)
+        if "#TEMPMEAS:" in response:
+            for line in response.split("\n"):
+                if "#TEMPMEAS:" in line:
+                    temp = line.split(",")[1].strip()
+                    break
+
+        if verbose and temp:
+            logging.info("=" * 60)
+            logging.info(f"TEMP: {temp}")
+        
+        # Get signal quality stats
+        # AT command: AT+CESQ
+        # Response format: #CESQ: 99, 99, 255, 255, <rsrq>, <rsrp>
+        response = sbc_cmd_with_timeout("AT+CESQ\r", serial_connection, verbose=False)
+        if "+CESQ:" in response:
+            for line in response.split("\n"):
+                if "+CESQ:" in line:
+                    rsrq = line.split(",")[4].strip()
+                    rsrp = line.split(",")[5].strip()
+                    break
+
+        if verbose and rsrq:
+            logging.info("=" * 60)
+            logging.info(f"RSRQ: {rsrq}")
+
+        if verbose and rsrp:
+            logging.info("=" * 60)
+            logging.info(f"RSRP: {rsrp}")
+
         # Get ICCID - SIM card serial number
         # AT command: AT+ICCID or AT#CCID
         # Response format: #CCID: <iccid> or +ICCID: <iccid>
@@ -355,7 +451,7 @@ def get_modem_info(
     except Exception as e:
         logging.error(f"Error retrieving modem information: {str(e)}")
 
-    return (iccid, imei, imsi)
+    return (iccid, imei, imsi, rsrq, rsrp, temp, network, ims_reg, signal_quality, facility_lock)
 
 
 def get_software_package_version(

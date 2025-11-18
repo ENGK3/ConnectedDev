@@ -13,10 +13,24 @@ a different way to interface with the voip_call_monitor_tcp program (now a socke
 that call status can be communicated to the voip_call_monitor_tcp program. This was
 primarily for adding the answer functionality.
 
+Added get_sensor_data (.py, .service, .timer) to capture temp and voltage info.
+
 ### Changed
 
 Master phone password in the pjsip.conf file change to make it easy for the phone
 to be registered from the phone.
+
+Updated the modem_utils and send_EDC_data script to capture changes made for
+additional fields to be retrieved from the SBC.
+
+Added the following fields to the K3_config_settings file.
+
+```bash
+ZLIST="01"
+WHITELIST="9723256826,9724620611,8668073545,9729560535,9729560536"
+MASTER_ANSWER_TO="15"
+ENABLE_AUDIO_ROUTING="OFF"
+```
 
 ### Removed
 

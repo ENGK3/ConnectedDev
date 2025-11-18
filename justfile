@@ -110,6 +110,7 @@ pkgvoip: k3_config
        manage_modem.py manage_modem.service \
        daemon.conf pulseaudio.service K3_config_settings \
        99-ignore-modemmanager.rules CHANGELOG.md \
+       get_sensor_data.py get_sensor_data.service get_sensor_data.timer \
        -C VOIP \
        voip_call_monitor_tcp.py voip_call_monitor.service \
        voip_config.sh voip_ari_conference.service interfaces \
