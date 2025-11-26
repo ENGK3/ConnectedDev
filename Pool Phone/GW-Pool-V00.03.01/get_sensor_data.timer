@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Get Sensor Data every 10 minutes
+Requires=get_sensor_data.service
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=10min
+Unit=get_sensor_data.service
+
+[Install]
+WantedBy=timers.target
