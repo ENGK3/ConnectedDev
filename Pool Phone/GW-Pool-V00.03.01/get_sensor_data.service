@@ -1,0 +1,13 @@
+[Unit]
+Description=Get Sensor Data
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /mnt/data/get_sensor_data.py
+WorkingDirectory=/mnt/data
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
