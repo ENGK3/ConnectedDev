@@ -1,0 +1,3 @@
+# Prevent ModemManager from probing specific USB devices
+ATTRS{idVendor}=="1bc7", ATTRS{idProduct}=="1230", ENV{ID_MM_DEVICE_IGNORE}="1"
+ATTRS{idVendor}=="1bc7", ATTRS{idProduct}=="1231", ENV{ID_MM_DEVICE_IGNORE}="1"
