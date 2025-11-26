@@ -1,1 +1,0 @@
-alias m='microcom -s 115200 /dev/ttyUSB2'
