@@ -521,6 +521,10 @@ def monitor_baresip_socket(
                         logging.info(
                             f"[BARESIP EVENT JSON] {json.dumps(event, indent=2)}"
                         )
+                    elif event_type == "CALL_RTCP":
+                        logging.debug(
+                            f"[BARESIP EVENT JSON] {json.dumps(event, indent=2)}"
+                        )
                     else:
                         # Log ALL events at INFO level temporarily for debugging
                         logging.info(
