@@ -21,7 +21,15 @@ ARI_PASSWORD = "asterisk"
 ARI_APP_NAME = "conf_monitor"
 
 # Logging setup
-logging.basicConfig(level=logging.DEBUG, format="ARI_MON - %(levelname)s - %(message)s")
+
+logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s.%(msecs)03d %(levelname)-8s [ARI_MON] %(message)s",
+        datefmt="%m-%d %H:%M:%S",
+        filename="/mnt/data/calls.log",
+        filemode="a+",
+    )
+
 logger = logging.getLogger(__name__)
 
 ADMIN_EXT_MASTER = "201"
