@@ -107,7 +107,7 @@ pkgvoip: k3_config
     rm -f GW-VoIP-Setup*.tgz
     tar -zcvf GW-VoIP-Setup-{{my_version}}.tgz \
        place_call.py modem_utils.py send_EDC_info.py \
-       manage_modem.py manage_modem.service \
+       manage_modem.py manage_modem.service modem_manager_client.py \
        daemon.conf pulseaudio.service K3_config_settings \
        99-ignore-modemmanager.rules CHANGELOG.md \
        get_sensor_data.py get_sensor_data.service get_sensor_data.timer \
