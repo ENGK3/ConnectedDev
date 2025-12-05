@@ -417,12 +417,15 @@ def monitor_baresip_socket(
 
         try:
             # Send DTMF to baresip
-            # Per baresip documentation: DTMF digits are single-char commands
-            # The digit itself is the command (no "dtmf" wrapper needed)
-            # Format for netstring: 1:<digit>,
-            # Note: We don't use send_baresip_command here because it wraps
-            # in JSON which isn't needed for simple single-character commands
-            netstring = f"1:{digit},"
+            ## 3. Send DTMF tones in bash this works like
+            #send_cmd '{"command":"sndcode","params":"*5101","token":"dtmf1"}'
+            cmd_obj = {"command": "sndcode"}
+            cmd_obj["params"] = f"{digit}"
+            cmd_obj["token"] = "send_dtmf"
+
+            json_cmd = json.dumps(cmd_obj)
+            netstring = f"{len(json_cmd)}:{json_cmd},"
+
             sock.sendall(netstring.encode("utf-8"))
             logging.info(
                 f"Successfully sent DTMF {digit} to baresip (netstring: {netstring})"
