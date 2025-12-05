@@ -290,7 +290,9 @@ def get_modem_info(
         # Get facility lock status
         # AT command: AT+CLCK = "SC", 2
         # Response format:  +CLCK: <facility_lock>
-        response = sbc_cmd_with_timeout("AT+CLCK = \"SC\", 2\r", serial_connection, verbose=False)
+        response = sbc_cmd_with_timeout(
+            'AT+CLCK = "SC", 2\r', serial_connection, verbose=False
+        )
         if "+CLCK:" in response:
             for line in response.split("\n"):
                 if "+CLCK:" in line:
@@ -300,7 +302,7 @@ def get_modem_info(
         if verbose and facility_lock:
             logging.info("=" * 60)
             logging.info(f"FACILITY_LOCK: {facility_lock}")
-        
+
         # Get signal quality
         # AT command: AT+CSQ
         # Response format:  +CSQ: <signal_quality>, <sq>
@@ -314,7 +316,7 @@ def get_modem_info(
         if verbose and signal_quality:
             logging.info("=" * 60)
             logging.info(f"SIGNAL_QUALITY: {signal_quality}")
-        
+
         # Get IMS registration status
         # AT command: AT+CIREG?
         # Response format: +CIREG: <mode>, <ims_reg>
@@ -328,7 +330,7 @@ def get_modem_info(
         if verbose and ims_reg:
             logging.info("=" * 60)
             logging.info(f"IMS_REGISTRATION: {ims_reg}")
-        
+
         # Get current network technology (2G, 3G, 4G)
         # AT command: AT+COPS?
         # Response format: +COPS: <mode>, <format>, <oper>, <network>
@@ -342,11 +344,13 @@ def get_modem_info(
         if verbose and network:
             logging.info("=" * 60)
             logging.info(f"NETWORK: {network}")
-        
+
         # Get Telit temperature in celsius
         # AT command: AT#TEMPMON=1
         # Response format: #TEMPMEAS: <range>, <temp>
-        response = sbc_cmd_with_timeout("AT#TEMPMON=1\r", serial_connection, verbose=False)
+        response = sbc_cmd_with_timeout(
+            "AT#TEMPMON=1\r", serial_connection, verbose=False
+        )
         if "#TEMPMEAS:" in response:
             for line in response.split("\n"):
                 if "#TEMPMEAS:" in line:
@@ -356,7 +360,7 @@ def get_modem_info(
         if verbose and temp:
             logging.info("=" * 60)
             logging.info(f"TEMP: {temp}")
-        
+
         # Get signal quality stats
         # AT command: AT+CESQ
         # Response format: #CESQ: 99, 99, 255, 255, <rsrq>, <rsrp>
@@ -451,7 +455,18 @@ def get_modem_info(
     except Exception as e:
         logging.error(f"Error retrieving modem information: {str(e)}")
 
-    return (iccid, imei, imsi, rsrq, rsrp, temp, network, ims_reg, signal_quality, facility_lock)
+    return (
+        iccid,
+        imei,
+        imsi,
+        rsrq,
+        rsrp,
+        temp,
+        network,
+        ims_reg,
+        signal_quality,
+        facility_lock,
+    )
 
 
 def get_software_package_version(
@@ -592,17 +607,6 @@ def configure_modem_tcp(
         response = sbc_cmd_with_timeout(
             "AT#SCFGEXT=1,2,0,30,0,0\r", serial_connection, verbose=verbose
         )
-
-        # Enable unsolicited socket event reporting
-        # AT#E2SLRI=<enable>: Enable Socket Listen Ring Indicator
-        # This ensures we get #SRING URCs when data arrives
-        response = sbc_cmd_with_timeout(
-            "AT#E2SLRI=1\r", serial_connection, verbose=verbose
-        )
-        if "OK" not in response:
-            logging.warning(
-                "Could not enable E2SLRI (may not be supported on this firmware)"
-            )
 
         logging.info("Modem TCP configuration completed successfully")
         return (0, "")
