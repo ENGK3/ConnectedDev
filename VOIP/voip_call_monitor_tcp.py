@@ -299,17 +299,13 @@ def monitor_modem_notifications(
 
                     elif notification.get("type") == "call_ended":
                         reason = notification.get("reason", "unknown")
-                        logging.info(
-                            f"Received call ended notification: {reason}"
-                        )
+                        logging.info(f"Received call ended notification: {reason}")
                         if call_ended_callback:
                             call_ended_callback(reason)
 
                     elif notification.get("type") == "dtmf_received":
                         digit = notification.get("digit")
-                        logging.info(
-                            f"Received DTMF notification: {digit}"
-                        )
+                        logging.info(f"Received DTMF notification: {digit}")
                         if dtmf_callback:
                             dtmf_callback(digit)
 
@@ -418,7 +414,7 @@ def monitor_baresip_socket(
         try:
             # Send DTMF to baresip
             ## 3. Send DTMF tones in bash this works like
-            #send_cmd '{"command":"sndcode","params":"*5101","token":"dtmf1"}'
+            # send_cmd '{"command":"sndcode","params":"*5101","token":"dtmf1"}'
             cmd_obj = {"command": "sndcode"}
             cmd_obj["params"] = f"{digit}"
             cmd_obj["token"] = "send_dtmf"
@@ -453,9 +449,7 @@ def monitor_baresip_socket(
                 # Use the send_baresip_command helper
                 success = send_baresip_command(sock, "hangup", current_call_id)
                 if success:
-                    logging.info(
-                        f"Sent hangup command for call {current_call_id}"
-                    )
+                    logging.info(f"Sent hangup command for call {current_call_id}")
                 else:
                     logging.error(
                         f"Failed to send hangup command for call {current_call_id}"
@@ -603,11 +597,9 @@ def monitor_baresip_socket(
                                     final_response = json.loads(
                                         client.socket.recv(4096).decode().strip()
                                     )
-                                    status = final_response.get('status')
-                                    msg = final_response.get('message')
-                                    logging.info(
-                                        f"Final response: {status} - {msg}"
-                                    )
+                                    status = final_response.get("status")
+                                    msg = final_response.get("message")
+                                    logging.info(f"Final response: {status} - {msg}")
 
                                     if final_response.get("status") == "success":
                                         logging.info(
@@ -697,7 +689,7 @@ def monitor_baresip_socket(
                                         except Exception as e:
                                             logging.error(
                                                 f"Error checking modem status: {e}",
-                                                exc_info=True
+                                                exc_info=True,
                                             )
                                             break
 
@@ -707,7 +699,7 @@ def monitor_baresip_socket(
                                 except Exception as e:
                                     logging.error(
                                         f"Error in modem call monitor: {e}",
-                                        exc_info=True
+                                        exc_info=True,
                                     )
                                 finally:
                                     if monitor_client:
@@ -723,9 +715,9 @@ def monitor_baresip_socket(
                                     modem_manager_host,
                                     modem_manager_port,
                                     sock,
-                                    current_call_id
+                                    current_call_id,
                                 ),
-                                daemon=True
+                                daemon=True,
                             )
                             monitor_thread.start()
 
@@ -765,9 +757,7 @@ def monitor_baresip_socket(
                                     )
                                     hangup_client.disconnect()
                             except Exception as e:
-                                logging.error(
-                                    f"Error hanging up modem call: {e}"
-                                )
+                                logging.error(f"Error hanging up modem call: {e}")
 
                             call_in_progress = False
                             current_call_id = None

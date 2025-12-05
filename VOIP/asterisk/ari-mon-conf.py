@@ -23,12 +23,12 @@ ARI_APP_NAME = "conf_monitor"
 # Logging setup
 
 logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(asctime)s.%(msecs)03d %(levelname)-8s [ARI_MON] %(message)s",
-        datefmt="%m-%d %H:%M:%S",
-        filename="/mnt/data/calls.log",
-        filemode="a+",
-    )
+    level=logging.DEBUG,
+    format="%(asctime)s.%(msecs)03d %(levelname)-8s [ARI_MON] %(message)s",
+    datefmt="%m-%d %H:%M:%S",
+    filename="/mnt/data/calls.log",
+    filemode="a+",
+)
 
 logger = logging.getLogger(__name__)
 
@@ -397,7 +397,6 @@ class ARIConfMonitor:
 
         # Track participants in our conference
         if bridge_name == self.conference_name:
-
             # Send EDC packet for elevator extensions
             await self.send_elevator_edc_packet(channel_name)
 
@@ -433,8 +432,9 @@ class ARIConfMonitor:
                 and len(self.conference_channels) > 0
             ):
                 logger.info(
-                    f"Non-admin participant joined {self.conference_name} with no admin present - "
-                    f"triggering admin join (conference_started={self.conference_started}, "
+                    f"Non-admin participant joined {self.conference_name} with no admin"
+                    f" present - triggering admin join (conference_started="
+                    f"{self.conference_started}, "
                     f"admin_channels={len(self.admin_channels)}, "
                     f"admin_call_in_progress={self.admin_call_in_progress})"
                 )
@@ -442,9 +442,10 @@ class ARIConfMonitor:
                 await self.start_admin_call_sequence()
             else:
                 logger.info(
-                    f"Non-admin participant joined but admin already present or being called "
-                    f"(admin_channels={len(self.admin_channels)}, "
-                    f"admin_call_in_progress={self.admin_call_in_progress}) - skipping admin call"
+                    f"Non-admin participant joined but admin already present or being"
+                    f" called (admin_channels={len(self.admin_channels)}, "
+                    f"admin_call_in_progress={self.admin_call_in_progress}) - skipping"
+                    f" admin call"
                 )
                 # Mark conference as started even if we don't call admin
                 self.conference_started = True
