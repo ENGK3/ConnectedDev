@@ -1,0 +1,17 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0  # Use the latest version
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+        exclude: \.png$  # Exclude this file from these hooks
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9  # Use the latest version
+    hooks:
+      # Run the linter with auto-fix and unsafe fixes enabled
+      - id: ruff
+        args: [--fix, --unsafe-fixes]
+      # Run the formatter
+      - id: ruff-format
+        exclude: \.png$  # Exclude this file from these hooks
