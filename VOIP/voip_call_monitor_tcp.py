@@ -888,7 +888,7 @@ if __name__ == "__main__":
     # Set up logging to file and console with milliseconds in timestamp
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s",
+        format="%(asctime)s.%(msecs)03d %(levelname)-8s [VOIP] %(message)s",
         datefmt="%m-%d %H:%M:%S",
         filename="/mnt/data/calls.log",
         filemode="a+",
