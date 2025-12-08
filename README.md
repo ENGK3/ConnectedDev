@@ -35,6 +35,7 @@ This repository contains scripts, configurations, and documentation for the King
 │   ├── baresip
 │   │   ├── accounts
 │   │   └── config
+│   ├── ep.sh
 │   ├── interfaces
 │   ├── pulseaudio
 │   │   └── default.pa
@@ -90,6 +91,7 @@ This repository contains scripts, configurations, and documentation for the King
 | `led_green.sh` | `.` | Controls the green LED on/off on GPIO 9 (Gateworks GW7200 board) |
 | `led_red.sh` | `.` | Controls the red LED on/off on GPIO 26 (Gateworks GW7200 board) |
 | `show_version.sh` | `.` | Displays current version information from VERSION_INFO file |
+| `ep.sh` | `VOIP/` | Script to show the Asterisk endpoints, must be run as root |
 | `setup_audio_routing.sh` | `VOIP/` | Sets up PulseAudio loopback modules for routing audio between USB headset and SGTL5000 sound card |
 | `setup_telit_routing.sh` | `VOIP/` | Configures PulseAudio loopback modules for routing audio between Telit LE910C1 modem and SGTL5000 sound card |
 | `start.sh` | `explore/` | Docker container startup script for DEY 4.0 development environment |
