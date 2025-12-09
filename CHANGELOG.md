@@ -1,5 +1,41 @@
 # CHANGELOG Kings III Software Changes
 
+## Version V00.03.02-31-g4a47f79
+
+### Added
+
+Added the ability to answer phone, if the number is in the whitelist. Added
+conference menu for conference admins that allows an extension to be added by
+dialing "*5<three_digit_extension>" , e.g. "*5102" would add extension 102 to the
+conference with the admin on inbound calls.
+
+Added ability detect the DTMF tones and pass them to baresip for use in menu
+control.
+
+Added a script ep.sh - which shows the status to the SIP endpoints. This is not
+included in the package currently.
+
+Added a script modem_state.py - which shows the various values for the registers
+of the LE910. This is not included in the package currently. It is useful for
+debugging.
+
+### Removed
+
+Remove AT#E2SLRI command from the modem setup on the TCP packet sending.
+This command is not supported in the version of the LE910 firmware we have.
+
+### Known Issues
+
+However, the audio from the LE910 is not present in the conference.
+But the DTMF tones are passed through to the voip_call_monitor_tcp
+script to be forwarded to baresip client to control the addition of
+extensions this is still being investigated.
+
+### Changed
+
+fix:Missing package. GitHub issue #7
+fix: Outbound calling does not work after V3.02 GitHub issue #5
+
 ## Version V00.03.02
 
 ### Added
