@@ -1,6 +1,6 @@
 # CHANGELOG Kings III Software Changes
 
-## Version V00.03.02-32
+## Version V00.03.02-34
 
 ### Added
 
