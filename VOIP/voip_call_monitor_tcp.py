@@ -370,7 +370,7 @@ def monitor_baresip_socket(
 
             # Baresip dial command format:
             # {"command": "dial", "params": "sip:extension@host"}
-            sip_uri = "sip:102@192.168.80.10"
+            sip_uri = "sip:9877@192.168.80.10"
 
             logging.info(f"Dialing baresip to: {sip_uri}")
 
