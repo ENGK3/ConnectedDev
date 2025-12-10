@@ -42,15 +42,17 @@ The interface eth0 is providing power and will be configured in a later step.
 
 Make sure that eth1 has internet access.
 
+\newpage
 ## Configuration
 
 Here is a diagram of the configuration being setup.
 
-![System Configuration](VOIP/VOIPLayout.png)
+### How it works for Calling OUTBOUND
 
-### How it works
+![OUTBOUND Call Processing](VOIP/VOIP-CallOutMode.png)
 
 The diagram above shows the moving parts of the VOIP system.
+
 1. A call to the conference number (9876) is placed by extension 101 and Asterisk
 puts the caller in the conference call named 'elevator_conference'.
 1. A script "listening" to the asterisk server "hears" the conference call being
@@ -65,7 +67,7 @@ the admin of the call.
 
 
 Call Flow - Both calls stay active for audio bridge
-
+```
 1. Incoming VOIP call arrives
    -> Accept baresip call (CALL_ESTABLISHED)
    -> Request modem manager to place call
@@ -89,9 +91,25 @@ Call Flow - Both calls stay active for audio bridge
       -> Send hangup command to modem manager
       -> Modem manager terminates call
       -> Both calls cleaned up
+```
 
- Incoming Cellular Call Flow
+### How it works for Calling INBOUND
 
+![INBOUND Call Processing](VOIP/VOIP-AnswerMode.png)
+
+Incoming Cellular Call Flow
+
+1. An incoming call to the modem is answered IF the number is in the WHITELIST.
+1. The manage_modem script informs that voip_call_monitor script that a call has been
+received.
+1. The voip_call_monitor script instructs baresip to place a call the the "elevator_conference"
+and the extension is added as an Administrator in the conference. A menu that can be activated
+by the DTMF tones is added to the admin user to allow the Admin to call extensions in the elevators.
+1. Admin dials *5101 to call Elevator #1 (extension 101)
+1. The Admin can add additional extensions as required.
+1. The conference is terminated when the Admin leaves the conference.
+
+``` markdown
 1. Cell phone calls → manage_modem
    -> Checks whitelist
    -> Answers call
@@ -108,6 +126,7 @@ Call Flow - Both calls stay active for audio bridge
 
 4. Audio flows:
    Cellular <-> PulseAudio <-> Baresip <-> ConfBridge <-> Elevators
+```
 
 ## Installing OS Packages
 

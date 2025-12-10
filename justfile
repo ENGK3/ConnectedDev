@@ -127,8 +127,17 @@ vpkgpush: pkgvoip
 my_save_path := "/mnt/c/Users/AlanHasty/Exponential Technology Group, Inc/C_KingsIII-QSeries - Documents/sw"
 
 pdf:
-    docker run --rm --volume "$(pwd):/data" --user $(id -u):$(id -g) pandoc/latex CHANGELOG.md -o CHANGELOG.{{my_version}}.pdf
-    docker run --rm --volume "$(pwd):/data" --user $(id -u):$(id -g) pandoc/latex GateworkVOIPProgramming.md -o GateworkVOIPProgramming.{{my_version}}.pdf
+    just pdf-styled CHANGELOG.md
+    just pdf-styled GateworkVOIPProgramming.md
+
+# Convert Markdown to PDF using HTML/CSS (like VS Code extension)
+pdf-html FILE:
+    docker run --rm --volume "$(pwd):/data" --user $(id -u):$(id -g) pandoc/latex:latest {{FILE}} -o {{FILE}}.html --css=markdown-pdf.css --standalone
+    @echo "HTML generated. Install wkhtmltopdf locally to convert: wkhtmltopdf {{FILE}}.html {{FILE}}.pdf"
+
+# Convert single file with version number using HTML/CSS
+pdf-styled FILE:
+    docker run --rm --volume "$(pwd):/data" --user $(id -u):$(id -g) pandoc/latex:latest {{FILE}} -o {{replace_regex(FILE, '\.md$', '')}}.{{my_version}}.pdf --standalone -V geometry:margin=0.5in
 
 
 save: pkgvoip pdf
