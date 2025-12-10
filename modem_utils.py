@@ -310,7 +310,11 @@ def get_modem_info(
         if "+CSQ:" in response:
             for line in response.split("\n"):
                 if "+CSQ:" in line:
-                    signal_quality = line.split(",")[0].strip().split(":")[1].strip()
+                    parts = line.split(",")
+                    if len(parts) >= 1:
+                        sub_parts = parts[0].strip().split(":")
+                        if len(sub_parts) >= 2:
+                            signal_quality = sub_parts[1].strip()
                     break
 
         if verbose and signal_quality:
@@ -324,7 +328,9 @@ def get_modem_info(
         if "+CIREG:" in response:
             for line in response.split("\n"):
                 if "+CIREG:" in line:
-                    ims_reg = line.split(",")[1].strip()
+                    parts = line.split(",")
+                    if len(parts) >= 2:
+                        ims_reg = parts[1].strip()
                     break
 
         if verbose and ims_reg:
@@ -338,7 +344,9 @@ def get_modem_info(
         if "+COPS:" in response:
             for line in response.split("\n"):
                 if "+COPS:" in line:
-                    network = line.split(",")[3].strip()
+                    parts = line.split(",")
+                    if len(parts) >= 4:
+                        network = parts[3].strip()
                     break
 
         if verbose and network:
@@ -354,7 +362,9 @@ def get_modem_info(
         if "#TEMPMEAS:" in response:
             for line in response.split("\n"):
                 if "#TEMPMEAS:" in line:
-                    temp = line.split(",")[1].strip()
+                    parts = line.split(",")
+                    if len(parts) >= 2:
+                        temp = parts[1].strip()
                     break
 
         if verbose and temp:
@@ -368,8 +378,11 @@ def get_modem_info(
         if "+CESQ:" in response:
             for line in response.split("\n"):
                 if "+CESQ:" in line:
-                    rsrq = line.split(",")[4].strip()
-                    rsrp = line.split(",")[5].strip()
+                    parts = line.split(",")
+                    if len(parts) >= 5:
+                        rsrq = parts[4].strip()
+                    if len(parts) >= 6:
+                        rsrp = parts[5].strip()
                     break
 
         if verbose and rsrq:
