@@ -47,6 +47,47 @@ Make sure that eth1 has internet access.
 
 Here is a diagram of the configuration being setup.
 
+### Centralized Modem Manager System
+
+```bash
++-------------------+
+| Incoming LTE Call |
+|  (Whitelisted)    |
++---------+---------+
+          |
+          v
++----------------------+    TCP Socket (port 5555)
+|  manage_modem.py     |<------------------------+
+|  State Machine       |                         |
+|  - Answer calls      |                         |
+|  - Place calls       |                         |
+|  - Forward DTMF      |                         |
++------+---------------+                         |
+       |                                         |
+       | AT Commands                             |
+       v                                         |
++----------------------+                         |
+|  LE910C1 Modem       |                         |
+|  /dev/ttyUSB2        |                         |
+|  - Voice calls       |                         |
+|  - DTMF detection    |                         |
++----------------------+                         |
+                                                 |
++----------------------+                         |
+| voip_call_monitor    |-------------------------+
+| - Monitors baresip   |                         |
+| - Receives DTMF      |                         |
+| - Forwards to VoIP   |                         |
++----------------------+                         |
+                                                 |
++----------------------+                         |
+| ari-mon-conf.py      |-------------------------+
+| - Conference monitor |
+| - 201->200 fallback  |
+| - Extension detection|
++----------------------+
+```
+
 ### How it works for Calling OUTBOUND
 
 ![OUTBOUND Call Processing](VOIP/VOIP-CallOutMode.png)
@@ -486,16 +527,16 @@ same command line.
 
 ## Implementation Details
 
-Cellular Call → Modem (#DTMFEV: *,1)
-               ↓
+Cellular Call -> Modem (#DTMFEV: *,1)
+               |
 manage_modem.py (detects & broadcasts)
-               ↓
+               |
 TCP notification: {"type": "dtmf_received", "digit": "*"}
-               ↓
+               |
 voip_call_monitor_tcp_new.py (receives notification)
-               ↓
+               |
 Baresip command: {"command": "dtmf", "params": "*"}
-               ↓
+               |
 Asterisk ConfBridge (receives DTMF via RTP)
-               ↓
-elevator_admin_menu triggers (*5 or 5 → addcallers context)
+               |
+elevator_admin_menu triggers (*5 or 5 -> addcallers context)
