@@ -1,5 +1,35 @@
 # CHANGELOG Kings III Software Changes
 
+## Version V00.03.03
+
+### Added
+
+Scripts sstat.sh start_ss.sh stop_ss.sh to get the status, start or stop
+the various services for the elevator usecase.
+An ep.sh script to check on the status of the various pjsip endpoints.
+A script modem_state.py to printout the various AT register settings.
+A markdown-pdf.css for better looking pdf generation.
+
+### Changed
+
+Modified the manage_modem.service to include
+
+```bash
+ExecStartPre=/bin/sleep 3
+```
+
+To prevent AT command errors on startup.
+
+Added option to voip_call_monitor_tcp.py to support --log-baresip
+for logging the output from baresip in the event we need to debug a
+problem.
+
+Change how the pdf for the markdown files are generated.
+
+### Removed
+
+### Known Issues
+
 ## Version V00.03.02-34
 
 ### Added
