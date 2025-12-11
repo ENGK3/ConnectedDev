@@ -16,7 +16,7 @@ This repository contains scripts, configurations, and documentation for the King
 ├── GateworksProgrammingInstr.md
 ├── InitialProgrammingInstr.md
 ├── K3_QS2_WiringDiagram.png
-├── K3_config_settings
+├── K3_config_settings.in
 ├── POC_NOTE.md
 ├── README.md
 ├── VERSION_INFO
@@ -49,8 +49,6 @@ This repository contains scripts, configurations, and documentation for the King
 │   ├── voip_call_rerouting.py
 │   └── voip_config.sh
 ├── asound.state
-├── brd1.pkg
-├── brd2.pkg
 ├── check_reg.py
 ├── config_sys.sh
 ├── daemon.conf
@@ -65,7 +63,11 @@ This repository contains scripts, configurations, and documentation for the King
 ├── led_blue.sh
 ├── led_green.sh
 ├── led_red.sh
+├── manage_modem.py
+├── manage_modem.service
+├── markdown-pdf.css
 ├── microcom.alias
+├── modem_state.py
 ├── modem_utils.py
 ├── place_call.py
 ├── pulseaudio.service
@@ -74,6 +76,9 @@ This repository contains scripts, configurations, and documentation for the King
 ├── show_version.sh
 ├── sounds
 │   └── (audio files for pool configuration)
+├── sstat.sh
+├── start_ss.sh
+├── stop_ss.sh
 ├── switch_detect.sh
 ├── switch_mon.service
 └── switch_mon.sh
@@ -91,7 +96,10 @@ This repository contains scripts, configurations, and documentation for the King
 | `led_green.sh` | `.` | Controls the green LED on/off on GPIO 9 (Gateworks GW7200 board) |
 | `led_red.sh` | `.` | Controls the red LED on/off on GPIO 26 (Gateworks GW7200 board) |
 | `show_version.sh` | `.` | Displays current version information from VERSION_INFO file |
-| `ep.sh` | `VOIP/` | Script to show the Asterisk endpoints, must be run as root |
+| `sstat.sh` | `.` | Shows systemd service status for all King3 services (get_sensor_data, voip_call_monitor, voip_ari_conference, manage_modem); requires root privileges |
+| `start_ss.sh` | `.` | Stops all King3 systemd services (get_sensor_data, voip_call_monitor, voip_ari_conference, manage_modem); requires root privileges |
+| `stop_ss.sh` | `.` | Stops all King3 systemd services (get_sensor_data, voip_call_monitor, voip_ari_conference, manage_modem); requires root privileges |
+| `ep.sh` | `VOIP/` | Shows Asterisk PJSIP endpoint status including availability and contact information; must be run as root |
 | `setup_audio_routing.sh` | `VOIP/` | Sets up PulseAudio loopback modules for routing audio between USB headset and SGTL5000 sound card |
 | `setup_telit_routing.sh` | `VOIP/` | Configures PulseAudio loopback modules for routing audio between Telit LE910C1 modem and SGTL5000 sound card |
 | `start.sh` | `explore/` | Docker container startup script for DEY 4.0 development environment |
@@ -106,6 +114,8 @@ This repository contains scripts, configurations, and documentation for the King
 | Filename | Directory | Description |
 |----------|-----------|-------------|
 | `check_reg.py` | `.` | Checks cellular network registration status via AT commands to the Telit modem |
+| `manage_modem.py` | `.` | Centralized modem manager providing TCP server interface for stateful modem operations including placing calls, answering calls, handling DTMF, and monitoring call status with conflict prevention |
+| `modem_state.py` | `.` | Diagnostic script that queries and displays current Telit modem audio and call configuration settings via AT commands |
 | `modem_utils.py` | `.` | Shared module for Telit LE910C1 modem communication providing AT command functions, network registration checking, modem configuration, and TCP socket operations |
 | `place_call.py` | `.` | Initiates VoIP calls using baresip, handles audio routing, and logs call events; refactored to use shared modem_utils module |
 | `send_EDC_info.py` | `.` | Sends EDC (Emergency Dispatch Center) information packets to remote servers via the cellular modem using TCP; reports extension number, site information, and modem details |
@@ -117,6 +127,7 @@ This repository contains scripts, configurations, and documentation for the King
 
 | Filename | Directory | Description |
 |----------|-----------|-------------|
+| `manage_modem.service` | `.` | Systemd service for centralized modem manager, depends on network, Asterisk, and ttyUSB2 device, provides TCP interface on port 5555 |
 | `pulseaudio.service` | `.` | Systemd user service for PulseAudio sound server, creates runtime directory and runs as user service |
 | `switch_mon.service` | `.` | Systemd service for GPIO switch monitoring, depends on network and ttyUSB2 device, runs switch_mon.sh as kuser |
 | `voip_ari_conference.service` | `VOIP/` | Systemd service for ARI conference monitoring, depends on Asterisk service, runs ari-mon-conf.py |
@@ -129,6 +140,7 @@ This repository contains scripts, configurations, and documentation for the King
 | `daemon.conf` | `.` | PulseAudio daemon configuration file with settings for audio processing and system behavior |
 | `K3_config_settings` | `.` | **Generated file**: Kings III configuration file containing site-specific settings (CID, account code, model, APN, APP version, modem UTM, battery voltage) for EDC reporting. This file is generated from the `K3_config_settings.in` template during the build process. |
 | `K3_config_settings.in` | `.` | **Template file**: Version-controlled template for `K3_config_settings`. This file is populated with the APP version and other variables during the build process to produce the final configuration file. |
+| `markdown-pdf.css` | `.` | CSS stylesheet for generating PDF documentation from Markdown files, provides VS Code compatible formatting |
 | `ari.conf` | `VOIP/asterisk/` | Asterisk ARI (Asterisk REST Interface) configuration with user credentials and connection settings |
 | `asterisk.override.conf` | `VOIP/asterisk/` | Systemd override for Asterisk service, adds dependencies on network and ttyUSB2 device with delayed start and restart |
 | `confbridge.conf` | `VOIP/asterisk/` | Asterisk ConfBridge configuration defining user profiles (default_user for extensions 101-104, default_admin for extensions 200/201) and bridge settings with user count announcements |
