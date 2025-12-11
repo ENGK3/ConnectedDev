@@ -165,18 +165,26 @@ def connect_to_baresip(host, port, max_retries=10, retry_delay=2):
                 return None
 
 
-def start_baresip():
+def start_baresip(verbose=False):
     """Start baresip as a subprocess
+
+    Args:
+        verbose: If True, start baresip with -v flag for verbose output
 
     Returns:
         Subprocess object if successful, None otherwise
     """
     try:
-        logging.info(f"Starting baresip: {BARESIP_CMD}")
+        cmd = [BARESIP_CMD]
+        if verbose:
+            cmd.append("-v")
+            logging.info(f"Starting baresip in verbose mode: {' '.join(cmd)}")
+        else:
+            logging.info(f"Starting baresip: {BARESIP_CMD}")
 
         # Start baresip in the background
         baresip_proc = subprocess.Popen(
-            [BARESIP_CMD],
+            cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             stdin=subprocess.PIPE,
@@ -204,14 +212,20 @@ def start_baresip():
         return None
 
 
-def monitor_baresip_output(proc, stop_event=None):
+def monitor_baresip_output(proc, stop_event=None, log_file=None):
     """Monitor baresip stdout/stderr in background thread
 
     Args:
         proc: Baresip subprocess
         stop_event: Threading event to signal when to stop
+        log_file: Optional file path to write baresip output to
     """
+    file_handle = None
     try:
+        if log_file:
+            file_handle = open(log_file, "a")
+            logging.info(f"Logging baresip output to {log_file}")
+
         for line in iter(proc.stdout.readline, ""):
             if stop_event and stop_event.is_set():
                 break
@@ -220,8 +234,14 @@ def monitor_baresip_output(proc, stop_event=None):
                 # Log baresip output at debug level
                 if line:
                     logging.debug(f"[BARESIP OUTPUT] {line}")
+                    if file_handle:
+                        file_handle.write(f"{line}\n")
+                        file_handle.flush()
     except Exception as e:
         logging.debug(f"Baresip output monitor stopped: {e}")
+    finally:
+        if file_handle:
+            file_handle.close()
 
 
 def monitor_modem_notifications(
@@ -805,6 +825,12 @@ def main():
         default=MODEM_MANAGER_PORT,
         help=f"Modem manager port (default: {MODEM_MANAGER_PORT})",
     )
+    parser.add_argument(
+        "--log-baresip",
+        action="store_true",
+        default=False,
+        help="Start baresip in verbose mode and log output to baresip.log",
+    )
     args = parser.parse_args()
 
     logging.info("Starting Baresip call monitor (using Modem Manager)")
@@ -821,14 +847,17 @@ def main():
 
     try:
         # Start baresip
-        baresip_proc = start_baresip()
+        baresip_proc = start_baresip(verbose=args.log_baresip)
         if not baresip_proc:
             logging.error("Failed to start baresip. Exiting.")
             sys.exit(1)
 
         # Start background thread to monitor baresip output
+        log_file = "/mnt/data/baresip.log" if args.log_baresip else None
         output_thread = threading.Thread(
-            target=monitor_baresip_output, args=(baresip_proc, stop_event), daemon=True
+            target=monitor_baresip_output,
+            args=(baresip_proc, stop_event, log_file),
+            daemon=True,
         )
         output_thread.start()
 
