@@ -31,13 +31,19 @@ at_cmd_set = [
     "AT+CLIP?\r",
     "AT+CMEE?\r",
     "AT#AUSBC?\r",
-    "AT+CEREG?\r",
     "AT+CLVL?\r",
     "AT+CMER?\r",
     "AT#ADSPC?\r",
     "AT+CIND?\r",
     "AT+CMUT?\r",
     "AT#SPKMUT?\r",
+    # This output is what is needed to debug audio routing issues
+    "AT#USBAUDIO?\r",
+    "AT#BK?\r",
+    "AT#BKR?\r",
+    'AT+QCFG="ims"\r',
+    "AT+CREG?\r",
+    "AT+CEREG?\r",
 ]
 # Connect to modem
 serial_connection = serial.Serial()
