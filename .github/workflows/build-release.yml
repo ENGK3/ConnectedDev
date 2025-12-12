@@ -1,6 +1,8 @@
 name: Build VOIP Release Package
 
 on:
+  push:
+
   workflow_dispatch:  # Allows manual triggering from GitHub web interface
 
 jobs:
@@ -16,14 +18,8 @@ jobs:
       - name: Install just
         uses: extractions/setup-just@v2
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Generate version information
         run: just version
-
-      - name: Build release package
-        run: just release
 
       - name: Get version number
         id: get_version
@@ -32,12 +28,8 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Building version: $VERSION"
 
-      - name: Upload release package
-        uses: actions/upload-artifact@v4
-        with:
-          name: GW-VoIP-Package-${{ steps.get_version.outputs.version }}
-          path: GW-VoIP-Pkg-${{ steps.get_version.outputs.version }}.zip
-          retention-days: 90
+      - name: Build pkgvoip package
+        run: just pkgvoip
 
       - name: Upload additional artifacts
         uses: actions/upload-artifact@v4
@@ -45,6 +37,4 @@ jobs:
           name: Release-Documentation-${{ steps.get_version.outputs.version }}
           path: |
             GW-VoIP-Setup-${{ steps.get_version.outputs.version }}.tgz
-            CHANGELOG.${{ steps.get_version.outputs.version }}.pdf
-            GateworkVOIPProgramming.${{ steps.get_version.outputs.version }}.pdf
           retention-days: 90
