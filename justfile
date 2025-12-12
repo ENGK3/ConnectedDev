@@ -139,10 +139,11 @@ pdf-html FILE:
 pdf-styled FILE:
     docker run --rm --volume "$(pwd):/data" --user $(id -u):$(id -g) pandoc/latex:latest {{FILE}} -o {{replace_regex(FILE, '\.md$', '')}}.{{my_version}}.pdf --standalone -V geometry:margin=0.5in
 
-
-save: pkgvoip pdf
-    mkdir "{{my_save_path}}/{{my_version}}"
+release: pkgvoip pdf
     zip GW-VoIP-Pkg-{{my_version}}.zip GW-VoIP-Setup-{{my_version}}.tgz CHANGELOG.{{my_version}}.pdf GateworkVOIPProgramming.{{my_version}}.pdf
+
+save: release
+    mkdir "{{my_save_path}}/{{my_version}}"
     cp GW-VoIP-Setup-{{my_version}}.tgz "{{my_save_path}}/{{my_version}}/."
     cp CHANGELOG.{{my_version}}.pdf "{{my_save_path}}/{{my_version}}/."
     cp GateworkVOIPProgramming.{{my_version}}.pdf "{{my_save_path}}/{{my_version}}/."
