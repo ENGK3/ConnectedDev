@@ -10,6 +10,8 @@ An ep.sh script to check on the status of the various pjsip endpoints.
 A script modem_state.py to printout the various AT register settings.
 A markdown-pdf.css for better looking pdf generation.
 
+GitHub Action to build a package on the push of a tag.
+
 ### Changed
 
 Modified the manage_modem.service to include
