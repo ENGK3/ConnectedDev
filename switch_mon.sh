@@ -29,7 +29,7 @@ if [ ! -e /tmp/setup ]; then
 #	/mnt/data/led_blue.sh OFF
 
 	# Check the result of check_reg.py
-	python3 /mnt/data/check_reg.py -q
+	python3 /mnt/data/check_reg.py -q -r
 	if [ $? -ne 0 ]; then
 		/mnt/data/led_green.sh OFF
         /mnt/data/led_red.sh OFF
