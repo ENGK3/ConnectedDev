@@ -1,4 +1,4 @@
-
+#!/bin/bash
 echo ""
 asterisk -rx "pjsip show endpoints" \
 	| awk ' /Endpoint:/ {ep=$2;}
