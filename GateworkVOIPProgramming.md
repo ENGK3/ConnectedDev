@@ -11,6 +11,8 @@ To be able to get to the system console on first powering up of the board, the J
 debugger will be needed.
 It will allow the system console to be presented to the PC as a serial port.
 
+**NOTE** For the Elevator setup the SOUND card must not be installed.
+
 ## Connectivity
 
 Connect the USB/Serial/JTAG debugger cable for the system console and let the board
@@ -538,5 +540,6 @@ voip_call_monitor_tcp_new.py (receives notification)
 Baresip command: {"command": "dtmf", "params": "*"}
                |
 Asterisk ConfBridge (receives DTMF via RTP)
-               |
-elevator_admin_menu triggers (*5 or 5 -> addcallers context)
+               ↓
+elevator_admin_menu triggers (*5 or 5 → addcallers context)
+WIP:Need to add note about Elevator must not have sound card installed
