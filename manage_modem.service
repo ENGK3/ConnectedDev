@@ -10,6 +10,7 @@ Requires=dev-ttyUSB2.device
 
 [Service]
 Type=simple
+ExecStartPre=/bin/sleep 3
 ExecStart=/usr/bin/python3 /mnt/data/manage_modem.py \
     --port 5555 \
     --host 0.0.0.0 \

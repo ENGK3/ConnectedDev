@@ -42,15 +42,58 @@ The interface eth0 is providing power and will be configured in a later step.
 
 Make sure that eth1 has internet access.
 
+\newpage
 ## Configuration
 
 Here is a diagram of the configuration being setup.
 
-![System Configuration](VOIP/VOIPLayout.png)
+### Centralized Modem Manager System
 
-### How it works
+```bash
++-------------------+
+| Incoming LTE Call |
+|  (Whitelisted)    |
++---------+---------+
+          |
+          v
++----------------------+    TCP Socket (port 5555)
+|  manage_modem.py     |<------------------------+
+|  State Machine       |                         |
+|  - Answer calls      |                         |
+|  - Place calls       |                         |
+|  - Forward DTMF      |                         |
++------+---------------+                         |
+       |                                         |
+       | AT Commands                             |
+       v                                         |
++----------------------+                         |
+|  LE910C1 Modem       |                         |
+|  /dev/ttyUSB2        |                         |
+|  - Voice calls       |                         |
+|  - DTMF detection    |                         |
++----------------------+                         |
+                                                 |
++----------------------+                         |
+| voip_call_monitor    |-------------------------+
+| - Monitors baresip   |                         |
+| - Receives DTMF      |                         |
+| - Forwards to VoIP   |                         |
++----------------------+                         |
+                                                 |
++----------------------+                         |
+| ari-mon-conf.py      |-------------------------+
+| - Conference monitor |
+| - 201->200 fallback  |
+| - Extension detection|
++----------------------+
+```
+
+### How it works for Calling OUTBOUND
+
+![OUTBOUND Call Processing](VOIP/VOIP-CallOutMode.png)
 
 The diagram above shows the moving parts of the VOIP system.
+
 1. A call to the conference number (9876) is placed by extension 101 and Asterisk
 puts the caller in the conference call named 'elevator_conference'.
 1. A script "listening" to the asterisk server "hears" the conference call being
@@ -65,7 +108,7 @@ the admin of the call.
 
 
 Call Flow - Both calls stay active for audio bridge
-
+```
 1. Incoming VOIP call arrives
    -> Accept baresip call (CALL_ESTABLISHED)
    -> Request modem manager to place call
@@ -89,9 +132,25 @@ Call Flow - Both calls stay active for audio bridge
       -> Send hangup command to modem manager
       -> Modem manager terminates call
       -> Both calls cleaned up
+```
 
- Incoming Cellular Call Flow
+### How it works for Calling INBOUND
 
+![INBOUND Call Processing](VOIP/VOIP-AnswerMode.png)
+
+Incoming Cellular Call Flow
+
+1. An incoming call to the modem is answered IF the number is in the WHITELIST.
+1. The manage_modem script informs that voip_call_monitor script that a call has been
+received.
+1. The voip_call_monitor script instructs baresip to place a call the the "elevator_conference"
+and the extension is added as an Administrator in the conference. A menu that can be activated
+by the DTMF tones is added to the admin user to allow the Admin to call extensions in the elevators.
+1. Admin dials *5101 to call Elevator #1 (extension 101)
+1. The Admin can add additional extensions as required.
+1. The conference is terminated when the Admin leaves the conference.
+
+``` markdown
 1. Cell phone calls → manage_modem
    -> Checks whitelist
    -> Answers call
@@ -108,6 +167,7 @@ Call Flow - Both calls stay active for audio bridge
 
 4. Audio flows:
    Cellular <-> PulseAudio <-> Baresip <-> ConfBridge <-> Elevators
+```
 
 ## Installing OS Packages
 
@@ -117,7 +177,7 @@ not have internet access.
 
 ```bash
 apt-get install -y baresip asterisk python3-serial microcom pulseaudio btop \
-    python3-aiohttp python3-dotenv
+    python3-aiohttp python3-dotenv lm-sensors
 
 # --fix-missing might be needed.
 ```
@@ -467,16 +527,16 @@ same command line.
 
 ## Implementation Details
 
-Cellular Call → Modem (#DTMFEV: *,1)
-               ↓
+Cellular Call -> Modem (#DTMFEV: *,1)
+               |
 manage_modem.py (detects & broadcasts)
-               ↓
+               |
 TCP notification: {"type": "dtmf_received", "digit": "*"}
-               ↓
+               |
 voip_call_monitor_tcp_new.py (receives notification)
-               ↓
+               |
 Baresip command: {"command": "dtmf", "params": "*"}
-               ↓
+               |
 Asterisk ConfBridge (receives DTMF via RTP)
-               ↓
-elevator_admin_menu triggers (*5 or 5 → addcallers context)
+               |
+elevator_admin_menu triggers (*5 or 5 -> addcallers context)

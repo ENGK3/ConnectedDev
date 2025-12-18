@@ -1,8 +1,8 @@
 import argparse
-import logging
-import time
 import json
+import logging
 import subprocess
+import time
 from typing import Tuple
 
 import serial
@@ -23,6 +23,7 @@ from modem_utils import (
 DEFAULT_RESPONSE_TIMEOUT = 30  # seconds
 SOCKET_CONNECT_TIMEOUT = 30  # seconds for socket connection
 
+
 def get_sys_uptime():
     try:
         # Run the command and capture output
@@ -42,6 +43,7 @@ def get_sys_uptime():
     except Exception as e:
         print("Exception occurred:", e)
         return []
+
 
 def send_tcp_packet(
     hostname: str,
@@ -382,7 +384,18 @@ if __name__ == "__main__":
     if sbc_connect(serial_connection, port="/dev/ttyUSB3"):
         configure_modem_tcp(serial_connection, verbose=args.verbose)
 
-        iccid, imei, imsi, rsrq, rsrp, modem_temp, network, ims_reg, signal_quality, facility_lock = get_modem_info(serial_connection, verbose=args.verbose)
+        (
+            iccid,
+            imei,
+            imsi,
+            rsrq,
+            rsrp,
+            modem_temp,
+            network,
+            ims_reg,
+            signal_quality,
+            facility_lock,
+        ) = get_modem_info(serial_connection, verbose=args.verbose)
 
         # Gather the various data fields from the configuration file for
         # CID: 5822460189
@@ -404,20 +417,22 @@ if __name__ == "__main__":
 
         # get system voltage & temperature
         # Open the JSON file in read mode
-        f = open('/tmp/sensors.json', 'r')
+        f = open("/tmp/sensors.json")
         # Load the JSON data from the file
         sensor_data = json.load(f)
-        bat_voltage = int(sensor_data['gsc_hwmon-isa-0000']['vdd_vin']['in1_input'] * 100)
-        sys_temp = sensor_data['cpu_thermal-virtual-0']['temp1']['temp1_input']
+        bat_voltage = int(
+            sensor_data["gsc_hwmon-isa-0000"]["vdd_vin"]["in1_input"] * 100
+        )
+        sys_temp = sensor_data["cpu_thermal-virtual-0"]["temp1"]["temp1_input"]
         f.close()
 
         # Decode which network tech the modem is on
         net = ""
-        if network == '0':
+        if network == "0":
             net = "2G"
-        elif network == '2':
+        elif network == "2":
             net = "3G"
-        elif network == '7':
+        elif network == "7":
             net = "4G"
 
         UTM = f"{int(float(get_sys_uptime())):08x}"
@@ -430,7 +445,8 @@ if __name__ == "__main__":
             f"IMSI={imsi}|IMEI={imei}|"
             f"NET={net}|APN={APN}|IMS={ims_reg}|SS={signal_quality}|RSRP={rsrp}|RSRQ={rsrq}|"
             f"TMP1={sys_temp}|TMP2={modem_temp}|"
-            f"BAT={str(bat_voltage)}|ZLST={ZLST}|STM=0450946E|UTM={UTM}|RST=0|PIN={facility_lock}|THW=1.10 END"
+            f"BAT={str(bat_voltage)}|ZLST={ZLST}|STM=0450946E|UTM={UTM}|RST=0|"
+            f"PIN={facility_lock}|THW=1.10 END"
         )
 
         logging.info(f"Event data being sent: {event_data}")

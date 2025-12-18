@@ -21,7 +21,15 @@ ARI_PASSWORD = "asterisk"
 ARI_APP_NAME = "conf_monitor"
 
 # Logging setup
-logging.basicConfig(level=logging.DEBUG, format="ARI_MON - %(levelname)s - %(message)s")
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s.%(msecs)03d %(levelname)-8s [ARI_MON] %(message)s",
+    datefmt="%m-%d %H:%M:%S",
+    filename="/mnt/data/calls.log",
+    filemode="a+",
+)
+
 logger = logging.getLogger(__name__)
 
 ADMIN_EXT_MASTER = "201"
@@ -332,16 +340,13 @@ class ARIConfMonitor:
                 return match.group(1)[1:]  # Return last two digits as elevator
         return None
 
-    async def handle_channel_entered_bridge(self, event):
-        """Handle channel entering bridge"""
-        bridge = event.get("bridge", {})
-        channel = event.get("channel", {})
-        bridge_name = bridge.get("name", "")
-        channel_name = channel.get("name")
-        channel_id = channel.get("id")
+    async def send_elevator_edc_packet(self, channel_name):
+        """
+        Send EDC info packet for an elevator extension.
 
-        logger.info(f"Channel {channel_name} entered bridge {bridge_name}")
-
+        Args:
+            channel_name: The channel name to extract elevator number from
+        """
         # extract the elevator number from the calling extension.
         elevator_number = self.extract_elevator_number(channel_name)
 
@@ -380,8 +385,21 @@ class ARIConfMonitor:
                 f"Failed to extract elevator number/or admin channel {channel_name}"
             )
 
+    async def handle_channel_entered_bridge(self, event):
+        """Handle channel entering bridge"""
+        bridge = event.get("bridge", {})
+        channel = event.get("channel", {})
+        bridge_name = bridge.get("name", "")
+        channel_name = channel.get("name")
+        channel_id = channel.get("id")
+
+        logger.info(f"Channel {channel_name} entered bridge {bridge_name}")
+
         # Track participants in our conference
         if bridge_name == self.conference_name:
+            # Send EDC packet for elevator extensions
+            await self.send_elevator_edc_packet(channel_name)
+
             self.conference_channels.add(channel_id)
             logger.info(f"Tracked channel {channel_id} in conference")
 
@@ -405,21 +423,32 @@ class ARIConfMonitor:
                 return  # Don't trigger another admin call
 
             # Trigger admin join only if:
-            # 1. Conference hasn't started, OR
-            # 2. No admin is in the conference and there are participants
-            if not self.conference_started or (
+            # 1. No admin is currently in the conference
+            # 2. No admin call is already in progress
+            # 3. There are participants in the conference
+            if (
                 len(self.admin_channels) == 0
                 and not self.admin_call_in_progress
                 and len(self.conference_channels) > 0
             ):
                 logger.info(
-                    f"Participant joined {self.conference_name} - triggering "
-                    f"admin join (conference_started={self.conference_started}, "
+                    f"Non-admin participant joined {self.conference_name} with no admin"
+                    f" present - triggering admin join (conference_started="
+                    f"{self.conference_started}, "
                     f"admin_channels={len(self.admin_channels)}, "
                     f"admin_call_in_progress={self.admin_call_in_progress})"
                 )
                 self.conference_started = True
                 await self.start_admin_call_sequence()
+            else:
+                logger.info(
+                    f"Non-admin participant joined but admin already present or being"
+                    f" called (admin_channels={len(self.admin_channels)}, "
+                    f"admin_call_in_progress={self.admin_call_in_progress}) - skipping"
+                    f" admin call"
+                )
+                # Mark conference as started even if we don't call admin
+                self.conference_started = True
 
     async def handle_bridge_destroyed(self, event):
         """Handle bridge destruction - reset state"""

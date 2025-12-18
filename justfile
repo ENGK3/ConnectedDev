@@ -107,10 +107,11 @@ pkgvoip: k3_config
     rm -f GW-VoIP-Setup*.tgz
     tar -zcvf GW-VoIP-Setup-{{my_version}}.tgz \
        place_call.py modem_utils.py send_EDC_info.py \
-       manage_modem.py manage_modem.service \
+       manage_modem.py manage_modem.service modem_manager_client.py \
        daemon.conf pulseaudio.service K3_config_settings \
        99-ignore-modemmanager.rules CHANGELOG.md \
        get_sensor_data.py get_sensor_data.service get_sensor_data.timer \
+       sstat.sh stop_ss.sh start_ss.sh ep.sh \
        -C VOIP \
        voip_call_monitor_tcp.py voip_call_monitor.service \
        voip_config.sh voip_ari_conference.service interfaces \
@@ -127,13 +128,23 @@ vpkgpush: pkgvoip
 my_save_path := "/mnt/c/Users/AlanHasty/Exponential Technology Group, Inc/C_KingsIII-QSeries - Documents/sw"
 
 pdf:
-    docker run --rm --volume "$(pwd):/data" --user $(id -u):$(id -g) pandoc/latex CHANGELOG.md -o CHANGELOG.{{my_version}}.pdf
-    docker run --rm --volume "$(pwd):/data" --user $(id -u):$(id -g) pandoc/latex GateworkVOIPProgramming.md -o GateworkVOIPProgramming.{{my_version}}.pdf
+    just pdf-styled CHANGELOG.md
+    just pdf-styled GateworkVOIPProgramming.md
 
+# Convert Markdown to PDF using HTML/CSS (like VS Code extension)
+pdf-html FILE:
+    docker run --rm --volume "$(pwd):/data" --user $(id -u):$(id -g) pandoc/latex:latest {{FILE}} -o {{FILE}}.html --css=markdown-pdf.css --standalone
+    @echo "HTML generated. Install wkhtmltopdf locally to convert: wkhtmltopdf {{FILE}}.html {{FILE}}.pdf"
 
-save: pkgvoip pdf
-    mkdir "{{my_save_path}}/{{my_version}}"
+# Convert single file with version number using HTML/CSS
+pdf-styled FILE:
+    docker run --rm --volume "$(pwd):/data" --user $(id -u):$(id -g) pandoc/latex:latest {{FILE}} -o {{replace_regex(FILE, '\.md$', '')}}.{{my_version}}.pdf --standalone -V geometry:margin=0.5in
+
+release: pkgvoip pdf
     zip GW-VoIP-Pkg-{{my_version}}.zip GW-VoIP-Setup-{{my_version}}.tgz CHANGELOG.{{my_version}}.pdf GateworkVOIPProgramming.{{my_version}}.pdf
+
+save: release
+    mkdir "{{my_save_path}}/{{my_version}}"
     cp GW-VoIP-Setup-{{my_version}}.tgz "{{my_save_path}}/{{my_version}}/."
     cp CHANGELOG.{{my_version}}.pdf "{{my_save_path}}/{{my_version}}/."
     cp GateworkVOIPProgramming.{{my_version}}.pdf "{{my_save_path}}/{{my_version}}/."
