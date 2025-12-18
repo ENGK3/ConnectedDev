@@ -36,7 +36,8 @@ Change how the pdf for the markdown files are generated.
 
 ### Added
 
-Added the ability to answer phone, if the number is in the whitelist. Added
+Added the ability to answer incoming calls from the cellular network,
+if the calling number is in the whitelist. Added
 conference menu for conference admins that allows an extension to be added by
 dialing "*5<three_digit_extension>" , e.g. "*5102" would add extension 102 to the
 conference with the admin on inbound calls.
