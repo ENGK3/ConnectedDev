@@ -9,7 +9,10 @@ at 1.2 GHz.
 
 ### Changed
 
-Updated justfile to include the set-governor.service in the package
+Updated justfile to include the set-governor.service in the package.
+
+Updated modem_state.py script to include the phone number assigned and
+the SW Version number.
 
 ### Removed
 
