@@ -93,7 +93,7 @@ vpush: asterisk voip modem pulse modem
 
 my_version := `grep '^VERSION=' VERSION_INFO | cut -d= -f2`
 
-pkg:
+pkgpool:
     rm -f GW-Pool-Setup*.tgz
     tar -zcvf GW-Pool-Setup.tgz sounds/* *.py *.sh *.service \
         *.dtbo *.conf 99* *.alias
@@ -103,19 +103,20 @@ k3_config:
     cat K3_config_settings.in > K3_config_settings
     echo 'APP="{{my_version}}"' >> K3_config_settings
 
-pkgvoip: k3_config
-    rm -f GW-VoIP-Setup*.tgz
-    tar -zcvf GW-VoIP-Setup-{{my_version}}.tgz \
-       place_call.py modem_utils.py send_EDC_info.py \
+pkg: k3_config
+    rm -f GW-Setup*.tgz
+    tar -zcvf GW-Setup-{{my_version}}.tgz \
+       place_call.py check_reg.py modem_utils.py send_EDC_info.py \
        manage_modem.py manage_modem.service modem_manager_client.py \
-       daemon.conf pulseaudio.service K3_config_settings \
+       daemon.conf pulseaudio.service K3_config_settings modem_state.py \
        99-ignore-modemmanager.rules CHANGELOG.md \
        get_sensor_data.py get_sensor_data.service get_sensor_data.timer \
        sstat.sh stop_ss.sh start_ss.sh ep.sh \
-       set-governor.service \
+       set-governor.service kings3_install.sh \
+       sounds/* *.dtbo microcom.alias daemon.conf \
        -C VOIP \
        voip_call_monitor_tcp.py voip_call_monitor.service \
-       voip_config.sh voip_ari_conference.service interfaces \
+       voip_ari_conference.service interfaces \
        -C baresip \
        accounts config \
        -C ../asterisk \
@@ -123,14 +124,15 @@ pkgvoip: k3_config
        ari-mon-conf.py modules.conf \
        -C ../pulseaudio default.pa
 
-vpkgpush: pkgvoip
-    scp GW-VoIP-Setup*.tgz {{nuser}}@{{target}}:/mnt/data/.
+pkgpush: pkg
+    scp GW-Setup*.tgz {{nuser}}@{{target}}:/mnt/data/.
 
 my_save_path := "/mnt/c/Users/AlanHasty/Exponential Technology Group, Inc/C_KingsIII-QSeries - Documents/sw"
 
 pdf:
     just pdf-styled CHANGELOG.md
-    just pdf-styled GateworkVOIPProgramming.md
+    just pdf-styled GateworksVOIPProgramming.md
+    just pdf-styled GateworksPoolProgrammingInst.md
 
 # Convert Markdown to PDF using HTML/CSS (like VS Code extension)
 pdf-html FILE:
@@ -141,15 +143,18 @@ pdf-html FILE:
 pdf-styled FILE:
     docker run --rm --volume "$(pwd):/data" --user $(id -u):$(id -g) pandoc/latex:latest {{FILE}} -o {{replace_regex(FILE, '\.md$', '')}}.{{my_version}}.pdf --standalone -V geometry:margin=0.5in
 
-release: pkgvoip pdf
-    zip GW-VoIP-Pkg-{{my_version}}.zip GW-VoIP-Setup-{{my_version}}.tgz CHANGELOG.{{my_version}}.pdf GateworkVOIPProgramming.{{my_version}}.pdf
+release: pkg pdf
+    zip GW-Pkg-{{my_version}}.zip GW-Setup-{{my_version}}.tgz \
+    CHANGELOG.{{my_version}}.pdf GateworksVOIPProgramming.{{my_version}}.pdf \
+    GateworksPoolProgrammingInst.{{my_version}}.pdf
 
 save: release
     mkdir "{{my_save_path}}/{{my_version}}"
-    cp GW-VoIP-Setup-{{my_version}}.tgz "{{my_save_path}}/{{my_version}}/."
+    cp GW-Setup-{{my_version}}.tgz "{{my_save_path}}/{{my_version}}/."
     cp CHANGELOG.{{my_version}}.pdf "{{my_save_path}}/{{my_version}}/."
-    cp GateworkVOIPProgramming.{{my_version}}.pdf "{{my_save_path}}/{{my_version}}/."
-    cp GW-VoIP-Pkg-{{my_version}}.zip "{{my_save_path}}/{{my_version}}/."
+    cp GateworksVOIPProgramming.{{my_version}}.pdf "{{my_save_path}}/{{my_version}}/."
+    cp GateworksPoolProgrammingInst.{{my_version}}.pdf "{{my_save_path}}/{{my_version}}/."
+    cp GW-Pkg-{{my_version}}.zip "{{my_save_path}}/{{my_version}}/."
 
 ans:
     scp answer_phone.py {{nuser}}@{{target}}:/mnt/data/answer_phone.py
