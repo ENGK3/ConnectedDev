@@ -1,1 +1,1 @@
-alias m='microcom -s 115200 /dev/ttyUSB2'
+alias m='microcom -s 115200 -p /dev/ttyUSB3'
