@@ -1,5 +1,22 @@
 # CHANGELOG Kings III Software Changes
 
+## Version V00.03.03+ UNRELEASED
+
+### Added
+
+set-governor.service to set the powersave mode on the system to keep the CPU clock
+at 1.2 GHz.
+
+### Changed
+
+Updated justfile to include the set-governor.service in the package
+
+### Removed
+
+
+### Known Issues
+
+
 ## Version V00.03.03
 
 ### Added
