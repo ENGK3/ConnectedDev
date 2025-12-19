@@ -3,7 +3,7 @@
 #target := "172.27.17.9"
 #target := "172.20.10.141"
 #target := "172.20.10.93"
-target := "172.20.10.223"   # Gateworks Target
+target := "172.20.10.247"   # Gateworks Target
 #target := "172.27.17.41"
 
 #nuser := "root"
@@ -112,7 +112,7 @@ pkg: k3_config
        99-ignore-modemmanager.rules CHANGELOG.md \
        get_sensor_data.py get_sensor_data.service get_sensor_data.timer \
        sstat.sh stop_ss.sh start_ss.sh ep.sh \
-       set-governor.service kings3_install.sh \
+       set-governor.service kings3_install.sh  switch_mon.service \
        sounds/* *.dtbo microcom.alias daemon.conf \
        -C VOIP \
        voip_call_monitor_tcp.py voip_call_monitor.service \
