@@ -1,15 +1,17 @@
 import argparse
+import json
 import logging
 import logging.handlers
 import re
+import socket
 import subprocess
-import time
+import sys
+import uuid
 from pathlib import Path
 
-import serial
-
-# Import shared modem utilities
-from modem_utils import sbc_cmd, sbc_connect, sbc_disconnect
+# TCP server settings (must match manage_modem.py)
+DEFAULT_TCP_HOST = "127.0.0.1"
+DEFAULT_TCP_PORT = 5555
 
 
 def get_pactl_sources():
@@ -125,87 +127,116 @@ def terminate_pids(module_ids):
             logging.error(f"Unexpected error with loopback module {module_id}: {e}")
 
 
-def sbc_config_call(serial_connection: serial.Serial, verbose: bool):
-    at_cmd_set = [
-        "ATE1\r",
-        "AT#DVI=0\r",
-        "AT#PCMRXG=1000\r",
-        "AT#DIALMODE=1\r",
-        "AT#DTMF=1\r",
-        "AT+CLIP=1\r",
-        "AT+CMEE=2\r",
-        "AT#AUSBC=1\r",
-        "AT+CEREG=2\r",
-        "AT+CLVL=0\r",
-        "AT+CMER=2,0,0,2\r",  # Enable unsolicited result codes
-        "AT#ADSPC=6\r",
-        "AT+CIND=0,0,1,0,1,1,1,1,0,1,1\r",
-    ]
-
-    for cmd in at_cmd_set:
-        sbc_cmd(cmd, serial_connection, verbose)
-
-
-def sbc_place_call(
+def place_call_via_tcp(
     number: str,
-    modem: serial.Serial,
-    verbose: bool = True,
-    no_audio_routing: bool = False,
+    host: str = DEFAULT_TCP_HOST,
+    port: int = DEFAULT_TCP_PORT,
 ) -> bool:
-    sbc_config_call(modem, verbose)
+    """
+    Place a call using the manage_modem.py TCP interface.
+    Audio routing is always enabled.
 
-    # Flush any pending data before dialing
-    modem.reset_input_buffer()
+    Args:
+        number: Phone number to dial
+        host: TCP server host
+        port: TCP server port
 
-    sbc_cmd(f"ATD{number};\r", modem, verbose)  # Place the call
-    audio_pids = None
-    start_time = time.time()
-    timeout = 30  # 30 second timeout
-    call_connected = False
-
-    # Set a shorter timeout on the serial port so we can check for overall timeout
-    original_timeout = modem.timeout
-    modem.timeout = 0.5  # Short timeout for readline to allow timeout checking
-
+    Returns:
+        True if call was successfully connected, False otherwise
+    """
     try:
+        # Connect to manage_modem TCP server
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(60.0)  # 60 second timeout
+
+        logging.info(f"Connecting to modem manager at {host}:{port}")
+        sock.connect((host, port))
+        logging.info("Connected to modem manager")
+
+        # Create place_call command
+        request_id = str(uuid.uuid4())
+        command = {
+            "command": "place_call",
+            "params": {
+                "number": number,
+                "no_audio_routing": False,  # Always enable audio routing
+            },
+            "request_id": request_id,
+        }
+
+        # Send command
+        logging.info(f"Sending place_call command for {number}")
+        sock.sendall((json.dumps(command) + "\n").encode())
+
+        # Wait for responses
+        call_connected = False
+
         while True:
-            # Check for timeout FIRST
-            if (time.time() - start_time > timeout) and call_connected is False:
-                logging.warning("Call connection timeout after 30 seconds")
+            # Receive response
+            data = sock.recv(4096)
+            if not data:
+                logging.warning("Connection closed by server")
                 break
 
-            response = modem.readline().decode().strip()
+            # Parse response
+            try:
+                response_text = data.decode().strip()
+                response = json.loads(response_text)
 
-            # Log ALL responses to see what we're getting
-            if response:  # Only log non-empty responses
-                logging.info(f"Waiting for call response: {response}")
+                status = response.get("status")
+                message = response.get("message")
+                response_request_id = response.get("request_id")
 
-            if "+CIEV: call,1" in response:
-                logging.info("Call connected successfully.")
-                if not no_audio_routing:
-                    audio_pids = start_audio_bridge()
-                    logging.info(f"Audio bridge Module IDs: {audio_pids}")
-                else:
-                    logging.info("Audio routing disabled - no audio bridge started")
-                call_connected = True
+                # Verify this is our response
+                if response_request_id != request_id:
+                    logging.warning(
+                        f"Received response for different request: "
+                        f"{response_request_id}"
+                    )
+                    continue
 
-            elif "+CIEV: call,0" in response:
-                logging.info("Call setup Terminated.")
-                break  # Exit the loop but don't return yet
+                logging.info(f"Response: status={status}, message={message}")
 
-            elif "NO CARRIER" in response:
-                logging.info("Call terminated")
-                break  # Exit the loop but don't return yet
+                if status == "pending":
+                    # Initial response - call is being placed
+                    logging.info("Call placement initiated, waiting for completion...")
 
-    finally:
-        # Restore original timeout
-        modem.timeout = original_timeout
+                elif status == "success":
+                    # Call succeeded
+                    data_obj = response.get("data", {})
+                    call_connected = data_obj.get("call_connected", False)
 
-    sbc_cmd("AT+CHUP\r", modem, verbose)
-    if audio_pids and not no_audio_routing:
-        terminate_pids(audio_pids)
-        logging.info("Audio bridge terminated.")
-    return call_connected  # Return the connection status after loop exits
+                    if call_connected:
+                        logging.info("Call connected successfully")
+                        # Call is active - wait for it to end
+                        logging.info("Call is active, waiting for termination...")
+                    else:
+                        logging.warning("Success response but call not connected")
+                        break
+
+                elif status == "error":
+                    # Call failed
+                    logging.error(f"Call failed: {message}")
+                    break
+
+            except json.JSONDecodeError as e:
+                logging.error(f"Failed to parse JSON response: {e}")
+                logging.error(f"Raw data: {data}")
+                break
+
+        sock.close()
+        return call_connected
+
+    except socket.timeout:
+        logging.error("Connection to modem manager timed out")
+        return False
+    except ConnectionRefusedError:
+        logging.error(f"Could not connect to modem manager at {host}:{port}")
+        logging.error("Make sure manage_modem.py is running")
+        return False
+    except Exception as e:
+        logging.error(f"Error placing call via TCP: {e}", exc_info=True)
+        return False
 
 
 if __name__ == "__main__":
@@ -228,7 +259,9 @@ if __name__ == "__main__":
     console.setFormatter(formatter)
     logging.getLogger("").addHandler(console)
 
-    parser = argparse.ArgumentParser(description="Serial SBC dialer")
+    parser = argparse.ArgumentParser(
+        description="Place call via manage_modem.py TCP interface"
+    )
     parser.add_argument(
         "-n", "--number", type=str, help="Phone number to dial", default="9723507770"
     )
@@ -236,28 +269,32 @@ if __name__ == "__main__":
         "-v", "--verbose", action="store_true", help="Enable verbose output"
     )
     parser.add_argument(
-        "-r",
-        "--no-audio-routing",
-        action="store_true",
-        help="Disable audio re-routing (establish call only)",
+        "--host",
+        type=str,
+        default=DEFAULT_TCP_HOST,
+        help=f"TCP server host (default: {DEFAULT_TCP_HOST})",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=DEFAULT_TCP_PORT,
+        help=f"TCP server port (default: {DEFAULT_TCP_PORT})",
     )
 
     args = parser.parse_args()
 
-    serial_connection = serial.Serial()
-    if sbc_connect(serial_connection):
-        logging.info(f"Ready to dial number: {args.number}")
-        call_success = sbc_place_call(
-            args.number,
-            serial_connection,
-            verbose=args.verbose,
-            no_audio_routing=args.no_audio_routing,
-        )
-        if call_success:
-            logging.info("Call completed successfully")
-        else:
-            logging.warning("Call failed or timed out")
+    logging.info(f"Ready to dial number: {args.number}")
+    logging.info("Audio routing will be enabled for this call")
+    call_success = place_call_via_tcp(
+        args.number,
+        host=args.host,
+        port=args.port,
+    )
 
-    Path("/tmp/setup").touch()
-
-    sbc_disconnect(serial_connection)
+    if call_success:
+        logging.info("Call completed successfully")
+        Path("/tmp/setup").touch()
+        sys.exit(0)
+    else:
+        logging.warning("Call failed or timed out")
+        sys.exit(1)
