@@ -159,6 +159,5 @@ save: release
 ans:
     scp answer_phone.py {{nuser}}@{{target}}:/mnt/data/answer_phone.py
 
-menu:
-    scp CONF_ADDING/confbridge.conf {{nuser}}@{{target}}:/mnt/data/addExten/confbridge.conf
-    scp CONF_ADDING/extensions.conf {{nuser}}@{{target}}:/mnt/data/addExten/extensions.conf
+clean:
+     rm -f *.pdf *.zip *.tgz
