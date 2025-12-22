@@ -67,27 +67,54 @@ install_or_update_services() {
 
     for service_name in "${services[@]}"; do
         local source_path="/mnt/data/$service_name"
+        local start_time=$(date +%s.%N)
 
         echo "Processing service: $service_name"
 
         # Copy service file to systemd directory
+        local copy_start=$(date +%s.%N)
         cp "$source_path" /etc/systemd/system/"$service_name"
+        local copy_end=$(date +%s.%N)
+        local copy_time=$(echo "$copy_end - $copy_start" | bc)
+        echo "  - Copy completed in ${copy_time}s"
 
+        # Reload systemd daemon
+        local reload_start=$(date +%s.%N)
         systemctl daemon-reload
+        local reload_end=$(date +%s.%N)
+        local reload_time=$(echo "$reload_end - $reload_start" | bc)
+        echo "  - Daemon reload completed in ${reload_time}s"
 
         if [ "$UPDATE" = true ]; then
             # Check if service is currently enabled
             if systemctl is-enabled "$service_name" &>/dev/null; then
+                local restart_start=$(date +%s.%N)
                 systemctl restart "$service_name"
+                local restart_end=$(date +%s.%N)
+                local restart_time=$(echo "$restart_end - $restart_start" | bc)
+                echo "  - Service restart completed in ${restart_time}s"
             else
                 # Service not enabled yet (new service on update)
+                local enable_start=$(date +%s.%N)
                 systemctl enable "$service_name"
                 systemctl start "$service_name"
+                local enable_end=$(date +%s.%N)
+                local enable_time=$(echo "$enable_end - $enable_start" | bc)
+                echo "  - Service enable+start completed in ${enable_time}s"
             fi
         else
+            local enable_start=$(date +%s.%N)
             systemctl enable "$service_name"
             systemctl start "$service_name"
+            local enable_end=$(date +%s.%N)
+            local enable_time=$(echo "$enable_end - $enable_start" | bc)
+            echo "  - Service enable+start completed in ${enable_time}s"
         fi
+
+        local end_time=$(date +%s.%N)
+        local total_time=$(echo "$end_time - $start_time" | bc)
+        echo "  ✓ Total time for $service_name: ${total_time}s"
+        echo ""
     done
 }
 
@@ -125,7 +152,12 @@ if [ "$CONFIG" == "pool" ]; then
 
     loginctl enable-linger kuser
 
-    install_or_update_services switch_mon.service  manage_modem.service
+    # Copy get_sensor_data.service separately (it's used by the timer)
+    cp /mnt/data/get_sensor_data.service /etc/systemd/system/
+
+    install_or_update_services switch_mon.service \
+        manage_modem.service \
+        get_sensor_data.timer
 
     echo "Pool configuration complete!"
     echo "Note: You must run 'systemctl --user enable pulseaudio.service' as kuser"
