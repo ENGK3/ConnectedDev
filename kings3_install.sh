@@ -70,13 +70,30 @@ install_or_update_services() {
         systemctl daemon-reload
 
         if [ "$UPDATE" = true ]; then
-            systemctl restart "$service_name"
+            # Check if service is currently enabled
+            if systemctl is-enabled "$service_name" &>/dev/null; then
+                systemctl restart "$service_name"
+            else
+                # Service not enabled yet (new service on update)
+                systemctl enable "$service_name"
+                systemctl start "$service_name"
+            fi
         else
             systemctl enable "$service_name"
             systemctl start "$service_name"
         fi
     done
 }
+
+# In both types of configurations, ensure the following packages are installed.
+
+apt-get install -y  python3-serial microcom pulseaudio btop \
+    python3-aiohttp python3-dotenv lm-sensors
+
+# Additional packages for elevator configuration.
+if [ "$CONFIG" == "elevator" ]; then
+    apt-get install -y baresip asterisk
+fi
 
 # Pool configuration (based on config_sys.sh)
 if [ "$CONFIG" == "pool" ]; then
