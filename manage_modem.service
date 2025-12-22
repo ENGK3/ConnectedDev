@@ -2,8 +2,7 @@
 Description=Modem Manager - Centralized modem control service
 After=network.target
 Wants=network.target
-After=network.target asterisk.service
-Requires=asterisk.service
+After=network.target
 # Wait for device to be available
 After=dev-ttyUSB2.device
 Requires=dev-ttyUSB2.device
