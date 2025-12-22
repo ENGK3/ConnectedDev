@@ -52,12 +52,37 @@ echo "Configuration: $CONFIG"
 echo "Update mode: $UPDATE"
 echo ""
 echo "=============================================="
+
+# Function to install or update services
+# Usage: install_or_update_services service1 [service2 ...]
+# Example: install_or_update_services switch_mon.service manage_modem.service
+install_or_update_services() {
+    local services=("$@")
+
+    for service_name in "${services[@]}"; do
+        local source_path="/mnt/data/$service_name"
+
+        echo "Processing service: $service_name"
+
+        # Copy service file to systemd directory
+        cp "$source_path" /etc/systemd/system/"$service_name"
+
+        systemctl daemon-reload
+
+        if [ "$UPDATE" = true ]; then
+            systemctl restart "$service_name"
+        else
+            systemctl enable "$service_name"
+            systemctl start "$service_name"
+        fi
+    done
+}
+
 # Pool configuration (based on config_sys.sh)
 if [ "$CONFIG" == "pool" ]; then
     echo "Configuring for Pool mode..."
 
     cp /mnt/data/99-ignore-modemmanager.rules  /etc/udev/rules.d/99-ignore-modemmanager.rules
-    cp /mnt/data/switch_mon.service /etc/systemd/system/switch_mon.service
 
     cp /mnt/data/daemon.conf /etc/pulse/daemon.conf
 
@@ -72,14 +97,7 @@ if [ "$CONFIG" == "pool" ]; then
 
     loginctl enable-linger kuser
 
-    systemctl daemon-reload
-
-    if [ "$UPDATE" = true ]; then
-        systemctl restart switch_mon.service
-    else
-        systemctl enable switch_mon.service
-        systemctl start switch_mon.service
-    fi
+    install_or_update_services switch_mon.service  manage_modem.service
 
     echo "Pool configuration complete!"
     echo "Note: You must run 'systemctl --user enable pulseaudio.service' as kuser"
@@ -129,59 +147,19 @@ elif [ "$CONFIG" == "elevator" ]; then
     # Turn off the modem manager attempting to manage the cellular modem.
     cp /mnt/data/99-ignore-modemmanager.rules  /etc/udev/rules.d/99-ignore-modemmanager.rules
 
+    # Copy get_sensor_data.service separately (it's used by the timer)
+    cp /mnt/data/get_sensor_data.service /etc/systemd/system/
 
-    # Start the service that monitors the Ext 200 VOIP line for calls.
-    cp /mnt/data/voip_call_monitor.service /etc/systemd/system/.
-    systemctl daemon-reload
-    if [ "$UPDATE" = true ]; then
-        systemctl restart voip_call_monitor.service
-    else
-        systemctl enable voip_call_monitor.service
-        systemctl start voip_call_monitor.service
-    fi
-
-
-    # Start the service that monitors the connections to the 'elevator_conference' ARI
-    # conference bridge.
-    cp /mnt/data/voip_ari_conference.service /etc/systemd/system/.
-    systemctl daemon-reload
-    if [ "$UPDATE" = true ]; then
-        systemctl restart voip_ari_conference.service
-    else
-        systemctl enable voip_ari_conference.service
-        systemctl start voip_ari_conference.service
-    fi
-
-
-    cp /mnt/data/manage_modem.service /etc/systemd/system/.
-    systemctl daemon-reload
-    if [ "$UPDATE" = true ]; then
-        systemctl restart manage_modem.service
-    else
-        systemctl enable manage_modem.service
-        systemctl start manage_modem.service
-    fi
-
-    cp get_sensor_data.service get_sensor_data.timer /etc/systemd/system/
-    systemctl daemon-reload
-    if [ "$UPDATE" = true ]; then
-        systemctl restart get_sensor_data.timer
-    else
-        systemctl enable get_sensor_data.timer
-        systemctl start get_sensor_data.timer
-    fi
+    # Install or update all services
+    install_or_update_services \
+        voip_call_monitor.service \
+        voip_ari_conference.service \
+        manage_modem.service \
+        get_sensor_data.timer \
+        set-governor.service
 
     #systemctl status get_sensor_data.timer
     #systemctl list-timers get_sensor_data.timer
-
-    cp /mnt/data/set-governor.service /etc/systemd/system/.
-    systemctl daemon-reload
-    if [ "$UPDATE" = true ]; then
-        systemctl restart set-governor.service
-    else
-        systemctl enable set-governor.service
-        systemctl start set-governor.service
-    fi
 
     echo "Elevator configuration complete!"
 fi
