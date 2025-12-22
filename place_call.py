@@ -2,9 +2,7 @@ import argparse
 import json
 import logging
 import logging.handlers
-import re
 import socket
-import subprocess
 import sys
 import uuid
 from pathlib import Path
@@ -12,119 +10,6 @@ from pathlib import Path
 # TCP server settings (must match manage_modem.py)
 DEFAULT_TCP_HOST = "127.0.0.1"
 DEFAULT_TCP_PORT = 5555
-
-
-def get_pactl_sources():
-    try:
-        # Run the pactl command and capture output
-        result = subprocess.run(
-            ["pactl", "list", "sources", "short"],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            print("Error running pactl:", result.stderr)
-            return []
-
-        interface_numbers = []
-        for line in result.stdout.strip().split("\n"):
-            parts = line.split("\t")
-            if len(parts) >= 2:
-                source_name = parts[1]
-                match = re.search(
-                    r"output.usb-Android_LE910C1-NF_[\w]+-(\d{2})\.", source_name
-                )
-                if match:
-                    interface_numbers.append(match.group(1))
-        return interface_numbers
-
-    except Exception as e:
-        print("Exception occurred:", e)
-        return []
-
-
-def start_audio_bridge():
-    """
-    Start the audio bridge using PulseAudio loopback modules.
-    Returns a tuple of the module IDs.
-    """
-
-    # Figure out the device number for the LE910C1-NF
-    interface_number = get_pactl_sources()
-    if not interface_number:
-        logging.error("No LE910C1-NF audio interfaces found.")
-        return (None, None)
-
-    # Setup PulseAudio loopbacks for audio routing
-
-    # LE910C1 → SGTL5000Card
-    telit_to_sgtl_cmd = [
-        "pactl",
-        "load-module",
-        "module-loopback",
-        f"source=alsa_input.usb-Android_LE910C1-NF_0123456789ABCDEF-{interface_number[0]}.mono-fallback",
-        "sink=alsa_output.platform-sound.stereo-fallback",
-        "rate=48000",
-        "latency_msec=80",
-    ]
-
-    # SGTL5000Card → LE910C1
-    sgtl_to_telit_cmd = [
-        "pactl",
-        "load-module",
-        "module-loopback",
-        "source=alsa_input.platform-sound.stereo-fallback",
-        f"sink=alsa_output.usb-Android_LE910C1-NF_0123456789ABCDEF-{interface_number[0]}.mono-fallback",
-        "latency_msec=80",
-    ]
-
-    # try:
-    #     # Start both loopbacks and get their module IDs
-    telit_to_sgtl = subprocess.check_output(telit_to_sgtl_cmd).decode().strip()
-    logging.info(f"Loopbacks loaded - LE910C1 → SGTL5000Card: {telit_to_sgtl}")
-
-    sgtl_to_telit = subprocess.check_output(sgtl_to_telit_cmd).decode().strip()
-    logging.info(f"Loopbacks loaded - SGTL5000Card → LE910C1: {sgtl_to_telit}")
-
-    # except subprocess.CalledProcessError as e:
-    #     logging.info(f"Command failed with return code {e.returncode}")
-    #     logging.info(f"Command: {e.cmd}")
-    #     logging.info(f"Output (if captured): {e.output}")
-
-    return (telit_to_sgtl, sgtl_to_telit)
-
-
-def terminate_pids(module_ids):
-    """
-    Unload the PulseAudio loopback modules with the given module IDs.
-    """
-    for module_id in module_ids:
-        try:
-            # Get the module list first
-            result = subprocess.run(
-                ["pactl", "list", "modules", "short"],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-
-            # Check each line for our module ID and loopback
-            module_exists = any(
-                line.startswith(f"{module_id}\tmodule-loopback")
-                for line in result.stdout.splitlines()
-            )
-
-            if module_exists:
-                subprocess.run(["pactl", "unload-module", str(module_id)], check=True)
-                logging.info(f"Unloaded PulseAudio loopback module {module_id}")
-            else:
-                logging.info(
-                    f"Loopback module {module_id} not found or already unloaded"
-                )
-        except subprocess.CalledProcessError as e:
-            logging.error(f"Failed to unload loopback module {module_id}: {e}")
-        except Exception as e:
-            logging.error(f"Unexpected error with loopback module {module_id}: {e}")
 
 
 def place_call_via_tcp(

@@ -24,6 +24,8 @@ from typing import Any, Dict, Optional, Tuple
 import serial
 from dotenv import dotenv_values
 
+from audio_routing import start_audio_bridge, terminate_pids
+
 # Import shared modem utilities
 from modem_utils import sbc_cmd, sbc_connect, sbc_disconnect
 
@@ -97,6 +99,7 @@ def load_config(config_file: str) -> tuple[Dict[str, bool], bool]:
 
 class ModemState(enum.Enum):
     """Modem state machine states."""
+
     IDLE = "IDLE"
     PLACING_CALL = "PLACING_CALL"
     ANSWERING_CALL = "ANSWERING_CALL"
@@ -107,6 +110,7 @@ class ModemState(enum.Enum):
 @dataclass
 class CallInfo:
     """Information about current call."""
+
     number: Optional[str] = None
     direction: Optional[str] = None  # "outgoing" or "incoming"
     start_time: Optional[datetime] = None
@@ -117,6 +121,7 @@ class CallInfo:
 @dataclass
 class CommandRequest:
     """Represents a command request from TCP client."""
+
     command: str
     params: Dict[str, Any]
     request_id: str
@@ -126,6 +131,7 @@ class CommandRequest:
 @dataclass
 class CommandResponse:
     """Represents a response to a command."""
+
     status: str  # "success", "error", "pending"
     message: str
     request_id: str
@@ -203,7 +209,7 @@ class ModemStateMachine:
                 command=request.command,
                 params=request.params,
                 request_id=request.request_id,
-                client_socket=None  # Don't store socket - it will timeout
+                client_socket=None,  # Don't store socket - it will timeout
             )
             self.command_queue.put(queued_request)
             return CommandResponse(
@@ -611,28 +617,20 @@ class ModemStateMachine:
     def _start_audio_bridge(self) -> Optional[Tuple[Optional[str], Optional[str]]]:
         """Start PulseAudio loopback modules for audio routing."""
         try:
-            # Import the audio routing function from place_call
-            from place_call import start_audio_bridge
-
             return start_audio_bridge()
         except Exception as e:
             logging.error(f"Failed to start audio bridge: {e}")
             return (None, None)
 
-    def _stop_audio_bridge(
-        self, module_ids: Tuple[Optional[str], Optional[str]]
-    ):
+    def _stop_audio_bridge(self, module_ids: Tuple[Optional[str], Optional[str]]):
         """Stop PulseAudio loopback modules."""
         try:
             # Validate that both module IDs are valid before attempting to stop
             if not module_ids or not module_ids[0] or not module_ids[1]:
                 logging.warning(
-                    "Cannot stop audio bridge - invalid module IDs: "
-                    f"{module_ids}"
+                    "Cannot stop audio bridge - invalid module IDs: " f"{module_ids}"
                 )
                 return
-
-            from place_call import terminate_pids
 
             terminate_pids(module_ids)
         except Exception as e:
@@ -644,9 +642,7 @@ class ModemStateMachine:
             request = self.pending_requests.pop(request_id)
             if request.client_socket:
                 try:
-                    request.client_socket.sendall(
-                        (response.to_json() + "\n").encode()
-                    )
+                    request.client_socket.sendall((response.to_json() + "\n").encode())
                 except Exception as e:
                     logging.warning(
                         f"Failed to send async response "
@@ -990,13 +986,9 @@ class ModemTCPServer:
                     client_socket.sendall(message.encode())
                     try:
                         peer_name = client_socket.getpeername()
-                        logging.debug(
-                            f"Sent DTMF notification to {peer_name}: {digit}"
-                        )
+                        logging.debug(f"Sent DTMF notification to {peer_name}: {digit}")
                     except Exception:
-                        logging.debug(
-                            f"Sent DTMF notification to client: {digit}"
-                        )
+                        logging.debug(f"Sent DTMF notification to client: {digit}")
                 except Exception as e:
                     try:
                         peer_name = client_socket.getpeername()
@@ -1246,7 +1238,7 @@ def main():
         state_machine = ModemStateMachine(
             serial_connection, whitelist_dict, enable_audio_routing
         )
-        audio_status = 'ENABLED' if enable_audio_routing else 'DISABLED'
+        audio_status = "ENABLED" if enable_audio_routing else "DISABLED"
         logging.info(f"Audio routing: {audio_status}")
 
         # Create TCP server
@@ -1280,7 +1272,7 @@ def main():
         logging.info("Shutting down...")
 
         # Give threads a moment to finish
-        if 'serial_thread' in locals():
+        if "serial_thread" in locals():
             serial_thread.join(timeout=2.0)
             if serial_thread.is_alive():
                 logging.warning("Serial monitor thread did not exit cleanly")
