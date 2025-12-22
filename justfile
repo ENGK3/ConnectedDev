@@ -93,12 +93,6 @@ vpush: asterisk voip modem pulse modem
 
 my_version := `grep '^VERSION=' VERSION_INFO | cut -d= -f2`
 
-pkgpool:
-    rm -f GW-Pool-Setup*.tgz
-    tar -zcvf GW-Pool-Setup.tgz sounds/* *.py *.sh *.service \
-        *.dtbo *.conf 99* *.alias
-
-
 k3_config:
     cat K3_config_settings.in > K3_config_settings
     echo 'APP="{{my_version}}"' >> K3_config_settings
@@ -111,8 +105,8 @@ pkg: k3_config
        daemon.conf pulseaudio.service K3_config_settings modem_state.py \
        99-ignore-modemmanager.rules CHANGELOG.md \
        get_sensor_data.py get_sensor_data.service get_sensor_data.timer \
-       sstat.sh stop_ss.sh start_ss.sh ep.sh \
-       set-governor.service kings3_install.sh  switch_mon.service \
+       sstat.sh stop_ss.sh start_ss.sh ep.sh  switch_detect.sh \
+       set-governor.service kings3_install.sh switch_mon.service switch_mon.sh \
        sounds/* *.dtbo microcom.alias daemon.conf \
        -C VOIP \
        voip_call_monitor_tcp.py voip_call_monitor.service \
