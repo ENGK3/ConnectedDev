@@ -12,6 +12,7 @@ fi
 # Parse command line arguments
 CONFIG=""
 UPDATE=false
+INSTALL_PACKAGES=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -23,9 +24,13 @@ while [[ $# -gt 0 ]]; do
             UPDATE=true
             shift
             ;;
+        --package)
+            INSTALL_PACKAGES=true
+            shift
+            ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 --config <pool|elevator> [--update]"
+            echo "Usage: $0 --config <pool|elevator> [--update] [--package]"
             exit 1
             ;;
     esac
@@ -34,13 +39,13 @@ done
 # Validate config parameter
 if [ -z "$CONFIG" ]; then
     echo "Error: --config parameter is required"
-    echo "Usage: $0 --config <pool|elevator> [--update]"
+    echo "Usage: $0 --config <pool|elevator> [--update] [--package]"
     exit 1
 fi
 
 if [ "$CONFIG" != "pool" ] && [ "$CONFIG" != "elevator" ]; then
     echo "Error: --config must be either 'pool' or 'elevator'"
-    echo "Usage: $0 --config <pool|elevator> [--update]"
+    echo "Usage: $0 --config <pool|elevator> [--update] [--package]"
     exit 1
 fi
 
@@ -50,6 +55,7 @@ echo ""
 echo "Starting Kings3 installation..."
 echo "Configuration: $CONFIG"
 echo "Update mode: $UPDATE"
+echo "Install packages: $INSTALL_PACKAGES"
 echo ""
 echo "=============================================="
 
@@ -86,13 +92,18 @@ install_or_update_services() {
 }
 
 # In both types of configurations, ensure the following packages are installed.
+if [ "$INSTALL_PACKAGES" = true ]; then
+    echo "Installing packages..."
+    apt-get install -y  python3-serial microcom pulseaudio btop \
+        python3-aiohttp python3-dotenv lm-sensors
 
-apt-get install -y  python3-serial microcom pulseaudio btop \
-    python3-aiohttp python3-dotenv lm-sensors
-
-# Additional packages for elevator configuration.
-if [ "$CONFIG" == "elevator" ]; then
-    apt-get install -y baresip asterisk
+    # Additional packages for elevator configuration.
+    if [ "$CONFIG" == "elevator" ]; then
+        apt-get install -y baresip asterisk
+    fi
+    echo "Package installation complete."
+else
+    echo "Skipping package installation (use --package to install packages)"
 fi
 
 # Pool configuration (based on config_sys.sh)
