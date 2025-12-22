@@ -6,6 +6,7 @@ and set up bidirectional audio routing between the modem and SGTL5000 audio card
 """
 
 import logging
+import os
 import re
 import subprocess
 from typing import List, Optional, Tuple
@@ -19,14 +20,26 @@ def get_pactl_sources() -> List[Tuple[str, str]]:
         List of tuples containing (device_name, interface_number) for each
         detected LE910C1 or LE910C4 modem interface.
     """
+    logging.debug("[AUDIO_DEBUG] get_pactl_sources() called")
+
+    # Log relevant environment variables for debugging
+    env_vars = ["XDG_RUNTIME_DIR", "PULSE_RUNTIME_PATH", "PULSE_SERVER", "USER", "HOME"]
+    for var in env_vars:
+        value = os.environ.get(var, "<not set>")
+        logging.debug(f"[AUDIO_DEBUG] ENV {var}={value}")
+
     try:
         # Run the pactl command and capture output
+        # Explicitly pass environment to ensure PulseAudio vars are inherited
         result = subprocess.run(
             ["pactl", "list", "sources", "short"],
             capture_output=True,
             text=True,
+            env=os.environ.copy(),
         )
+        logging.debug(f"[AUDIO_DEBUG] pactl returncode: {result.returncode}")
         if result.returncode != 0:
+            logging.error(f"[AUDIO_DEBUG] Error running pactl: {result.stderr}")
             print("Error running pactl:", result.stderr)
             return []
 
@@ -62,9 +75,14 @@ def start_audio_bridge() -> Optional[Tuple[Optional[str], Optional[str]]]:
         Tuple of (module_id_1, module_id_2) for the two loopback modules,
         or (None, None) if setup fails.
     """
+    logging.info("[AUDIO_DEBUG] start_audio_bridge() called")
     # Figure out the device number for the LE910C1-NF or LE910C4-NF
     devices = get_pactl_sources()
+    logging.info(f"[AUDIO_DEBUG] get_pactl_sources returned: {devices}")
     if not devices:
+        logging.error(
+            "[AUDIO_DEBUG] No LE910C1-NF or LE910C4-NF audio interfaces found."
+        )
         logging.error("No LE910C1-NF or LE910C4-NF audio interfaces found.")
         return (None, None)
 
@@ -97,10 +115,19 @@ def start_audio_bridge() -> Optional[Tuple[Optional[str], Optional[str]]]:
 
     try:
         # Start both loopbacks and get their module IDs
-        telit_to_sgtl = subprocess.check_output(telit_to_sgtl_cmd).decode().strip()
+        # Pass environment to ensure PulseAudio connection works
+        telit_to_sgtl = (
+            subprocess.check_output(telit_to_sgtl_cmd, env=os.environ.copy())
+            .decode()
+            .strip()
+        )
         logging.info(f"Loopbacks loaded - Telit → SGTL5000Card: {telit_to_sgtl}")
 
-        sgtl_to_telit = subprocess.check_output(sgtl_to_telit_cmd).decode().strip()
+        sgtl_to_telit = (
+            subprocess.check_output(sgtl_to_telit_cmd, env=os.environ.copy())
+            .decode()
+            .strip()
+        )
         logging.info(f"Loopbacks loaded - SGTL5000Card → Telit: {sgtl_to_telit}")
 
         return (telit_to_sgtl, sgtl_to_telit)
@@ -134,6 +161,7 @@ def terminate_pids(module_ids: Tuple[Optional[str], Optional[str]]) -> None:
                 capture_output=True,
                 text=True,
                 check=True,
+                env=os.environ.copy(),
             )
 
             # Check each line for our module ID and loopback
@@ -143,7 +171,11 @@ def terminate_pids(module_ids: Tuple[Optional[str], Optional[str]]) -> None:
             )
 
             if module_exists:
-                subprocess.run(["pactl", "unload-module", str(module_id)], check=True)
+                subprocess.run(
+                    ["pactl", "unload-module", str(module_id)],
+                    check=True,
+                    env=os.environ.copy(),
+                )
                 logging.info(f"Unloaded PulseAudio loopback module {module_id}")
             else:
                 logging.info(
