@@ -108,6 +108,7 @@ pkg: k3_config
        sstat.sh stop_ss.sh start_ss.sh ep.sh  switch_detect.sh \
        set-governor.service kings3_install.sh switch_mon.service switch_mon.sh \
        sounds/* *.dtbo microcom.alias daemon.conf \
+       led_blue.sh led_green.sh led_red.sh \
        -C VOIP \
        voip_call_monitor_tcp.py voip_call_monitor.service \
        voip_ari_conference.service interfaces \
