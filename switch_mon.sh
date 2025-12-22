@@ -15,10 +15,9 @@ echo ""
 # Function to cleanup GPIO resources
 cleanup_gpio() {
     echo "Cleaning up GPIO resources..."
-    # Kill any existing gpiomon processes more aggressively
-    pkill -9 -f "gpiomon.*gpiochip$GPIO_CHIP.*$GPIO_PIN" 2>/dev/null || true
-    sleep 0.5
-    exit 0
+    # Kill any existing gpiomon processes
+    pkill -f "gpiomon.*gpiochip$GPIO_CHIP.*$GPIO_PIN" 2>/dev/null || true
+    sleep 1
 }
 
 # Trap signals for proper cleanup
