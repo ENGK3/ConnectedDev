@@ -6,19 +6,42 @@
 
 set-governor.service to set the powersave mode on the system to keep the CPU clock
 at 1.2 GHz.
+Added kings3_install.sh to handle both pool and elevator setups.
+```bash
+--config pool --update
+# Will update installation
+--config pool
+# Will install the configuration
+--config pool --package --update
+# Will update installation and install any missing packages.
+```
+
+Added audio_routing.py file to extract the audio routing out of place_call.py
+since that file no longer needed it.
 
 ### Changed
 
-Updated justfile to include the set-governor.service in the package.
+Updated justfile to add the set-governor.service in the package.
+Updated justfile to combine both elevator and pool files into one package.
 
 Updated modem_state.py script to include the phone number assigned and
 the SW Version number.
 
+Updated microcom.alias to use ttyUSB3
+
+
 ### Removed
+
+Removed pool package from justfile, since both configs are in one package file.
 
 
 ### Known Issues
 
+If "kuser" gets a UID other than 1000, then the three services:
+pulseaudio.service
+manage_modem.service
+switch_mon.service
+Will not work as expected.
 
 ## Version V00.03.03
 
