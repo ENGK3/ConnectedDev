@@ -9,7 +9,18 @@ Requires=dev-ttyUSB2.device
 
 [Service]
 Type=simple
+User=kuser
 ExecStartPre=/bin/sleep 3
+# Use explicit UID for kuser
+Environment="XDG_RUNTIME_DIR=/run/user/1000"
+Environment="PULSE_RUNTIME_PATH=/run/user/1000/pulse"
+Environment="PULSE_SERVER=unix:/run/user/1000/pulse/native"
+Environment="DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus"
+# Debug: Print environment variables
+ExecStartPre=/bin/sh -c 'echo "[MANAGE_MODEM_SERVICE] XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR"'
+ExecStartPre=/bin/sh -c 'echo "[MANAGE_MODEM_SERVICE] PULSE_RUNTIME_PATH=$PULSE_RUNTIME_PATH"'
+ExecStartPre=/bin/sh -c 'echo "[MANAGE_MODEM_SERVICE] PULSE_SERVER=$PULSE_SERVER"'
+ExecStartPre=/bin/sh -c 'echo "[MANAGE_MODEM_SERVICE] DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS"'
 ExecStart=/usr/bin/python3 /mnt/data/manage_modem.py \
     --port 5555 \
     --host 0.0.0.0 \
@@ -22,7 +33,7 @@ Restart=on-failure
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
-User=root
+
 
 # Resource limits
 LimitNOFILE=4096
