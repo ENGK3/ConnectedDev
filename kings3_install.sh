@@ -137,6 +137,9 @@ fi
 if [ "$CONFIG" == "pool" ]; then
     echo "Configuring for Pool mode..."
 
+    # Set audio routing to ON for pool mode
+    sed -i 's/^ENABLE_AUDIO_ROUTING=.*/ENABLE_AUDIO_ROUTING="ON"/' /mnt/data/K3_config_settings
+
     cp /mnt/data/99-ignore-modemmanager.rules  /etc/udev/rules.d/99-ignore-modemmanager.rules
 
     cp /mnt/data/daemon.conf /etc/pulse/daemon.conf
@@ -165,6 +168,9 @@ if [ "$CONFIG" == "pool" ]; then
 # Elevator configuration (based on voip_config.sh)
 elif [ "$CONFIG" == "elevator" ]; then
     echo "Configuring for Elevator mode..."
+
+    # Set audio routing to OFF for elevator mode
+    sed -i 's/^ENABLE_AUDIO_ROUTING=.*/ENABLE_AUDIO_ROUTING="OFF"/' /mnt/data/K3_config_settings
 
     cp /mnt/data/extensions.conf /etc/asterisk/extensions.conf
     cp /mnt/data/confbridge.conf /etc/asterisk/confbridge.conf
