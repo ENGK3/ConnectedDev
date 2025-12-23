@@ -87,7 +87,15 @@ def load_config(config_file: str) -> tuple[Dict[str, bool], bool]:
 
         # Load audio routing setting
         enable_audio = config.get("ENABLE_AUDIO_ROUTING", "true").lower()
+        logging.info(
+            f"[AUDIO_DEBUG] Raw ENABLE_AUDIO_ROUTING value from config: "
+            f"'{config.get('ENABLE_AUDIO_ROUTING', 'true')}"
+            f" -> lowercase: '{enable_audio}'"
+        )
         enable_audio_routing = enable_audio in ["true", "1", "yes", "on"]
+        logging.info(
+            f"[AUDIO_DEBUG] Parsed enable_audio_routing: {enable_audio_routing}"
+        )
         logging.info(f"Audio routing enabled: {enable_audio_routing}")
 
     except Exception as e:
@@ -257,6 +265,13 @@ class ModemStateMachine:
 
     def _place_call_worker(self, number: str, no_audio_routing: bool, request_id: str):
         """Worker thread for placing calls."""
+        logging.info(
+            f"[AUDIO_DEBUG] _place_call_worker started: number={number}, "
+            f"no_audio_routing={no_audio_routing}"
+        )
+        logging.info(
+            f"[AUDIO_DEBUG] self.enable_audio_routing={self.enable_audio_routing}"
+        )
         try:
             logging.info(f"Worker thread started for {number}")
 
@@ -331,8 +346,18 @@ class ModemStateMachine:
                         self.call_info.call_connected = True
 
                         audio_routing_success = True
+                        logging.info(
+                            f"[AUDIO_DEBUG] no_audio_routing={no_audio_routing}, "
+                            f"self.enable_audio_routing={self.enable_audio_routing}"
+                        )
                         if not no_audio_routing:
+                            logging.info(
+                                "[AUDIO_DEBUG] Attempting to start audio bridge..."
+                            )
                             audio_modules = self._start_audio_bridge()
+                            logging.info(
+                                f"[AUDIO_DEBUG] Audio modules returned: {audio_modules}"
+                            )
                             if audio_modules and audio_modules[0] and audio_modules[1]:
                                 self.call_info.audio_modules = audio_modules
                                 logging.info(f"Audio bridge started: {audio_modules}")
@@ -342,6 +367,11 @@ class ModemStateMachine:
                                     "Call connected but audio routing failed - "
                                     "call will proceed without audio bridge"
                                 )
+                        else:
+                            logging.info(
+                                "[AUDIO_DEBUG] Audio routing skipped "
+                                f"(no_audio_routing={no_audio_routing})"
+                            )
 
                         self.set_state(ModemState.CALL_ACTIVE)
 
@@ -386,10 +416,9 @@ class ModemStateMachine:
                 )
                 self.set_state(ModemState.CALL_ENDING)
 
-                # Cleanup audio if it was set up
-                if self.call_info.audio_modules:
-                    self._stop_audio_bridge(self.call_info.audio_modules)
-                    logging.info("Audio bridge terminated")
+                # Note: Audio cleanup is handled by monitor_serial_port thread
+                # to avoid race condition with multiple threads trying to unload
+                # the same modules
 
                 # Send hangup to ensure modem is clean
                 with self.serial_lock:
@@ -421,6 +450,9 @@ class ModemStateMachine:
                 )
 
                 # Process any queued commands
+                logging.debug(
+                    "[AUDIO_DEBUG] Processing queued commands after call failure"
+                )
                 self._process_command_queue()
 
         except Exception as e:
@@ -534,14 +566,31 @@ class ModemStateMachine:
 
         # Setup audio and transition to active
         audio_modules = None
+        audio_routing_success = True
+        logging.info(
+            f"[AUDIO_DEBUG] Incoming call - "
+            f"enable_audio_routing={self.enable_audio_routing}"
+        )
+
         if self.enable_audio_routing:
+            logging.info(
+                "[AUDIO_DEBUG] Attempting to start audio bridge for incoming call..."
+            )
             audio_modules = self._start_audio_bridge()
+            logging.info(f"[AUDIO_DEBUG] Audio modules returned: {audio_modules}")
             if audio_modules and audio_modules[0] and audio_modules[1]:
                 logging.info(f"Audio bridge started for incoming call: {audio_modules}")
             else:
-                logging.warning("Audio routing enabled but failed to start bridge")
+                audio_routing_success = False
+                logging.warning(
+                    "Incoming call answered but audio routing failed - "
+                    "call will proceed without audio bridge"
+                )
         else:
-            logging.info("Audio routing disabled - no audio bridge for incoming call")
+            logging.info(
+                "[AUDIO_DEBUG] Audio routing disabled - no audio bridge for "
+                "incoming call"
+            )
 
         self.call_info = CallInfo(
             number=caller_number,
@@ -551,7 +600,11 @@ class ModemStateMachine:
             call_connected=True,
         )
         self.set_state(ModemState.CALL_ACTIVE)
-        logging.info(f"Incoming call from {caller_number} is now active")
+
+        status_msg = f"Incoming call from {caller_number} is now active"
+        if self.enable_audio_routing and not audio_routing_success:
+            status_msg += " (audio routing failed)"
+        logging.info(status_msg)
 
         # Notify any registered callbacks about incoming call
         self._notify_incoming_call(caller_number)
@@ -616,9 +669,15 @@ class ModemStateMachine:
 
     def _start_audio_bridge(self) -> Optional[Tuple[Optional[str], Optional[str]]]:
         """Start PulseAudio loopback modules for audio routing."""
+        logging.info("[AUDIO_DEBUG] _start_audio_bridge() called in ModemStateMachine")
         try:
-            return start_audio_bridge()
+            result = start_audio_bridge()
+            logging.info(f"[AUDIO_DEBUG] start_audio_bridge() returned: {result}")
+            return result
         except Exception as e:
+            logging.error(
+                f"[AUDIO_DEBUG] Exception in _start_audio_bridge: {e}", exc_info=True
+            )
             logging.error(f"Failed to start audio bridge: {e}")
             return (None, None)
 
@@ -1182,8 +1241,27 @@ def main():
         default="/mnt/data/calls.log",
         help="Log file path",
     )
+    parser.add_argument(
+        "--env",
+        action="store_true",
+        help="Print environment variables and exit",
+    )
 
     args = parser.parse_args()
+
+    # Handle --env flag to print environment variables
+    if args.env:
+        env_vars = [
+            "XDG_RUNTIME_DIR",
+            "PULSE_RUNTIME_PATH",
+            "PULSE_SERVER",
+            "DBUS_SESSION_BUS_ADDRESS",
+        ]
+        print("Environment Variables:")
+        for var in env_vars:
+            value = os.environ.get(var, "<not set>")
+            print(f"  {var}={value}")
+        sys.exit(0)
 
     # Setup logging
     logging.basicConfig(
@@ -1204,6 +1282,10 @@ def main():
 
     # Load configuration from config file or command line
     enable_audio_routing = DEFAULT_ENABLE_AUDIO_ROUTING  # Default value
+    logging.info(
+        f"[AUDIO_DEBUG] Initial enable_audio_routing={enable_audio_routing} "
+        f"(from DEFAULT_ENABLE_AUDIO_ROUTING)"
+    )
 
     if args.whitelist:
         # Command line override for whitelist
@@ -1219,6 +1301,10 @@ def main():
         # Load from config file
         logging.info(f"Loading configuration from: {args.config_file}")
         whitelist_dict, enable_audio_routing = load_config(args.config_file)
+        logging.info(
+            f"[AUDIO_DEBUG] After load_config: "
+            f"enable_audio_routing={enable_audio_routing}"
+        )
 
         if not whitelist_dict:
             logging.warning("No whitelist loaded, using defaults")
@@ -1235,10 +1321,18 @@ def main():
 
     try:
         # Create state machine
+        logging.info(
+            f"[AUDIO_DEBUG] Creating ModemStateMachine with "
+            f"enable_audio_routing={enable_audio_routing}"
+        )
         state_machine = ModemStateMachine(
             serial_connection, whitelist_dict, enable_audio_routing
         )
         audio_status = "ENABLED" if enable_audio_routing else "DISABLED"
+        logging.info(
+            f"[AUDIO_DEBUG] ModemStateMachine created, "
+            f"state_machine.enable_audio_routing={state_machine.enable_audio_routing}"
+        )
         logging.info(f"Audio routing: {audio_status}")
 
         # Create TCP server

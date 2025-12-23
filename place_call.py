@@ -55,6 +55,7 @@ def place_call_via_tcp(
 
         # Wait for responses
         call_connected = False
+        subscribed_to_notifications = False
 
         while True:
             # Receive response
@@ -63,46 +64,89 @@ def place_call_via_tcp(
                 logging.warning("Connection closed by server")
                 break
 
-            # Parse response
+            # Parse response (could be multiple JSON objects separated by newlines)
             try:
                 response_text = data.decode().strip()
-                response = json.loads(response_text)
 
-                status = response.get("status")
-                message = response.get("message")
-                response_request_id = response.get("request_id")
+                # Handle multiple JSON objects in one recv
+                for line in response_text.split("\n"):
+                    if not line.strip():
+                        continue
 
-                # Verify this is our response
-                if response_request_id != request_id:
-                    logging.warning(
-                        f"Received response for different request: "
-                        f"{response_request_id}"
-                    )
-                    continue
+                    response = json.loads(line)
 
-                logging.info(f"Response: status={status}, message={message}")
+                    # Check if this is a notification
+                    if "type" in response:
+                        notification_type = response.get("type")
 
-                if status == "pending":
-                    # Initial response - call is being placed
-                    logging.info("Call placement initiated, waiting for completion...")
+                        if notification_type == "call_ended":
+                            reason = response.get("reason", "unknown")
+                            logging.info(f"Call ended: {reason}")
+                            # Exit the loop - call is complete
+                            sock.close()
+                            return call_connected
+                        elif notification_type == "incoming_call":
+                            caller = response.get("caller_number")
+                            logging.info(f"Incoming call from: {caller}")
+                        elif notification_type == "dtmf_received":
+                            digit = response.get("digit")
+                            logging.debug(f"DTMF received: {digit}")
+                        continue
 
-                elif status == "success":
-                    # Call succeeded
-                    data_obj = response.get("data", {})
-                    call_connected = data_obj.get("call_connected", False)
+                    # Otherwise it's a command response
+                    status = response.get("status")
+                    message = response.get("message")
+                    response_request_id = response.get("request_id")
 
-                    if call_connected:
-                        logging.info("Call connected successfully")
-                        # Call is active - wait for it to end
-                        logging.info("Call is active, waiting for termination...")
-                    else:
-                        logging.warning("Success response but call not connected")
+                    # Log the response
+                    logging.info(f"Response: status={status}, message={message}")
+
+                    if status == "pending":
+                        # Initial response - call is being placed
+                        logging.info(
+                            "Call placement initiated, waiting for completion..."
+                        )
+
+                    elif status == "success":
+                        # Check if this is the place_call response
+                        if response_request_id == request_id:
+                            # Call succeeded
+                            data_obj = response.get("data", {})
+                            call_connected = data_obj.get("call_connected", False)
+
+                            if call_connected:
+                                logging.info("Call connected successfully")
+                                # Subscribe to notifications to get call_ended event
+                                if not subscribed_to_notifications:
+                                    subscribe_request = {
+                                        "command": "subscribe_notifications",
+                                        "request_id": f"{request_id}-subscribe",
+                                    }
+                                    logging.info(
+                                        "Subscribing to notifications to monitor call."
+                                    )
+                                    sock.sendall(
+                                        (json.dumps(subscribe_request) + "\n").encode()
+                                    )
+                                    subscribed_to_notifications = True
+                            else:
+                                logging.warning(
+                                    "Success response but call not connected"
+                                )
+                                break
+                        elif (
+                            subscribed_to_notifications
+                            and "subscribe" in response_request_id
+                        ):
+                            # Subscription confirmation
+                            logging.info(
+                                "Subscribed to notifications, waiting for call to end."
+                            )
+
+                    elif status == "error":
+                        # Call failed
+                        logging.error(f"Call failed: {message}")
                         break
-
-                elif status == "error":
-                    # Call failed
-                    logging.error(f"Call failed: {message}")
-                    break
 
             except json.JSONDecodeError as e:
                 logging.error(f"Failed to parse JSON response: {e}")
