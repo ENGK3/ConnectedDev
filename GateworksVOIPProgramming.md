@@ -13,6 +13,18 @@ It will allow the system console to be presented to the PC as a serial port.
 
 **NOTE** For the Elevator setup the SOUND card must not be installed.
 
+**NOTE** Make sure the Telit Modem is running the following firmware. The firmware
+version can be retrieved with the #SWPKGV command, as shown.
+
+```bash
+AT#SWPKGV
+
+25.21.664-P0F.664501
+M0F.660014
+P0F.664501
+A0F.660014
+```
+
 ## Connectivity
 
 Connect the USB/Serial/JTAG debugger cable for the system console and let the board
