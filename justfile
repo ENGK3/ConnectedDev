@@ -98,8 +98,8 @@ k3_config:
     echo 'APP="{{my_version}}"' >> K3_config_settings
 
 pkg: k3_config
-    rm -f GW-Setup*.tgz
-    tar -zcvf GW-Setup-{{my_version}}.tgz \
+    rm -f GW-Setup*.t*
+    tar -cvf GW-Setup-{{my_version}}.tar \
        place_call.py check_reg.py modem_utils.py send_EDC_info.py \
        manage_modem.py manage_modem.service modem_manager_client.py \
        daemon.conf pulseaudio.service K3_config_settings modem_state.py \
@@ -118,6 +118,14 @@ pkg: k3_config
        pjsip.conf extensions.conf ari.conf http.conf confbridge.conf \
        ari-mon-conf.py modules.conf \
        -C ../pulseaudio default.pa
+
+chksum:
+    rm -rf cksum_dir
+    mkdir -p cksum_dir
+    cd cksum_dir; tar -xf ../GW-Setup-{{my_version}}.tar; \
+    find . -type f | sed 's|^\./||' |  xargs md5sum > GW-Setup-{{my_version}}.md5; \
+    tar -zcf ../GW-Setup-{{my_version}}.tgz *
+    rm -f GW-Setup-{{my_version}}.tar cksum_dir
 
 pkgpush: pkg
     scp GW-Setup*.tgz {{nuser}}@{{target}}:/mnt/data/.
