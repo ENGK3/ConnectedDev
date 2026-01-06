@@ -29,7 +29,7 @@ the SW Version number.
 
 Updated microcom.alias to use ttyUSB3
 
-Updated the justfile to create a checksum file (GW-Setup-<version>.md5) for the files being installed and
+Updated the justfile to create a checksum file (GW-Setup-\<version\>.md5) for the files being installed and
 that included with the tar file package.
 
 Updated the switch_mon.service to use "KillSignal=SIGKILL" for terminating the service to prevent dialout
@@ -38,7 +38,6 @@ when the system reboots or does a shutdown. Fixes GitHub Issue #3.
 ### Removed
 
 Removed pool package from justfile, since both configs are in one package file.
-
 
 ### Known Issues
 
