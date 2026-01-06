@@ -14,6 +14,8 @@ ExecStartPre=/bin/sleep 3
 # This was causing problems.
 #ExecStartPre=/bin/bash -c 'pkill -f "gpiomon.*gpiochip0.*7" || true'
 ExecStart=/mnt/data/switch_mon.sh
+# The SIGTERM will give a 0 return code which indicates all is good.
+KillSignal=SIGKILL
 User=kuser
 Restart=always
 RestartSec=5

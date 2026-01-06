@@ -21,7 +21,7 @@ cleanup_gpio() {
 }
 
 # Trap signals for proper cleanup
-trap cleanup_gpio EXIT INT TERM
+trap cleanup_gpio EXIT INT TERM ABRT
 
 if [ ! -e /tmp/setup ]; then
     /mnt/data/led_red.sh ON
