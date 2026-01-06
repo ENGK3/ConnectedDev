@@ -11,10 +11,10 @@ Environment=XDG_RUNTIME_DIR=/run/user/1000
 Environment=PULSE_RUNTIME_PATH=/run/user/1000/pulse
 Environment=PULSE_SERVER=unix:/run/user/1000/pulse/native
 ExecStartPre=/bin/sleep 3
-# This was causing problems.
-#ExecStartPre=/bin/bash -c 'pkill -f "gpiomon.*gpiochip0.*7" || true'
 ExecStart=/mnt/data/switch_mon.sh
 # The SIGTERM will give a 0 return code which indicates all is good.
+# This would cause a call to be placed. Using SIGKILL causes a nonzero
+# return code.
 KillSignal=SIGKILL
 User=kuser
 Restart=always
