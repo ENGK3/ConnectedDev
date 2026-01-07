@@ -13,8 +13,9 @@ aplay -D hw:SGTL5000Card,0 /mnt/data/sounds/ENU00209-48k.wav
 #aplay -D hw:SGTL5000Card,0 /mnt/data/sounds/S0000303.wav
 
 # Remove the -n <number> to use the default EDC number
-#python3 /mnt/data/place_call.py -v
-python3 /mnt/data/place_call.py -n 9723256826 -v
+python3 /mnt/data/place_call.py -v
+#python3 /mnt/data/place_call.py -n 2146632717 -v
+
 
 /mnt/data/led_red.sh OFF
 /mnt/data/led_green.sh ON
