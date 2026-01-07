@@ -163,4 +163,4 @@ ans:
     scp answer_phone.py {{nuser}}@{{target}}:/mnt/data/answer_phone.py
 
 clean:
-     rm -f *.pdf *.zip *.tgz
+     rm -rf *.pdf *.zip *.tgz cksum_dir GW-Setup-*.tar
