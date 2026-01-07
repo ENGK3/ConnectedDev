@@ -1,0 +1,13 @@
+[Unit]
+Description=Non-Call Events Monitor
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /mnt/data/events_monitor.py
+WorkingDirectory=/mnt/data
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

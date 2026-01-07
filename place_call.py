@@ -1,15 +1,18 @@
 import argparse
 import json
 import logging
-import logging.handlers
 import socket
 import sys
+import time
 import uuid
 from pathlib import Path
+
+from dotenv import dotenv_values
 
 # TCP server settings (must match manage_modem.py)
 DEFAULT_TCP_HOST = "127.0.0.1"
 DEFAULT_TCP_PORT = 5555
+WAIT_SECS_BETWEEN_CALLS = 2.5  # seconds
 
 
 def place_call_via_tcp(
@@ -212,13 +215,39 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    logging.info(f"Ready to dial number: {args.number}")
-    logging.info("Audio routing will be enabled for this call")
-    call_success = place_call_via_tcp(
-        args.number,
-        host=args.host,
-        port=args.port,
-    )
+    config = dotenv_values(
+        "/mnt/data/K3_config_settings"
+    )  # Load environment variables from .env file
+
+    phone_numbers = []
+    phone_numbers.append(config.get("FIRST_NUMBER", "9723507770"))
+    phone_numbers.append(config.get("SECOND_NUMBER", "9727459072"))
+    phone_numbers.append(config.get("THIRD_NUMBER", "9723507770"))
+
+    call_success = False
+
+    for number in phone_numbers:
+        logging.info(f"Ready to dial number: {number}")
+
+        logging.info("Audio routing will be enabled for this call")
+        call_success = place_call_via_tcp(
+            args.number,
+            host=args.host,
+            port=args.port,
+        )
+        # call_success = sbc_place_call(
+        #     number,
+        #     serial_connection,
+        #     verbose=args.verbose,
+        #     no_audio_routing=args.no_audio_routing,
+        # )
+
+        if call_success:
+            logging.info("Call completed successfully")
+            break
+        else:
+            logging.warning("Call failed or timed out")
+            time.sleep(WAIT_SECS_BETWEEN_CALLS)  # Wait before trying the next number
 
     if call_success:
         logging.info("Call completed successfully")
