@@ -16,6 +16,13 @@ Added kings3_install.sh to handle both pool and elevator setups.
 # Will update installation and install any missing packages.
 ```
 
+RSRP_LUT.csv, RSRQ_LUT.csv, RSSI_LUT.csv files added to convert modem string values to
+human readable values.
+
+events_monitor.py events_monitor.service files to handle reporting events.
+
+update_from_SD_card.py is a script to update from the SD card.
+
 Added audio_routing.py file to extract the audio routing out of place_call.py
 since that file no longer needed it.
 
@@ -34,6 +41,10 @@ that included with the tar file package.
 
 Updated the switch_mon.service to use "KillSignal=SIGKILL" for terminating the service to prevent dialout
 when the system reboots or does a shutdown. Fixes GitHub Issue #3.
+
+place_call.py was updated to pull the numbers to dial from the config file.
+
+modem_utils.py updated to use the info from the different lookup files.
 
 ### Removed
 
