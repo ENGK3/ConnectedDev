@@ -160,6 +160,7 @@ if [ "$CONFIG" == "pool" ]; then
 
     install_or_update_services switch_mon.service \
         manage_modem.service \
+        events_monitor.service \
         get_sensor_data.timer
 
     echo "Pool configuration complete!"
