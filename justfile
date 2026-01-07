@@ -109,6 +109,8 @@ part-pkg: k3_config
        set-governor.service kings3_install.sh switch_mon.service switch_mon.sh \
        sounds/* *.dtbo microcom.alias daemon.conf  dtmf_collector.py \
        led_blue.sh led_green.sh led_red.sh audio_routing.py update_uid.sh \
+       events_monitor.py events_monitor.service update_from_SD_card.py \
+       RSRP_LUT.csv RSRQ_LUT.csv RSSI_LUT.csv \
        -C VOIP \
        voip_call_monitor_tcp.py voip_call_monitor.service \
        voip_ari_conference.service interfaces \
