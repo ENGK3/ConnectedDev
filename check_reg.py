@@ -153,7 +153,7 @@ if __name__ == "__main__":
         logging.getLogger("").removeHandler(console)
 
     result = check_modem_registration(
-        port="/dev/ttyUSB2",
+        port="/dev/ttyUSB3",
         baudrate=115200,
         timeout=10,
         max_wait=30,
