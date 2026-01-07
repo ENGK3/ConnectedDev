@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 import serial
+from dotenv import dotenv_values
 
 # Import shared modem utilities
 from modem_utils import sbc_cmd, sbc_connect, sbc_disconnect
@@ -244,19 +245,33 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    config = dotenv_values(
+        "/mnt/data/K3_config_settings"
+    )  # Load environment variables from .env file
+
+    phone_numbers = []
+    phone_numbers.append(config.get("FIRST_NUMBER", "9723507770"))
+    phone_numbers.append(config.get("SECOND_NUMBER", "9727459072"))
+    phone_numbers.append(config.get("THIRD_NUMBER", "9723507770"))
+
     serial_connection = serial.Serial()
+    call_success = False
     if sbc_connect(serial_connection):
-        logging.info(f"Ready to dial number: {args.number}")
-        call_success = sbc_place_call(
-            args.number,
-            serial_connection,
-            verbose=args.verbose,
-            no_audio_routing=args.no_audio_routing,
-        )
-        if call_success:
-            logging.info("Call completed successfully")
-        else:
-            logging.warning("Call failed or timed out")
+        # while not call_success:
+        for number in phone_numbers:
+            logging.info(f"Ready to dial number: {number}")
+            call_success = sbc_place_call(
+                number,
+                serial_connection,
+                verbose=args.verbose,
+                no_audio_routing=args.no_audio_routing,
+            )
+            if call_success:
+                logging.info("Call completed successfully")
+                break
+            else:
+                logging.warning("Call failed or timed out")
+                time.sleep(2.5)
 
     Path("/tmp/setup").touch()
 
