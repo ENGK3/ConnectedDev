@@ -201,6 +201,13 @@ if __name__ == "__main__":
         "-v", "--verbose", action="store_true", help="Enable verbose output"
     )
     parser.add_argument(
+        "-n",
+        "--number",
+        type=str,
+        help="Phone number to dial, overrides config file",
+        default=None,
+    )
+    parser.add_argument(
         "--host",
         type=str,
         default=DEFAULT_TCP_HOST,
@@ -219,10 +226,13 @@ if __name__ == "__main__":
         "/mnt/data/K3_config_settings"
     )  # Load environment variables from .env file
 
-    phone_numbers = []
-    phone_numbers.append(config.get("FIRST_NUMBER", "9723507770"))
-    phone_numbers.append(config.get("SECOND_NUMBER", "9727459072"))
-    phone_numbers.append(config.get("THIRD_NUMBER", "9723507770"))
+    if args.number:
+        phone_numbers = [args.number]
+    else:
+        phone_numbers = []
+        phone_numbers.append(config.get("FIRST_NUMBER", "9723507770"))
+        phone_numbers.append(config.get("SECOND_NUMBER", "9727459072"))
+        phone_numbers.append(config.get("THIRD_NUMBER", "9723507770"))
 
     call_success = False
 
@@ -231,16 +241,10 @@ if __name__ == "__main__":
 
         logging.info("Audio routing will be enabled for this call")
         call_success = place_call_via_tcp(
-            args.number,
+            number,
             host=args.host,
             port=args.port,
         )
-        # call_success = sbc_place_call(
-        #     number,
-        #     serial_connection,
-        #     verbose=args.verbose,
-        #     no_audio_routing=args.no_audio_routing,
-        # )
 
         if call_success:
             logging.info("Call completed successfully")
