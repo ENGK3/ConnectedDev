@@ -554,4 +554,3 @@ Baresip command: {"command": "dtmf", "params": "*"}
 Asterisk ConfBridge (receives DTMF via RTP)
                ↓
 elevator_admin_menu triggers (*5 or 5 → addcallers context)
-WIP:Need to add note about Elevator must not have sound card installed
