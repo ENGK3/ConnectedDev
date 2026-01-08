@@ -14,4 +14,4 @@ FIRST_NUMBER="9723507770"
 SECOND_NUMBER="9727459072"
 THIRD_NUMBER="9723507770"
 
-EVT_MON_PERIOD_SECS = "60" # event reporting update time in secs
+EVT_MON_PERIOD_SECS="60" # event reporting update time in secs
