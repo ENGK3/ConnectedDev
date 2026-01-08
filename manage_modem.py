@@ -254,6 +254,7 @@ class ModemStateMachine:
             target=self._place_call_worker,
             args=(number, no_audio_routing, request.request_id),
             daemon=True,
+            name="PlaceCall",
         )
         thread.start()
 
@@ -775,6 +776,7 @@ class ModemTCPServer:
                     target=self._handle_client,
                     args=(client_socket, client_address),
                     daemon=True,
+                    name="TCPServ",
                 )
                 client_thread.start()
                 self.client_threads.append(client_thread)
@@ -1174,7 +1176,9 @@ def monitor_serial_port(state_machine: ModemStateMachine, tcp_server=None):
 
                     # Process queued commands
                     threading.Thread(
-                        target=state_machine._process_command_queue, daemon=True
+                        target=state_machine._process_command_queue,
+                        daemon=True,
+                        name="CMDQ",
                     ).start()
 
         except serial.SerialException as e:
@@ -1266,7 +1270,8 @@ def main():
     # Setup logging
     logging.basicConfig(
         level=getattr(logging, args.log_level),
-        format="%(asctime)s.%(msecs)03d %(levelname)-8s [%(threadName)s] %(message)s",
+        format="%(asctime)s.%(msecs)03d %(levelname)-8s "
+        "[MM %(threadName)s] %(message)s",
         datefmt="%m-%d %H:%M:%S",
         handlers=[
             logging.FileHandler(args.log_file),
@@ -1348,6 +1353,7 @@ def main():
             target=monitor_serial_port,
             args=(state_machine, tcp_server),
             daemon=False,
+            name="SerialMon",
         )
         serial_thread.start()
 
