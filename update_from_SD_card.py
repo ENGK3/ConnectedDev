@@ -157,7 +157,7 @@ if check_mounting_path():
                     + uut_hw_app
                     + " software is a newer version (V"
                     + uut_sw_version
-                    + ") - aporting update"
+                    + ") - aborting update"
                 )
             if (file_delta == 0) and (uut_hw_app == hw_app):
                 print(
