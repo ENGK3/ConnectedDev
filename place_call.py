@@ -1,182 +1,134 @@
 import argparse
-import json
 import logging
-import socket
-import sys
+import logging.handlers
 import time
-import uuid
 from pathlib import Path
 
 from dotenv import dotenv_values
 
-# TCP server settings (must match manage_modem.py)
-DEFAULT_TCP_HOST = "127.0.0.1"
-DEFAULT_TCP_PORT = 5555
-WAIT_SECS_BETWEEN_CALLS = 2.5  # seconds
+# Import modem manager client
+from modem_manager_client import ModemManagerClient
+
+# Call timeout constant (seconds to wait for call to connect)
+CALL_TIMEOUT_SECONDS = 20
 
 
-def place_call_via_tcp(
+def place_call_with_client(
     number: str,
-    host: str = DEFAULT_TCP_HOST,
-    port: int = DEFAULT_TCP_PORT,
+    verbose: bool = True,
+    no_audio_routing: bool = False,
+    modem_manager_host: str = "localhost",
+    modem_manager_port: int = 5555,
 ) -> bool:
     """
-    Place a call using the manage_modem.py TCP interface.
-    Audio routing is always enabled.
+    Place a call using the modem manager client interface.
 
     Args:
         number: Phone number to dial
-        host: TCP server host
-        port: TCP server port
+        verbose: Enable verbose logging
+        no_audio_routing: Disable audio routing (establish call only)
+        modem_manager_host: Modem manager server host
+        modem_manager_port: Modem manager server port
 
     Returns:
-        True if call was successfully connected, False otherwise
+        True if call was successfully established, False otherwise
     """
     try:
-        # Connect to manage_modem TCP server
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(60.0)  # 60 second timeout
+        # Connect to modem manager
+        client = ModemManagerClient(
+            modem_manager_host, modem_manager_port, timeout=CALL_TIMEOUT_SECONDS + 10
+        )
 
-        logging.info(f"Connecting to modem manager at {host}:{port}")
-        sock.connect((host, port))
-        logging.info("Connected to modem manager")
+        if not client.connect():
+            logging.error("Failed to connect to modem manager")
+            return False
 
-        # Create place_call command
-        request_id = str(uuid.uuid4())
-        command = {
-            "command": "place_call",
-            "params": {
-                "number": number,
-                "no_audio_routing": False,  # Always enable audio routing
-            },
-            "request_id": request_id,
-        }
+        try:
+            logging.info(f"Placing call to {number} via modem manager...")
 
-        # Send command
-        logging.info(f"Sending place_call command for {number}")
-        sock.sendall((json.dumps(command) + "\n").encode())
+            # Request call placement
+            response = client.place_call(number, no_audio_routing)
 
-        # Wait for responses
-        call_connected = False
-        subscribed_to_notifications = False
+            if response.get("status") == "error":
+                logging.error(f"Call placement failed: {response.get('message')}")
+                return False
 
-        while True:
-            # Receive response
-            data = sock.recv(4096)
-            if not data:
-                logging.warning("Connection closed by server")
-                break
+            if response.get("status") == "pending":
+                logging.info(f"Call initiated: {response.get('message')}")
 
-            # Parse response (could be multiple JSON objects separated by newlines)
-            try:
-                response_text = data.decode().strip()
+            # Poll status to wait for call to connect
+            start_time = time.time()
+            call_connected = False
 
-                # Handle multiple JSON objects in one recv
-                for line in response_text.split("\n"):
-                    if not line.strip():
-                        continue
+            while time.time() - start_time < CALL_TIMEOUT_SECONDS:
+                status_response = client.get_status()
 
-                    response = json.loads(line)
+                if status_response.get("status") == "success":
+                    status_data = status_response.get("data", {})
 
-                    # Check if this is a notification
-                    if "type" in response:
-                        notification_type = response.get("type")
-
-                        if notification_type == "call_ended":
-                            reason = response.get("reason", "unknown")
-                            logging.info(f"Call ended: {reason}")
-                            # Exit the loop - call is complete
-                            sock.close()
-                            return call_connected
-                        elif notification_type == "incoming_call":
-                            caller = response.get("caller_number")
-                            logging.info(f"Incoming call from: {caller}")
-                        elif notification_type == "dtmf_received":
-                            digit = response.get("digit")
-                            logging.debug(f"DTMF received: {digit}")
-                        continue
-
-                    # Otherwise it's a command response
-                    status = response.get("status")
-                    message = response.get("message")
-                    response_request_id = response.get("request_id")
-
-                    # Log the response
-                    logging.info(f"Response: status={status}, message={message}")
-
-                    if status == "pending":
-                        # Initial response - call is being placed
+                    if status_data.get("call_connected"):
+                        call_connected = True
                         logging.info(
-                            "Call placement initiated, waiting for completion..."
+                            f"Call connected successfully to "
+                            f"{status_data.get('current_number')}"
                         )
-
-                    elif status == "success":
-                        # Check if this is the place_call response
-                        if response_request_id == request_id:
-                            # Call succeeded
-                            data_obj = response.get("data", {})
-                            call_connected = data_obj.get("call_connected", False)
-
-                            if call_connected:
-                                logging.info("Call connected successfully")
-                                # Subscribe to notifications to get call_ended event
-                                if not subscribed_to_notifications:
-                                    subscribe_request = {
-                                        "command": "subscribe_notifications",
-                                        "request_id": f"{request_id}-subscribe",
-                                    }
-                                    logging.info(
-                                        "Subscribing to notifications to monitor call."
-                                    )
-                                    sock.sendall(
-                                        (json.dumps(subscribe_request) + "\n").encode()
-                                    )
-                                    subscribed_to_notifications = True
-                            else:
-                                logging.warning(
-                                    "Success response but call not connected"
-                                )
-                                break
-                        elif (
-                            subscribed_to_notifications
-                            and "subscribe" in response_request_id
-                        ):
-                            # Subscription confirmation
-                            logging.info(
-                                "Subscribed to notifications, waiting for call to end."
-                            )
-
-                    elif status == "error":
-                        # Call failed
-                        logging.error(f"Call failed: {message}")
                         break
 
-            except json.JSONDecodeError as e:
-                logging.error(f"Failed to parse JSON response: {e}")
-                logging.error(f"Raw data: {data}")
-                break
+                    # Check if call failed (modem went back to IDLE without connecting)
+                    if status_data.get("state") == "IDLE" and not status_data.get(
+                        "call_active"
+                    ):
+                        logging.warning(
+                            "Call setup failed - modem returned to IDLE state"
+                        )
+                        break
 
-        sock.close()
-        return call_connected
+                # Wait a bit before next status check
+                time.sleep(0.5)
 
-    except socket.timeout:
-        logging.error("Connection to modem manager timed out")
-        return False
-    except ConnectionRefusedError:
-        logging.error(f"Could not connect to modem manager at {host}:{port}")
-        logging.error("Make sure manage_modem.py is running")
-        return False
+            if not call_connected:
+                if time.time() - start_time >= CALL_TIMEOUT_SECONDS:
+                    logging.warning(
+                        f"Call connection timeout after {CALL_TIMEOUT_SECONDS} seconds"
+                    )
+                return False
+
+            # Call is connected - wait for user to hang up or call to end
+            # Monitor status until call ends
+            logging.info("Call is active. Monitoring call status...")
+
+            while True:
+                status_response = client.get_status()
+
+                if status_response.get("status") == "success":
+                    status_data = status_response.get("data", {})
+
+                    # Check if call ended
+                    if (
+                        not status_data.get("call_active")
+                        and status_data.get("state") == "IDLE"
+                    ):
+                        logging.info("Call has ended")
+                        break
+
+                # Wait before next status check
+                time.sleep(1)
+
+            return True
+
+        finally:
+            client.disconnect()
+
     except Exception as e:
-        logging.error(f"Error placing call via TCP: {e}", exc_info=True)
+        logging.error(f"Error placing call: {e}", exc_info=True)
         return False
 
 
 if __name__ == "__main__":
-    # Set up logging to syslog with milliseconds in timestamp
-
+    # Set up logging to file and console with milliseconds in timestamp
     logging.basicConfig(
         level=logging.DEBUG,
-        format="%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s",
+        format="%(asctime)s.%(msecs)03d %(levelname)-8s [PC] %(message)s",
         datefmt="%m-%d %H:%M:%S",
         filename="/mnt/data/calls.log",
         filemode="a+",
@@ -192,71 +144,76 @@ if __name__ == "__main__":
     logging.getLogger("").addHandler(console)
 
     parser = argparse.ArgumentParser(
-        description="Place call via manage_modem.py TCP interface"
+        description="Place calls via Modem Manager interface"
     )
     parser.add_argument(
-        "-n", "--number", type=str, help="Phone number to dial", default="9723507770"
+        "-n", "--number", type=str, help="Phone number to dial", default=None
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="Enable verbose output"
     )
     parser.add_argument(
-        "-n",
-        "--number",
-        type=str,
-        help="Phone number to dial, overrides config file",
-        default=None,
+        "-r",
+        "--no-audio-routing",
+        action="store_true",
+        help="Disable audio re-routing (establish call only)",
     )
     parser.add_argument(
-        "--host",
+        "--modem-host",
         type=str,
-        default=DEFAULT_TCP_HOST,
-        help=f"TCP server host (default: {DEFAULT_TCP_HOST})",
+        default="localhost",
+        help="Modem manager server host (default: localhost)",
     )
     parser.add_argument(
-        "--port",
+        "--modem-port",
         type=int,
-        default=DEFAULT_TCP_PORT,
-        help=f"TCP server port (default: {DEFAULT_TCP_PORT})",
+        default=5555,
+        help="Modem manager server port (default: 5555)",
     )
 
     args = parser.parse_args()
 
-    config = dotenv_values(
-        "/mnt/data/K3_config_settings"
-    )  # Load environment variables from .env file
+    # Load phone numbers from config file
+    config = dotenv_values("/mnt/data/K3_config_settings")
 
+    phone_numbers = []
+
+    # If number specified on command line, use it
     if args.number:
-        phone_numbers = [args.number]
+        phone_numbers.append(args.number)
     else:
-        phone_numbers = []
+        # Load from config file
         phone_numbers.append(config.get("FIRST_NUMBER", "9723507770"))
         phone_numbers.append(config.get("SECOND_NUMBER", "9727459072"))
         phone_numbers.append(config.get("THIRD_NUMBER", "9723507770"))
 
     call_success = False
 
+    # Try each number until one succeeds
     for number in phone_numbers:
-        logging.info(f"Ready to dial number: {number}")
-
-        logging.info("Audio routing will be enabled for this call")
-        call_success = place_call_via_tcp(
+        logging.info(f"Attempting to dial number: {number}")
+        call_success = place_call_with_client(
             number,
-            host=args.host,
-            port=args.port,
+            verbose=args.verbose,
+            no_audio_routing=args.no_audio_routing,
+            modem_manager_host=args.modem_host,
+            modem_manager_port=args.modem_port,
         )
 
         if call_success:
-            logging.info("Call completed successfully")
+            logging.info(f"Call to {number} completed successfully")
             break
         else:
-            logging.warning("Call failed or timed out")
-            time.sleep(WAIT_SECS_BETWEEN_CALLS)  # Wait before trying the next number
+            logging.warning(f"Call to {number} failed or timed out")
+            # Small delay before trying next number
+            if number != phone_numbers[-1]:  # Don't delay after last number
+                logging.info("Waiting 2.5 seconds before trying next number...")
+                time.sleep(2.5)
 
-    if call_success:
-        logging.info("Call completed successfully")
-        Path("/tmp/setup").touch()
-        sys.exit(0)
-    else:
-        logging.warning("Call failed or timed out")
-        sys.exit(1)
+    if not call_success:
+        logging.error("All call attempts failed")
+
+    # Touch file to indicate completion
+    Path("/tmp/setup").touch()
+
+    logging.info("place_call.py exiting")
