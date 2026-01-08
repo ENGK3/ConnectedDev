@@ -11,7 +11,7 @@ echo "Switch press detected"
 aplay -D hw:SGTL5000Card,0 /mnt/data/sounds/ENU00209-48k.wav &
 
 # S0000303.wav is just the word "Delta" - useful for testing.
-#aplay -D hw:SGTL5000Card,0 /mnt/data/sounds/S0000303.wav &
+#aplay -D hw:SGTL5000Card,0 /mnt/data/sounds/S0000303-48k.wav &
 
 python3 /mnt/data/send_EDC_info.py -e "01"
 
