@@ -38,7 +38,8 @@ at_cmd_set = [
     "AT+CMUT?\r",
     "AT#SPKMUT?\r",
     "AT+CNUM\r",
-    "AT#SWPKGV\r" "AT+CREG?\r",
+    "AT#SWPKGV\r",
+    "AT+CREG?\r",
     "AT+CEREG?\r",
 ]
 # Connect to modem
