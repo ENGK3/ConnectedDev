@@ -9,6 +9,7 @@ It prevents conflicts between simultaneous operations through a state machine.
 
 import argparse
 import enum
+import errno
 import json
 import logging
 import os
@@ -124,6 +125,7 @@ class CallInfo:
     start_time: Optional[datetime] = None
     audio_modules: Optional[Tuple[Optional[str], Optional[str]]] = None
     call_connected: bool = False
+    request_id: Optional[str] = None  # Track which request owns this call
 
 
 @dataclass
@@ -243,7 +245,10 @@ class ModemStateMachine:
         logging.info(f"Placing call to {number}")
         self.set_state(ModemState.PLACING_CALL)
         self.call_info = CallInfo(
-            number=number, direction="outgoing", start_time=datetime.now()
+            number=number,
+            direction="outgoing",
+            start_time=datetime.now(),
+            request_id=request.request_id,
         )
 
         # Store pending request for async response
@@ -264,6 +269,32 @@ class ModemStateMachine:
             request_id=request.request_id,
         )
 
+    def _is_worker_cancelled(self, request_id: str) -> bool:
+        """Check if this worker thread has been cancelled.
+
+        A worker is cancelled if:
+        - State is no longer PLACING_CALL or CALL_ACTIVE
+        - call_info.request_id doesn't match (different call started)
+
+        Args:
+            request_id: The request_id this worker is handling
+
+        Returns:
+            True if worker should abort, False otherwise
+        """
+        current_state = self.get_state()
+
+        # If we're in IDLE or CALL_ENDING, we've been cancelled
+        if current_state in [ModemState.IDLE, ModemState.CALL_ENDING]:
+            return True
+
+        # If call_info.request_id doesn't match, a different call has started
+        with self.state_lock:
+            if self.call_info.request_id != request_id:
+                return True
+
+        return False
+
     def _place_call_worker(self, number: str, no_audio_routing: bool, request_id: str):
         """Worker thread for placing calls."""
         logging.info(
@@ -280,6 +311,11 @@ class ModemStateMachine:
             logging.info("Configuring modem for outgoing call...")
             self._configure_modem_for_call()
             logging.info("Modem configuration complete")
+
+            # Check if cancelled before dialing
+            if self._is_worker_cancelled(request_id):
+                logging.info(f"Worker for {number} cancelled before dialing")
+                return
 
             with self.serial_lock:
                 # Flush any pending data
@@ -321,6 +357,11 @@ class ModemStateMachine:
 
             try:
                 while True:
+                    # Check if cancelled by external command
+                    if self._is_worker_cancelled(request_id):
+                        logging.info(f"Worker for {number} cancelled during call setup")
+                        return
+
                     # Check for timeout
                     if (time.time() - start_time > timeout) and not call_connected:
                         logging.warning("Call connection timeout after 30 seconds")
@@ -408,6 +449,11 @@ class ModemStateMachine:
 
             finally:
                 self.serial.timeout = original_timeout
+
+            # Check if we were cancelled - if so, don't do any cleanup
+            if self._is_worker_cancelled(request_id):
+                logging.info(f"Worker for {number} cancelled, skipping cleanup")
+                return
 
             # Cleanup based on call status
             if call_connected and call_termination_reason:
@@ -702,7 +748,17 @@ class ModemStateMachine:
             request = self.pending_requests.pop(request_id)
             if request.client_socket:
                 try:
-                    request.client_socket.sendall((response.to_json() + "\n").encode())
+                    # Get the tcp_server instance to use thread-safe send
+                    # This is passed via the tcp_server parameter in worker threads
+                    if hasattr(self, "tcp_server") and self.tcp_server:
+                        self.tcp_server._send_to_socket(
+                            request.client_socket, response.to_json() + "\n"
+                        )
+                    else:
+                        # Fallback for backwards compatibility
+                        request.client_socket.sendall(
+                            (response.to_json() + "\n").encode()
+                        )
                 except Exception as e:
                     logging.warning(
                         f"Failed to send async response "
@@ -756,6 +812,8 @@ class ModemTCPServer:
         self.client_threads = []
         self.notification_clients = []  # Clients subscribed to notifications
         self.notification_lock = threading.Lock()
+        self.socket_locks = {}  # Per-socket write locks to prevent byte interleaving
+        self.socket_locks_lock = threading.Lock()  # Protects socket_locks dict
 
     def start(self):
         """Start the TCP server."""
@@ -771,6 +829,10 @@ class ModemTCPServer:
             try:
                 client_socket, client_address = self.server_socket.accept()
                 logging.info(f"Client connected from {client_address}")
+
+                # Create a lock for this socket
+                with self.socket_locks_lock:
+                    self.socket_locks[client_socket] = threading.Lock()
 
                 client_thread = threading.Thread(
                     target=self._handle_client,
@@ -831,7 +893,7 @@ class ModemTCPServer:
 
                     # Send immediate response (async responses sent by worker threads)
                     if response:
-                        client_socket.sendall((response.to_json() + "\n").encode())
+                        self._send_to_socket(client_socket, response.to_json() + "\n")
 
                         # Check if entering notification mode
                         if response.data and response.data.get("notification_mode"):
@@ -851,14 +913,26 @@ class ModemTCPServer:
                         message=f"Invalid JSON: {str(e)}",
                         request_id="unknown",
                     )
-                    client_socket.sendall((error_response.to_json() + "\n").encode())
+                    self._send_to_socket(client_socket, error_response.to_json() + "\n")
 
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError) as e:
+            # Client closed connection - this is normal, log at debug level
+            logging.debug(f"Client {client_address} disconnected: {e}")
+        except OSError as e:
+            # Handle other socket errors
+            if e.errno in (errno.ECONNRESET, errno.EPIPE, errno.ECONNABORTED):
+                logging.debug(f"Client {client_address} disconnected: {e}")
+            else:
+                logging.error(f"Socket error handling client {client_address}: {e}")
         except Exception as e:
             logging.error(f"Error handling client {client_address}: {e}")
         finally:
             if not notification_mode:
                 # Only close if not in notification mode
                 # (notification mode handles its own cleanup)
+                # Clean up socket lock
+                with self.socket_locks_lock:
+                    self.socket_locks.pop(client_socket, None)
                 client_socket.close()
                 logging.info(f"Client {client_address} disconnected")
 
@@ -884,6 +958,9 @@ class ModemTCPServer:
                 if client_socket in self.notification_clients:
                     self.notification_clients.remove(client_socket)
 
+            # Clean up socket lock
+            with self.socket_locks_lock:
+                self.socket_locks.pop(client_socket, None)
             client_socket.close()
             logging.info(f"Notification client {client_address} disconnected")
 
@@ -934,6 +1011,23 @@ class ModemTCPServer:
                 request_id=request.request_id,
             )
 
+    def _send_to_socket(self, client_socket: socket.socket, message: str):
+        """Thread-safe method to send data to a client socket.
+
+        Args:
+            client_socket: Socket to send to
+            message: String message to send (will be encoded to bytes)
+        """
+        with self.socket_locks_lock:
+            socket_lock = self.socket_locks.get(client_socket)
+
+        if socket_lock:
+            with socket_lock:
+                client_socket.sendall(message.encode())
+        else:
+            # Socket not in locks (maybe already removed), try anyway
+            client_socket.sendall(message.encode())
+
     def broadcast_incoming_call(self, caller_number: str):
         """Broadcast incoming call notification to subscribed clients."""
         notification = {
@@ -951,7 +1045,7 @@ class ModemTCPServer:
             dead_clients = []
             for client_socket in self.notification_clients:
                 try:
-                    client_socket.sendall(message.encode())
+                    self._send_to_socket(client_socket, message)
                     try:
                         peer_name = client_socket.getpeername()
                         logging.info(
@@ -1000,7 +1094,7 @@ class ModemTCPServer:
             dead_clients = []
             for client_socket in self.notification_clients:
                 try:
-                    client_socket.sendall(message.encode())
+                    self._send_to_socket(client_socket, message)
                     try:
                         peer_name = client_socket.getpeername()
                         logging.info(
@@ -1044,7 +1138,7 @@ class ModemTCPServer:
             dead_clients = []
             for client_socket in self.notification_clients:
                 try:
-                    client_socket.sendall(message.encode())
+                    self._send_to_socket(client_socket, message)
                     try:
                         peer_name = client_socket.getpeername()
                         logging.debug(f"Sent DTMF notification to {peer_name}: {digit}")
@@ -1342,6 +1436,9 @@ def main():
 
         # Create TCP server
         tcp_server = ModemTCPServer(state_machine, args.host, args.port)
+
+        # Store reference to tcp_server in state_machine for thread-safe socket access
+        state_machine.tcp_server = tcp_server
 
         # Register callback to broadcast incoming calls to subscribed clients
         state_machine.register_incoming_call_callback(

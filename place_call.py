@@ -91,6 +91,13 @@ def place_call_with_client(
                     logging.warning(
                         f"Call connection timeout after {CALL_TIMEOUT_SECONDS} seconds"
                     )
+                    # Send hangup to ensure modem returns to IDLE state
+                    try:
+                        logging.info("Sending hangup command to clean up modem state")
+                        client.hangup()
+                        time.sleep(0.5)
+                    except Exception as e:
+                        logging.warning(f"Failed to send hangup after timeout: {e}")
                 return False
 
             # Call is connected - wait for user to hang up or call to end
