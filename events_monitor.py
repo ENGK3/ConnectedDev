@@ -82,8 +82,6 @@ while True:
                 # Load the JSON data from the file
                 data = json.load(f)
                 voltage = data["gsc_hwmon-isa-0000"]["vdd_vin"]["in1_input"]
-                # temp = data['cpu_thermal-virtual-0']['temp1']['temp1_input']
-
                 json_loaded = True
                 break
 
