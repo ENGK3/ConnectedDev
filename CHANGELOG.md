@@ -1,5 +1,66 @@
 # CHANGELOG Kings III Software Changes
 
+## Version V00.03.03+ UNRELEASED
+
+### Added
+
+set-governor.service to set the powersave mode on the system to keep the CPU clock
+at 1.2 GHz.
+Added kings3_install.sh to handle both pool and elevator setups.
+```bash
+--config pool --update
+# Will update installation
+--config pool
+# Will install the configuration
+--config pool --package --update
+# Will update installation and install any missing packages.
+```
+
+RSRP_LUT.csv, RSRQ_LUT.csv, RSSI_LUT.csv files added to convert modem string values to
+human readable values.
+
+events_monitor.py events_monitor.service files to handle reporting events.
+
+update_from_SD_card.py is a script to update from the SD card.
+
+Added audio_routing.py file to extract the audio routing out of place_call.py
+since that file no longer needed it.
+
+### Changed
+
+Updated justfile to add the set-governor.service in the package.
+Updated justfile to combine both elevator and pool files into one package.
+
+Updated modem_state.py script to include the phone number assigned and
+the SW Version number.
+
+Updated microcom.alias to use ttyUSB3
+
+Updated the justfile to create a checksum file (GW-Setup-\<version\>.md5) for the files being installed and
+that included with the tar file package.
+
+Updated the switch_mon.service to use "KillSignal=SIGKILL" for terminating the service to prevent dialout
+when the system reboots or does a shutdown. Fixes GitHub Issue #3.
+
+place_call.py was updated to pull the numbers to dial from the config file.
+
+modem_utils.py updated to use the info from the different lookup files.
+
+Changed EVT_MON_PERIOD_SECS to 600, so that it matches the get_sensor_data.timer interval.
+Cleaned up events_monitor.py
+
+### Removed
+
+Removed pool package from justfile, since both configs are in one package file.
+
+### Known Issues
+
+If "kuser" gets a UID other than 1000, then the three services:
+pulseaudio.service
+manage_modem.service
+switch_mon.service
+Will not work as expected.
+
 ## Version V00.03.03
 
 ### Added

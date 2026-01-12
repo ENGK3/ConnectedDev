@@ -1,3 +1,11 @@
+#!/bin/bash
+
+
+UPDATE=false
+if [ "$1" == "--update" ]; then
+    UPDATE=true
+fi
+
 cp /mnt/data/extensions.conf /etc/asterisk/extensions.conf
 cp /mnt/data/confbridge.conf /etc/asterisk/confbridge.conf
 cp /mnt/data/pjsip.conf /etc/asterisk/pjsip.conf
@@ -43,27 +51,52 @@ cp /mnt/data/99-ignore-modemmanager.rules  /etc/udev/rules.d/99-ignore-modemmana
 # Start the service that monitors the Ext 200 VOIP line for calls.
 cp /mnt/data/voip_call_monitor.service /etc/systemd/system/.
 systemctl daemon-reload
-systemctl enable voip_call_monitor.service
-systemctl start voip_call_monitor.service
+if [ "$UPDATE" = true ]; then
+    systemctl restart voip_call_monitor.service
+else
+    systemctl enable voip_call_monitor.service
+    systemctl start voip_call_monitor.service
+fi
 
 
 # Start the service that monitors the connections to the 'elevator_conference' ARI
 # conference bridge.
 cp /mnt/data/voip_ari_conference.service /etc/systemd/system/.
 systemctl daemon-reload
-systemctl enable voip_ari_conference.service
-systemctl start voip_ari_conference.service
+if [ "$UPDATE" = true ]; then
+    systemctl restart voip_ari_conference.service
+else
+    systemctl enable voip_ari_conference.service
+    systemctl start voip_ari_conference.service
+fi
 
 
 cp /mnt/data/manage_modem.service /etc/systemd/system/.
 systemctl daemon-reload
-systemctl enable manage_modem.service
-systemctl start manage_modem.service
+if [ "$UPDATE" = true ]; then
+    systemctl restart manage_modem.service
+else
+    systemctl enable manage_modem.service
+    systemctl start manage_modem.service
+fi
 
 cp get_sensor_data.service get_sensor_data.timer /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable get_sensor_data.timer
-systemctl start get_sensor_data.timer
+if [ "$UPDATE" = true ]; then
+    systemctl restart get_sensor_data.timer
+else
+    systemctl enable get_sensor_data.timer
+    systemctl start get_sensor_data.timer
+fi
 
 #systemctl status get_sensor_data.timer
 #systemctl list-timers get_sensor_data.timer
+
+cp /mnt/data/set-governor.service /etc/systemd/system/.
+systemctl daemon-reload
+if [ "$UPDATE" = true ]; then
+    systemctl restart set-governor.service
+else
+    systemctl enable set-governor.service
+    systemctl start set-governor.service
+fi

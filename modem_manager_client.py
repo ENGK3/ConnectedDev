@@ -31,6 +31,7 @@ class ModemManagerClient:
         self.port = port
         self.timeout = timeout
         self.socket = None
+        self.recv_buffer = ""  # Buffer for incomplete responses
 
     def connect(self) -> bool:
         """
@@ -43,6 +44,7 @@ class ModemManagerClient:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.socket.settimeout(self.timeout)
             self.socket.connect((self.host, self.port))
+            self.recv_buffer = ""  # Clear buffer on new connection
             logging.info(f"Connected to modem manager at {self.host}:{self.port}")
             return True
         except Exception as e:
@@ -62,6 +64,57 @@ class ModemManagerClient:
             finally:
                 self.socket = None
                 logging.info("Disconnected from modem manager")
+
+    def _recv_response(self) -> Dict[str, Any]:
+        """
+        Receive and parse a single JSON response from the buffer.
+
+        Handles the case where multiple newline-delimited JSON responses
+        may arrive in a single recv() call (due to async responses from
+        worker threads racing with synchronous command responses).
+
+        Returns:
+            Parsed JSON response dictionary
+
+        Raises:
+            ConnectionError: If connection closed
+            TimeoutError: If timeout occurs
+            ValueError: If invalid JSON received
+        """
+        while True:
+            # Check if we have a complete response in the buffer (ends with \n)
+            newline_pos = self.recv_buffer.find("\n")
+
+            if newline_pos >= 0:
+                # Extract one complete response
+                response_line = self.recv_buffer[:newline_pos].strip()
+                self.recv_buffer = self.recv_buffer[newline_pos + 1 :]
+
+                if response_line:
+                    try:
+                        response = json.loads(response_line)
+                        logging.debug(f"Parsed response from buffer: {response}")
+                        return response
+                    except json.JSONDecodeError as e:
+                        logging.error(f"Invalid JSON in buffer: {response_line}")
+                        raise ValueError(f"Invalid JSON response: {e}") from e
+                else:
+                    # Empty line, continue to next
+                    continue
+
+            # Need more data - receive from socket
+            try:
+                data = self.socket.recv(4096)
+                if not data:
+                    raise ConnectionError("Connection closed by server")
+
+                self.recv_buffer += data.decode()
+                logging.debug(
+                    f"Received {len(data)} bytes, buffer size: {len(self.recv_buffer)}"
+                )
+
+            except socket.timeout as e:
+                raise TimeoutError(f"Receive timeout after {self.timeout}s") from e
 
     def _send_command(
         self, command: str, params: Optional[Dict[str, Any]] = None
@@ -100,30 +153,22 @@ class ModemManagerClient:
             self.socket.sendall(message.encode())
             logging.debug(f"Sent command: {command} (request_id: {request_id})")
 
-            # Receive response
-            response_data = self.socket.recv(4096)
-            if not response_data:
-                raise ConnectionError("Connection closed by server")
-
-            # Parse response
-            response = json.loads(response_data.decode().strip())
-            logging.debug(f"Received response: {response}")
+            # Receive response using buffered receiver
+            response = self._recv_response()
 
             return response
 
-        except socket.timeout as e:
+        except (socket.timeout, TimeoutError) as e:
             raise TimeoutError(
                 f"Command '{command}' timed out after {self.timeout}s"
             ) from e
-        except json.JSONDecodeError as e:
+        except (json.JSONDecodeError, ValueError) as e:
             raise ValueError(f"Invalid JSON response: {e}") from e
         except Exception as e:
             logging.error(f"Error sending command: {e}")
             raise
 
-    def place_call(
-        self, number: str, no_audio_routing: bool = False
-    ) -> Dict[str, Any]:
+    def place_call(self, number: str, no_audio_routing: bool = False) -> Dict[str, Any]:
         """
         Place an outgoing call.
 

@@ -11,6 +11,20 @@ To be able to get to the system console on first powering up of the board, the J
 debugger will be needed.
 It will allow the system console to be presented to the PC as a serial port.
 
+**NOTE** For the Elevator setup the SOUND card must not be installed.
+
+**NOTE** Make sure the Telit Modem is running the following firmware. The firmware
+version can be retrieved with the #SWPKGV command, as shown.
+
+```bash
+AT#SWPKGV
+
+25.21.664-P0F.664501
+M0F.660014
+P0F.664501
+A0F.660014
+```
+
 ## Connectivity
 
 Connect the USB/Serial/JTAG debugger cable for the system console and let the board
@@ -177,7 +191,7 @@ not have internet access.
 
 ```bash
 apt-get install -y baresip asterisk python3-serial microcom pulseaudio btop \
-    python3-aiohttp python3-dotenv lm-sensors
+    python3-aiohttp python3-dotenv lm-sensors bc
 
 # --fix-missing might be needed.
 ```
@@ -538,5 +552,5 @@ voip_call_monitor_tcp_new.py (receives notification)
 Baresip command: {"command": "dtmf", "params": "*"}
                |
 Asterisk ConfBridge (receives DTMF via RTP)
-               |
-elevator_admin_menu triggers (*5 or 5 -> addcallers context)
+               ↓
+elevator_admin_menu triggers (*5 or 5 → addcallers context)

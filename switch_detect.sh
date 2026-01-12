@@ -6,15 +6,17 @@ echo "Switch press detected"
 /mnt/data/led_red.sh ON
 
 # ENU00209.wav is the Emergency activation message
-python3 /mnt/data/send_EDC_info.py -e "01"
-aplay -D hw:SGTL5000Card,0 /mnt/data/sounds/ENU00209-48k.wav
+# Push this to the background so we can proceed with sending the message
+# to the EDC without waiting for the sound to complete.
+aplay -D hw:SGTL5000Card,0 /mnt/data/sounds/ENU00209-48k.wav &
 
 # S0000303.wav is just the word "Delta" - useful for testing.
-#aplay -D hw:SGTL5000Card,0 /mnt/data/sounds/S0000303.wav
+#aplay -D hw:SGTL5000Card,0 /mnt/data/sounds/S0000303-48k.wav &
+
+python3 /mnt/data/send_EDC_info.py -e "01"
 
 # Remove the -n <number> to use the default EDC number
-#python3 /mnt/data/place_call.py -v
-python3 /mnt/data/place_call.py -n 9723256826 -v
+python3 /mnt/data/place_call.py -v
 
 /mnt/data/led_red.sh OFF
 /mnt/data/led_green.sh ON

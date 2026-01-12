@@ -1,4 +1,5 @@
 import argparse
+import csv
 import json
 import logging
 import subprocess
@@ -383,7 +384,6 @@ if __name__ == "__main__":
     # and in the case of the second elevator, the first handle is busy in a call.
     if sbc_connect(serial_connection, port="/dev/ttyUSB3"):
         configure_modem_tcp(serial_connection, verbose=args.verbose)
-
         (
             iccid,
             imei,
@@ -395,7 +395,29 @@ if __name__ == "__main__":
             ims_reg,
             signal_quality,
             facility_lock,
+            APN,
         ) = get_modem_info(serial_connection, verbose=args.verbose)
+
+        # Get RSRQ value from LUT
+        with open("/mnt/data/RSRQ_LUT.csv", newline="") as csvfile:
+            reader = csv.reader(csvfile)
+            for row in reader:
+                if row[0] == str(rsrq):
+                    rsrq = row[1]
+
+        # Get RSRP value from LUT
+        with open("/mnt/data/RSRP_LUT.csv", newline="") as csvfile:
+            reader = csv.reader(csvfile)
+            for row in reader:
+                if row[0] == str(rsrp):
+                    rsrp = row[1]
+
+        # Get RSSI value from LUT
+        with open("/mnt/data/RSSI_LUT.csv", newline="") as csvfile:
+            reader = csv.reader(csvfile)
+            for row in reader:
+                if row[0] == str(signal_quality):
+                    signal_quality = row[1]
 
         # Gather the various data fields from the configuration file for
         # CID: 5822460189
@@ -409,7 +431,7 @@ if __name__ == "__main__":
         AC = config.get("AC", "MISSING_AC")
         MDL = config.get("MDL", "MISSING_MDL")
         APP = config.get("APP", "MISSING_SW_VERSION")
-        APN = config.get("APN", "MISSING_APN")
+        # APN = config.get("APN", "MISSING_APN")
         # UTM = config.get("UTM", "MISSING_UTM")
         ZLST = config.get("ZLST", "MISSING_ZLST")
 
@@ -445,8 +467,8 @@ if __name__ == "__main__":
             f"IMSI={imsi}|IMEI={imei}|"
             f"NET={net}|APN={APN}|IMS={ims_reg}|SS={signal_quality}|RSRP={rsrp}|RSRQ={rsrq}|"
             f"TMP1={sys_temp}|TMP2={modem_temp}|"
-            f"BAT={str(bat_voltage)}|ZLST={ZLST}|STM=0450946E|UTM={UTM}|RST=0|"
-            f"PIN={facility_lock}|THW=1.10 END"
+            f"BAT={str(bat_voltage)}|ZLST={ZLST}|STM=0450946E|UTM={UTM}|RST=0|PIN="
+            f"{facility_lock}|THW=1.10 END"
         )
 
         logging.info(f"Event data being sent: {event_data}")

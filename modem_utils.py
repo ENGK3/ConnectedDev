@@ -258,7 +258,7 @@ def check_network_status(
 
 def get_modem_info(
     serial_connection: serial.Serial, verbose: bool = False
-) -> Tuple[str, str, str, str, str, str, str, str, str, str]:
+) -> Tuple[str, str, str, str, str, str, str, str, str, str, str]:
     """
     Retrieve modem identification information from the Telit LE910C1.
 
@@ -275,6 +275,7 @@ def get_modem_info(
         Tuple of (ICCID, IMEI, IMSI)
         Returns empty strings for any values that could not be retrieved
     """
+    apn = ""
     facility_lock = ""
     signal_quality = ""
     ims_reg = ""
@@ -287,6 +288,23 @@ def get_modem_info(
     imsi = ""
 
     try:
+        # Get wireless APN
+        # AT command: AT+CGDCONT?
+        # Response format:  +CGDCONT: <cid>,<PDP_type>,<APN>,<PDP_addr>,<d_comp>,
+        #                             <h_comp>,<IPv4AddrAlloc>,<Emergency_ind>
+        response = sbc_cmd_with_timeout(
+            "AT+CGDCONT?\r", serial_connection, verbose=False
+        )
+        if "+CGDCONT:" in response:
+            for line in response.split("\n"):
+                if "+CGDCONT: 1" in line:
+                    apn = line.split(",")[2].replace('"', "")
+                    break
+
+        if verbose and facility_lock:
+            logging.info("=" * 60)
+            logging.info(f"FACILITY_LOCK: {facility_lock}")
+
         # Get facility lock status
         # AT command: AT+CLCK = "SC", 2
         # Response format:  +CLCK: <facility_lock>
@@ -310,11 +328,7 @@ def get_modem_info(
         if "+CSQ:" in response:
             for line in response.split("\n"):
                 if "+CSQ:" in line:
-                    parts = line.split(",")
-                    if len(parts) >= 1:
-                        sub_parts = parts[0].strip().split(":")
-                        if len(sub_parts) >= 2:
-                            signal_quality = sub_parts[1].strip()
+                    signal_quality = line.split(",")[0].strip().split(":")[1].strip()
                     break
 
         if verbose and signal_quality:
@@ -328,9 +342,7 @@ def get_modem_info(
         if "+CIREG:" in response:
             for line in response.split("\n"):
                 if "+CIREG:" in line:
-                    parts = line.split(",")
-                    if len(parts) >= 2:
-                        ims_reg = parts[1].strip()
+                    ims_reg = line.split(",")[1].strip()
                     break
 
         if verbose and ims_reg:
@@ -344,9 +356,7 @@ def get_modem_info(
         if "+COPS:" in response:
             for line in response.split("\n"):
                 if "+COPS:" in line:
-                    parts = line.split(",")
-                    if len(parts) >= 4:
-                        network = parts[3].strip()
+                    network = line.split(",")[3].strip()
                     break
 
         if verbose and network:
@@ -362,9 +372,7 @@ def get_modem_info(
         if "#TEMPMEAS:" in response:
             for line in response.split("\n"):
                 if "#TEMPMEAS:" in line:
-                    parts = line.split(",")
-                    if len(parts) >= 2:
-                        temp = parts[1].strip()
+                    temp = line.split(",")[1].strip()
                     break
 
         if verbose and temp:
@@ -378,11 +386,8 @@ def get_modem_info(
         if "+CESQ:" in response:
             for line in response.split("\n"):
                 if "+CESQ:" in line:
-                    parts = line.split(",")
-                    if len(parts) >= 5:
-                        rsrq = parts[4].strip()
-                    if len(parts) >= 6:
-                        rsrp = parts[5].strip()
+                    rsrq = line.split(",")[4].strip()
+                    rsrp = line.split(",")[5].strip()
                     break
 
         if verbose and rsrq:
@@ -479,6 +484,7 @@ def get_modem_info(
         ims_reg,
         signal_quality,
         facility_lock,
+        apn,
     )
 
 
@@ -620,6 +626,17 @@ def configure_modem_tcp(
         response = sbc_cmd_with_timeout(
             "AT#SCFGEXT=1,2,0,30,0,0\r", serial_connection, verbose=verbose
         )
+
+        # # Enable unsolicited socket event reporting
+        # # AT#E2SLRI=<enable>: Enable Socket Listen Ring Indicator
+        # # This ensures we get #SRING URCs when data arrives
+        # response = sbc_cmd_with_timeout(
+        #     "AT#E2SLRI=1\r", serial_connection, verbose=verbose
+        # )
+        # if "OK" not in response:
+        #     logging.warning(
+        #         "Could not enable E2SLRI (may not be supported on this firmware)"
+        #     )
 
         logging.info("Modem TCP configuration completed successfully")
         return (0, "")

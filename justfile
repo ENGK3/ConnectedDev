@@ -3,7 +3,7 @@
 #target := "172.27.17.9"
 #target := "172.20.10.141"
 #target := "172.20.10.93"
-target := "172.20.10.223"   # Gateworks Target
+target := "172.20.10.247"   # Gateworks Target
 #target := "172.27.17.41"
 
 #nuser := "root"
@@ -93,28 +93,27 @@ vpush: asterisk voip modem pulse modem
 
 my_version := `grep '^VERSION=' VERSION_INFO | cut -d= -f2`
 
-pkg:
-    rm -f GW-Pool-Setup*.tgz
-    tar -zcvf GW-Pool-Setup.tgz sounds/* *.py *.sh *.service \
-        *.dtbo *.conf 99* *.alias
-
-
 k3_config:
     cat K3_config_settings.in > K3_config_settings
     echo 'APP="{{my_version}}"' >> K3_config_settings
 
-pkgvoip: k3_config
-    rm -f GW-VoIP-Setup*.tgz
-    tar -zcvf GW-VoIP-Setup-{{my_version}}.tgz \
-       place_call.py modem_utils.py send_EDC_info.py \
+part-pkg: k3_config
+    rm -f GW-Setup*.t*
+    tar -cvf GW-Setup-{{my_version}}.tar \
+       place_call.py check_reg.py modem_utils.py send_EDC_info.py \
        manage_modem.py manage_modem.service modem_manager_client.py \
-       daemon.conf pulseaudio.service K3_config_settings \
+       daemon.conf pulseaudio.service K3_config_settings modem_state.py \
        99-ignore-modemmanager.rules CHANGELOG.md \
        get_sensor_data.py get_sensor_data.service get_sensor_data.timer \
-       sstat.sh stop_ss.sh start_ss.sh ep.sh \
+       sstat.sh stop_ss.sh start_ss.sh ep.sh  switch_detect.sh \
+       set-governor.service kings3_install.sh switch_mon.service switch_mon.sh \
+       sounds/* *.dtbo microcom.alias daemon.conf  dtmf_collector.py \
+       led_blue.sh led_green.sh led_red.sh audio_routing.py update_uid.sh \
+       events_monitor.py events_monitor.service update_from_SD_card.py \
+       RSRP_LUT.csv RSRQ_LUT.csv RSSI_LUT.csv \
        -C VOIP \
        voip_call_monitor_tcp.py voip_call_monitor.service \
-       voip_config.sh voip_ari_conference.service interfaces \
+       voip_ari_conference.service interfaces \
        -C baresip \
        accounts config \
        -C ../asterisk \
@@ -122,14 +121,23 @@ pkgvoip: k3_config
        ari-mon-conf.py modules.conf \
        -C ../pulseaudio default.pa
 
-vpkgpush: pkgvoip
-    scp GW-VoIP-Setup*.tgz {{nuser}}@{{target}}:/mnt/data/.
+pkg: part-pkg
+    rm -rf cksum_dir
+    mkdir -p cksum_dir
+    cd cksum_dir; tar -xf ../GW-Setup-{{my_version}}.tar; \
+    find . -type f | sed 's|^\./||' |  xargs md5sum > GW-Setup-{{my_version}}.md5; \
+    tar -zcf ../GW-Setup-{{my_version}}.tgz *
+    rm -rf GW-Setup-{{my_version}}.tar cksum_dir
+
+pkgpush: pkg
+    scp GW-Setup*.tgz {{nuser}}@{{target}}:/mnt/data/.
 
 my_save_path := "/mnt/c/Users/AlanHasty/Exponential Technology Group, Inc/C_KingsIII-QSeries - Documents/sw"
 
 pdf:
     just pdf-styled CHANGELOG.md
-    just pdf-styled GateworkVOIPProgramming.md
+    just pdf-styled GateworksVOIPProgramming.md
+    just pdf-styled GateworksPoolProgrammingInst.md
 
 # Convert Markdown to PDF using HTML/CSS (like VS Code extension)
 pdf-html FILE:
@@ -140,19 +148,21 @@ pdf-html FILE:
 pdf-styled FILE:
     docker run --rm --volume "$(pwd):/data" --user $(id -u):$(id -g) pandoc/latex:latest {{FILE}} -o {{replace_regex(FILE, '\.md$', '')}}.{{my_version}}.pdf --standalone -V geometry:margin=0.5in
 
-release: pkgvoip pdf
-    zip GW-VoIP-Pkg-{{my_version}}.zip GW-VoIP-Setup-{{my_version}}.tgz CHANGELOG.{{my_version}}.pdf GateworkVOIPProgramming.{{my_version}}.pdf
+release: pkg pdf
+    zip GW-Pkg-{{my_version}}.zip GW-Setup-{{my_version}}.tgz \
+    CHANGELOG.{{my_version}}.pdf GateworksVOIPProgramming.{{my_version}}.pdf \
+    GateworksPoolProgrammingInst.{{my_version}}.pdf
 
 save: release
     mkdir "{{my_save_path}}/{{my_version}}"
-    cp GW-VoIP-Setup-{{my_version}}.tgz "{{my_save_path}}/{{my_version}}/."
+    cp GW-Setup-{{my_version}}.tgz "{{my_save_path}}/{{my_version}}/."
     cp CHANGELOG.{{my_version}}.pdf "{{my_save_path}}/{{my_version}}/."
-    cp GateworkVOIPProgramming.{{my_version}}.pdf "{{my_save_path}}/{{my_version}}/."
-    cp GW-VoIP-Pkg-{{my_version}}.zip "{{my_save_path}}/{{my_version}}/."
+    cp GateworksVOIPProgramming.{{my_version}}.pdf "{{my_save_path}}/{{my_version}}/."
+    cp GateworksPoolProgrammingInst.{{my_version}}.pdf "{{my_save_path}}/{{my_version}}/."
+    cp GW-Pkg-{{my_version}}.zip "{{my_save_path}}/{{my_version}}/."
 
 ans:
     scp answer_phone.py {{nuser}}@{{target}}:/mnt/data/answer_phone.py
 
-menu:
-    scp CONF_ADDING/confbridge.conf {{nuser}}@{{target}}:/mnt/data/addExten/confbridge.conf
-    scp CONF_ADDING/extensions.conf {{nuser}}@{{target}}:/mnt/data/addExten/extensions.conf
+clean:
+     rm -rf *.pdf *.zip *.tgz cksum_dir GW-Setup-*.tar

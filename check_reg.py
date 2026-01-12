@@ -6,6 +6,8 @@ import time
 
 import serial
 
+from modem_utils import start_reg_again
+
 
 def sbc_cmd(cmd: str, serial_connection: serial.Serial, verbose: bool) -> str:
     """
@@ -23,13 +25,19 @@ def sbc_cmd(cmd: str, serial_connection: serial.Serial, verbose: bool) -> str:
 
 
 def check_modem_registration(
-    port="/dev/ttyUSB2", baudrate=115200, timeout=30, max_wait=300, verbose=True
+    port="/dev/ttyUSB2",
+    baudrate=115200,
+    timeout=30,
+    max_wait=300,
+    verbose=True,
+    play_recording=False,
 ) -> bool:
     """
     Checks if the modem is registered on the network using AT+CEREG? command.
     Returns True if registered within max_wait seconds, else False.
+    Every third registration check, calls start_reg_again to restart the registration
+    process.
     """
-    time.sleep(5)
     ser = serial.Serial()
     ser.port = port
     ser.baudrate = baudrate
@@ -46,16 +54,24 @@ def check_modem_registration(
     sbc_cmd("ATE0\r", ser, verbose)  # Disable echo
     sbc_cmd("AT+CMEE=2\r", ser, verbose)  # Enable verbose error messages
     sbc_cmd("AT+CEREG=2\r", ser, verbose)
+
     start_time = time.time()
+    check_count = 0  # Counter for registration checks
+
     while time.time() - start_time < max_wait:
         try:
-            logging.info("Querying modem registration status...")
+            check_count += 1
+            logging.info(
+                f"Querying modem registration status (check #{check_count})..."
+            )
             response = sbc_cmd("AT+CEREG?\r", ser, verbose)
             logging.info(f"Modem response: {response}")
+
             # Read until we get a line with +CEREG:
             while response and not response.startswith("+CEREG:"):
                 response = sbc_cmd("AT+CEREG?\r", ser, verbose)
                 logging.info(f"Modem response: {response}")
+
             if response.startswith("+CEREG:"):
                 # +CEREG: <n>,<stat>[,...]
                 # stat: 1=registered (home), 5=registered (roaming)
@@ -68,16 +84,31 @@ def check_modem_registration(
                         return True
                     else:
                         logging.info(f"Modem not registered yet: stat={stat}")
-            time.sleep(2)
+                        # Every third check, restart registration process
+                        if check_count % 3 == 0:
+                            logging.info(
+                                "Third check - restarting registration process"
+                            )
+                            start_reg_again(ser, verbose)
+
+            time.sleep(15)
             logging.debug(f"Waiting again {response}")
 
         except Exception as e:
             logging.error(f"Error querying modem: {e}")
-            time.sleep(5)
+            time.sleep(15)
+
     ser.close()
     logging.warning("Registration timeout.")
-    aplay1 = ["aplay", "-D", "hw:SGTL5000Card,0", "/mnt/data/sounds/ENU00456-48k.wav"]
-    subprocess.Popen(aplay1, start_new_session=True)
+
+    if play_recording:
+        aplay1 = [
+            "aplay",
+            "-D",
+            "hw:SGTL5000Card,0",
+            "/mnt/data/sounds/ENU00456-48k.wav",
+        ]
+        subprocess.Popen(aplay1, start_new_session=True)
     return False
 
 
@@ -109,6 +140,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="Enable verbose output"
     )
+    parser.add_argument(
+        "-r",
+        "--recording",
+        action="store_true",
+        help="Play audio recording if registration fails",
+    )
     args = parser.parse_args()
 
     # If quiet mode, remove console handler
@@ -116,10 +153,11 @@ if __name__ == "__main__":
         logging.getLogger("").removeHandler(console)
 
     result = check_modem_registration(
-        port="/dev/ttyUSB2",
+        port="/dev/ttyUSB3",
         baudrate=115200,
         timeout=10,
         max_wait=30,
         verbose=args.verbose,
+        play_recording=args.recording,
     )
     sys.exit(0 if result else 1)

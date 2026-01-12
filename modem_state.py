@@ -37,11 +37,8 @@ at_cmd_set = [
     "AT+CIND?\r",
     "AT+CMUT?\r",
     "AT#SPKMUT?\r",
-    # This output is what is needed to debug audio routing issues
-    "AT#USBAUDIO?\r",
-    "AT#BK?\r",
-    "AT#BKR?\r",
-    'AT+QCFG="ims"\r',
+    "AT+CNUM\r",
+    "AT#SWPKGV\r",
     "AT+CREG?\r",
     "AT+CEREG?\r",
 ]

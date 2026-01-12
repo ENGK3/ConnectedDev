@@ -9,6 +9,7 @@ It prevents conflicts between simultaneous operations through a state machine.
 
 import argparse
 import enum
+import errno
 import json
 import logging
 import os
@@ -23,6 +24,8 @@ from typing import Any, Dict, Optional, Tuple
 
 import serial
 from dotenv import dotenv_values
+
+from audio_routing import start_audio_bridge, terminate_pids
 
 # Import shared modem utilities
 from modem_utils import sbc_cmd, sbc_connect, sbc_disconnect
@@ -85,7 +88,15 @@ def load_config(config_file: str) -> tuple[Dict[str, bool], bool]:
 
         # Load audio routing setting
         enable_audio = config.get("ENABLE_AUDIO_ROUTING", "true").lower()
+        logging.info(
+            f"[AUDIO_DEBUG] Raw ENABLE_AUDIO_ROUTING value from config: "
+            f"'{config.get('ENABLE_AUDIO_ROUTING', 'true')}"
+            f" -> lowercase: '{enable_audio}'"
+        )
         enable_audio_routing = enable_audio in ["true", "1", "yes", "on"]
+        logging.info(
+            f"[AUDIO_DEBUG] Parsed enable_audio_routing: {enable_audio_routing}"
+        )
         logging.info(f"Audio routing enabled: {enable_audio_routing}")
 
     except Exception as e:
@@ -97,6 +108,7 @@ def load_config(config_file: str) -> tuple[Dict[str, bool], bool]:
 
 class ModemState(enum.Enum):
     """Modem state machine states."""
+
     IDLE = "IDLE"
     PLACING_CALL = "PLACING_CALL"
     ANSWERING_CALL = "ANSWERING_CALL"
@@ -107,16 +119,19 @@ class ModemState(enum.Enum):
 @dataclass
 class CallInfo:
     """Information about current call."""
+
     number: Optional[str] = None
     direction: Optional[str] = None  # "outgoing" or "incoming"
     start_time: Optional[datetime] = None
     audio_modules: Optional[Tuple[Optional[str], Optional[str]]] = None
     call_connected: bool = False
+    request_id: Optional[str] = None  # Track which request owns this call
 
 
 @dataclass
 class CommandRequest:
     """Represents a command request from TCP client."""
+
     command: str
     params: Dict[str, Any]
     request_id: str
@@ -126,6 +141,7 @@ class CommandRequest:
 @dataclass
 class CommandResponse:
     """Represents a response to a command."""
+
     status: str  # "success", "error", "pending"
     message: str
     request_id: str
@@ -203,7 +219,7 @@ class ModemStateMachine:
                 command=request.command,
                 params=request.params,
                 request_id=request.request_id,
-                client_socket=None  # Don't store socket - it will timeout
+                client_socket=None,  # Don't store socket - it will timeout
             )
             self.command_queue.put(queued_request)
             return CommandResponse(
@@ -229,7 +245,10 @@ class ModemStateMachine:
         logging.info(f"Placing call to {number}")
         self.set_state(ModemState.PLACING_CALL)
         self.call_info = CallInfo(
-            number=number, direction="outgoing", start_time=datetime.now()
+            number=number,
+            direction="outgoing",
+            start_time=datetime.now(),
+            request_id=request.request_id,
         )
 
         # Store pending request for async response
@@ -240,6 +259,7 @@ class ModemStateMachine:
             target=self._place_call_worker,
             args=(number, no_audio_routing, request.request_id),
             daemon=True,
+            name="PlaceCall",
         )
         thread.start()
 
@@ -249,8 +269,41 @@ class ModemStateMachine:
             request_id=request.request_id,
         )
 
+    def _is_worker_cancelled(self, request_id: str) -> bool:
+        """Check if this worker thread has been cancelled.
+
+        A worker is cancelled if:
+        - State is no longer PLACING_CALL or CALL_ACTIVE
+        - call_info.request_id doesn't match (different call started)
+
+        Args:
+            request_id: The request_id this worker is handling
+
+        Returns:
+            True if worker should abort, False otherwise
+        """
+        current_state = self.get_state()
+
+        # If we're in IDLE or CALL_ENDING, we've been cancelled
+        if current_state in [ModemState.IDLE, ModemState.CALL_ENDING]:
+            return True
+
+        # If call_info.request_id doesn't match, a different call has started
+        with self.state_lock:
+            if self.call_info.request_id != request_id:
+                return True
+
+        return False
+
     def _place_call_worker(self, number: str, no_audio_routing: bool, request_id: str):
         """Worker thread for placing calls."""
+        logging.info(
+            f"[AUDIO_DEBUG] _place_call_worker started: number={number}, "
+            f"no_audio_routing={no_audio_routing}"
+        )
+        logging.info(
+            f"[AUDIO_DEBUG] self.enable_audio_routing={self.enable_audio_routing}"
+        )
         try:
             logging.info(f"Worker thread started for {number}")
 
@@ -258,6 +311,11 @@ class ModemStateMachine:
             logging.info("Configuring modem for outgoing call...")
             self._configure_modem_for_call()
             logging.info("Modem configuration complete")
+
+            # Check if cancelled before dialing
+            if self._is_worker_cancelled(request_id):
+                logging.info(f"Worker for {number} cancelled before dialing")
+                return
 
             with self.serial_lock:
                 # Flush any pending data
@@ -299,6 +357,11 @@ class ModemStateMachine:
 
             try:
                 while True:
+                    # Check if cancelled by external command
+                    if self._is_worker_cancelled(request_id):
+                        logging.info(f"Worker for {number} cancelled during call setup")
+                        return
+
                     # Check for timeout
                     if (time.time() - start_time > timeout) and not call_connected:
                         logging.warning("Call connection timeout after 30 seconds")
@@ -325,8 +388,18 @@ class ModemStateMachine:
                         self.call_info.call_connected = True
 
                         audio_routing_success = True
+                        logging.info(
+                            f"[AUDIO_DEBUG] no_audio_routing={no_audio_routing}, "
+                            f"self.enable_audio_routing={self.enable_audio_routing}"
+                        )
                         if not no_audio_routing:
+                            logging.info(
+                                "[AUDIO_DEBUG] Attempting to start audio bridge..."
+                            )
                             audio_modules = self._start_audio_bridge()
+                            logging.info(
+                                f"[AUDIO_DEBUG] Audio modules returned: {audio_modules}"
+                            )
                             if audio_modules and audio_modules[0] and audio_modules[1]:
                                 self.call_info.audio_modules = audio_modules
                                 logging.info(f"Audio bridge started: {audio_modules}")
@@ -336,6 +409,11 @@ class ModemStateMachine:
                                     "Call connected but audio routing failed - "
                                     "call will proceed without audio bridge"
                                 )
+                        else:
+                            logging.info(
+                                "[AUDIO_DEBUG] Audio routing skipped "
+                                f"(no_audio_routing={no_audio_routing})"
+                            )
 
                         self.set_state(ModemState.CALL_ACTIVE)
 
@@ -372,6 +450,11 @@ class ModemStateMachine:
             finally:
                 self.serial.timeout = original_timeout
 
+            # Check if we were cancelled - if so, don't do any cleanup
+            if self._is_worker_cancelled(request_id):
+                logging.info(f"Worker for {number} cancelled, skipping cleanup")
+                return
+
             # Cleanup based on call status
             if call_connected and call_termination_reason:
                 # Call was connected but then terminated
@@ -380,10 +463,9 @@ class ModemStateMachine:
                 )
                 self.set_state(ModemState.CALL_ENDING)
 
-                # Cleanup audio if it was set up
-                if self.call_info.audio_modules:
-                    self._stop_audio_bridge(self.call_info.audio_modules)
-                    logging.info("Audio bridge terminated")
+                # Note: Audio cleanup is handled by monitor_serial_port thread
+                # to avoid race condition with multiple threads trying to unload
+                # the same modules
 
                 # Send hangup to ensure modem is clean
                 with self.serial_lock:
@@ -415,6 +497,9 @@ class ModemStateMachine:
                 )
 
                 # Process any queued commands
+                logging.debug(
+                    "[AUDIO_DEBUG] Processing queued commands after call failure"
+                )
                 self._process_command_queue()
 
         except Exception as e:
@@ -528,14 +613,31 @@ class ModemStateMachine:
 
         # Setup audio and transition to active
         audio_modules = None
+        audio_routing_success = True
+        logging.info(
+            f"[AUDIO_DEBUG] Incoming call - "
+            f"enable_audio_routing={self.enable_audio_routing}"
+        )
+
         if self.enable_audio_routing:
+            logging.info(
+                "[AUDIO_DEBUG] Attempting to start audio bridge for incoming call..."
+            )
             audio_modules = self._start_audio_bridge()
+            logging.info(f"[AUDIO_DEBUG] Audio modules returned: {audio_modules}")
             if audio_modules and audio_modules[0] and audio_modules[1]:
                 logging.info(f"Audio bridge started for incoming call: {audio_modules}")
             else:
-                logging.warning("Audio routing enabled but failed to start bridge")
+                audio_routing_success = False
+                logging.warning(
+                    "Incoming call answered but audio routing failed - "
+                    "call will proceed without audio bridge"
+                )
         else:
-            logging.info("Audio routing disabled - no audio bridge for incoming call")
+            logging.info(
+                "[AUDIO_DEBUG] Audio routing disabled - no audio bridge for "
+                "incoming call"
+            )
 
         self.call_info = CallInfo(
             number=caller_number,
@@ -545,7 +647,11 @@ class ModemStateMachine:
             call_connected=True,
         )
         self.set_state(ModemState.CALL_ACTIVE)
-        logging.info(f"Incoming call from {caller_number} is now active")
+
+        status_msg = f"Incoming call from {caller_number} is now active"
+        if self.enable_audio_routing and not audio_routing_success:
+            status_msg += " (audio routing failed)"
+        logging.info(status_msg)
 
         # Notify any registered callbacks about incoming call
         self._notify_incoming_call(caller_number)
@@ -610,29 +716,27 @@ class ModemStateMachine:
 
     def _start_audio_bridge(self) -> Optional[Tuple[Optional[str], Optional[str]]]:
         """Start PulseAudio loopback modules for audio routing."""
+        logging.info("[AUDIO_DEBUG] _start_audio_bridge() called in ModemStateMachine")
         try:
-            # Import the audio routing function from place_call
-            from place_call import start_audio_bridge
-
-            return start_audio_bridge()
+            result = start_audio_bridge()
+            logging.info(f"[AUDIO_DEBUG] start_audio_bridge() returned: {result}")
+            return result
         except Exception as e:
+            logging.error(
+                f"[AUDIO_DEBUG] Exception in _start_audio_bridge: {e}", exc_info=True
+            )
             logging.error(f"Failed to start audio bridge: {e}")
             return (None, None)
 
-    def _stop_audio_bridge(
-        self, module_ids: Tuple[Optional[str], Optional[str]]
-    ):
+    def _stop_audio_bridge(self, module_ids: Tuple[Optional[str], Optional[str]]):
         """Stop PulseAudio loopback modules."""
         try:
             # Validate that both module IDs are valid before attempting to stop
             if not module_ids or not module_ids[0] or not module_ids[1]:
                 logging.warning(
-                    "Cannot stop audio bridge - invalid module IDs: "
-                    f"{module_ids}"
+                    "Cannot stop audio bridge - invalid module IDs: " f"{module_ids}"
                 )
                 return
-
-            from place_call import terminate_pids
 
             terminate_pids(module_ids)
         except Exception as e:
@@ -644,9 +748,17 @@ class ModemStateMachine:
             request = self.pending_requests.pop(request_id)
             if request.client_socket:
                 try:
-                    request.client_socket.sendall(
-                        (response.to_json() + "\n").encode()
-                    )
+                    # Get the tcp_server instance to use thread-safe send
+                    # This is passed via the tcp_server parameter in worker threads
+                    if hasattr(self, "tcp_server") and self.tcp_server:
+                        self.tcp_server._send_to_socket(
+                            request.client_socket, response.to_json() + "\n"
+                        )
+                    else:
+                        # Fallback for backwards compatibility
+                        request.client_socket.sendall(
+                            (response.to_json() + "\n").encode()
+                        )
                 except Exception as e:
                     logging.warning(
                         f"Failed to send async response "
@@ -700,6 +812,8 @@ class ModemTCPServer:
         self.client_threads = []
         self.notification_clients = []  # Clients subscribed to notifications
         self.notification_lock = threading.Lock()
+        self.socket_locks = {}  # Per-socket write locks to prevent byte interleaving
+        self.socket_locks_lock = threading.Lock()  # Protects socket_locks dict
 
     def start(self):
         """Start the TCP server."""
@@ -716,10 +830,15 @@ class ModemTCPServer:
                 client_socket, client_address = self.server_socket.accept()
                 logging.info(f"Client connected from {client_address}")
 
+                # Create a lock for this socket
+                with self.socket_locks_lock:
+                    self.socket_locks[client_socket] = threading.Lock()
+
                 client_thread = threading.Thread(
                     target=self._handle_client,
                     args=(client_socket, client_address),
                     daemon=True,
+                    name="TCPServ",
                 )
                 client_thread.start()
                 self.client_threads.append(client_thread)
@@ -774,7 +893,7 @@ class ModemTCPServer:
 
                     # Send immediate response (async responses sent by worker threads)
                     if response:
-                        client_socket.sendall((response.to_json() + "\n").encode())
+                        self._send_to_socket(client_socket, response.to_json() + "\n")
 
                         # Check if entering notification mode
                         if response.data and response.data.get("notification_mode"):
@@ -794,14 +913,26 @@ class ModemTCPServer:
                         message=f"Invalid JSON: {str(e)}",
                         request_id="unknown",
                     )
-                    client_socket.sendall((error_response.to_json() + "\n").encode())
+                    self._send_to_socket(client_socket, error_response.to_json() + "\n")
 
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError) as e:
+            # Client closed connection - this is normal, log at debug level
+            logging.debug(f"Client {client_address} disconnected: {e}")
+        except OSError as e:
+            # Handle other socket errors
+            if e.errno in (errno.ECONNRESET, errno.EPIPE, errno.ECONNABORTED):
+                logging.debug(f"Client {client_address} disconnected: {e}")
+            else:
+                logging.error(f"Socket error handling client {client_address}: {e}")
         except Exception as e:
             logging.error(f"Error handling client {client_address}: {e}")
         finally:
             if not notification_mode:
                 # Only close if not in notification mode
                 # (notification mode handles its own cleanup)
+                # Clean up socket lock
+                with self.socket_locks_lock:
+                    self.socket_locks.pop(client_socket, None)
                 client_socket.close()
                 logging.info(f"Client {client_address} disconnected")
 
@@ -827,6 +958,9 @@ class ModemTCPServer:
                 if client_socket in self.notification_clients:
                     self.notification_clients.remove(client_socket)
 
+            # Clean up socket lock
+            with self.socket_locks_lock:
+                self.socket_locks.pop(client_socket, None)
             client_socket.close()
             logging.info(f"Notification client {client_address} disconnected")
 
@@ -877,6 +1011,23 @@ class ModemTCPServer:
                 request_id=request.request_id,
             )
 
+    def _send_to_socket(self, client_socket: socket.socket, message: str):
+        """Thread-safe method to send data to a client socket.
+
+        Args:
+            client_socket: Socket to send to
+            message: String message to send (will be encoded to bytes)
+        """
+        with self.socket_locks_lock:
+            socket_lock = self.socket_locks.get(client_socket)
+
+        if socket_lock:
+            with socket_lock:
+                client_socket.sendall(message.encode())
+        else:
+            # Socket not in locks (maybe already removed), try anyway
+            client_socket.sendall(message.encode())
+
     def broadcast_incoming_call(self, caller_number: str):
         """Broadcast incoming call notification to subscribed clients."""
         notification = {
@@ -894,7 +1045,7 @@ class ModemTCPServer:
             dead_clients = []
             for client_socket in self.notification_clients:
                 try:
-                    client_socket.sendall(message.encode())
+                    self._send_to_socket(client_socket, message)
                     try:
                         peer_name = client_socket.getpeername()
                         logging.info(
@@ -943,7 +1094,7 @@ class ModemTCPServer:
             dead_clients = []
             for client_socket in self.notification_clients:
                 try:
-                    client_socket.sendall(message.encode())
+                    self._send_to_socket(client_socket, message)
                     try:
                         peer_name = client_socket.getpeername()
                         logging.info(
@@ -987,16 +1138,12 @@ class ModemTCPServer:
             dead_clients = []
             for client_socket in self.notification_clients:
                 try:
-                    client_socket.sendall(message.encode())
+                    self._send_to_socket(client_socket, message)
                     try:
                         peer_name = client_socket.getpeername()
-                        logging.debug(
-                            f"Sent DTMF notification to {peer_name}: {digit}"
-                        )
+                        logging.debug(f"Sent DTMF notification to {peer_name}: {digit}")
                     except Exception:
-                        logging.debug(
-                            f"Sent DTMF notification to client: {digit}"
-                        )
+                        logging.debug(f"Sent DTMF notification to client: {digit}")
                 except Exception as e:
                     try:
                         peer_name = client_socket.getpeername()
@@ -1123,7 +1270,9 @@ def monitor_serial_port(state_machine: ModemStateMachine, tcp_server=None):
 
                     # Process queued commands
                     threading.Thread(
-                        target=state_machine._process_command_queue, daemon=True
+                        target=state_machine._process_command_queue,
+                        daemon=True,
+                        name="CMDQ",
                     ).start()
 
         except serial.SerialException as e:
@@ -1190,13 +1339,33 @@ def main():
         default="/mnt/data/calls.log",
         help="Log file path",
     )
+    parser.add_argument(
+        "--env",
+        action="store_true",
+        help="Print environment variables and exit",
+    )
 
     args = parser.parse_args()
+
+    # Handle --env flag to print environment variables
+    if args.env:
+        env_vars = [
+            "XDG_RUNTIME_DIR",
+            "PULSE_RUNTIME_PATH",
+            "PULSE_SERVER",
+            "DBUS_SESSION_BUS_ADDRESS",
+        ]
+        print("Environment Variables:")
+        for var in env_vars:
+            value = os.environ.get(var, "<not set>")
+            print(f"  {var}={value}")
+        sys.exit(0)
 
     # Setup logging
     logging.basicConfig(
         level=getattr(logging, args.log_level),
-        format="%(asctime)s.%(msecs)03d %(levelname)-8s [%(threadName)s] %(message)s",
+        format="%(asctime)s.%(msecs)03d %(levelname)-8s "
+        "[MM %(threadName)s] %(message)s",
         datefmt="%m-%d %H:%M:%S",
         handlers=[
             logging.FileHandler(args.log_file),
@@ -1212,6 +1381,10 @@ def main():
 
     # Load configuration from config file or command line
     enable_audio_routing = DEFAULT_ENABLE_AUDIO_ROUTING  # Default value
+    logging.info(
+        f"[AUDIO_DEBUG] Initial enable_audio_routing={enable_audio_routing} "
+        f"(from DEFAULT_ENABLE_AUDIO_ROUTING)"
+    )
 
     if args.whitelist:
         # Command line override for whitelist
@@ -1227,6 +1400,10 @@ def main():
         # Load from config file
         logging.info(f"Loading configuration from: {args.config_file}")
         whitelist_dict, enable_audio_routing = load_config(args.config_file)
+        logging.info(
+            f"[AUDIO_DEBUG] After load_config: "
+            f"enable_audio_routing={enable_audio_routing}"
+        )
 
         if not whitelist_dict:
             logging.warning("No whitelist loaded, using defaults")
@@ -1243,14 +1420,25 @@ def main():
 
     try:
         # Create state machine
+        logging.info(
+            f"[AUDIO_DEBUG] Creating ModemStateMachine with "
+            f"enable_audio_routing={enable_audio_routing}"
+        )
         state_machine = ModemStateMachine(
             serial_connection, whitelist_dict, enable_audio_routing
         )
-        audio_status = 'ENABLED' if enable_audio_routing else 'DISABLED'
+        audio_status = "ENABLED" if enable_audio_routing else "DISABLED"
+        logging.info(
+            f"[AUDIO_DEBUG] ModemStateMachine created, "
+            f"state_machine.enable_audio_routing={state_machine.enable_audio_routing}"
+        )
         logging.info(f"Audio routing: {audio_status}")
 
         # Create TCP server
         tcp_server = ModemTCPServer(state_machine, args.host, args.port)
+
+        # Store reference to tcp_server in state_machine for thread-safe socket access
+        state_machine.tcp_server = tcp_server
 
         # Register callback to broadcast incoming calls to subscribed clients
         state_machine.register_incoming_call_callback(
@@ -1262,6 +1450,7 @@ def main():
             target=monitor_serial_port,
             args=(state_machine, tcp_server),
             daemon=False,
+            name="SerialMon",
         )
         serial_thread.start()
 
@@ -1280,7 +1469,7 @@ def main():
         logging.info("Shutting down...")
 
         # Give threads a moment to finish
-        if 'serial_thread' in locals():
+        if "serial_thread" in locals():
             serial_thread.join(timeout=2.0)
             if serial_thread.is_alive():
                 logging.warning("Serial monitor thread did not exit cleanly")

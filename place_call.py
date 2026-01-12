@@ -1,219 +1,141 @@
 import argparse
 import logging
 import logging.handlers
-import re
-import subprocess
 import time
 from pathlib import Path
 
-import serial
+from dotenv import dotenv_values
 
-# Import shared modem utilities
-from modem_utils import sbc_cmd, sbc_connect, sbc_disconnect
+# Import modem manager client
+from modem_manager_client import ModemManagerClient
 
-
-def get_pactl_sources():
-    try:
-        # Run the pactl command and capture output
-        result = subprocess.run(
-            ["pactl", "list", "sources", "short"],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            print("Error running pactl:", result.stderr)
-            return []
-
-        interface_numbers = []
-        for line in result.stdout.strip().split("\n"):
-            parts = line.split("\t")
-            if len(parts) >= 2:
-                source_name = parts[1]
-                match = re.search(
-                    r"output.usb-Android_LE910C1-NF_[\w]+-(\d{2})\.", source_name
-                )
-                if match:
-                    interface_numbers.append(match.group(1))
-        return interface_numbers
-
-    except Exception as e:
-        print("Exception occurred:", e)
-        return []
+# Call timeout constant (seconds to wait for call to connect)
+CALL_TIMEOUT_SECONDS = 20
 
 
-def start_audio_bridge():
-    """
-    Start the audio bridge using PulseAudio loopback modules.
-    Returns a tuple of the module IDs.
-    """
-
-    # Figure out the device number for the LE910C1-NF
-    interface_number = get_pactl_sources()
-    if not interface_number:
-        logging.error("No LE910C1-NF audio interfaces found.")
-        return (None, None)
-
-    # Setup PulseAudio loopbacks for audio routing
-
-    # LE910C1 → SGTL5000Card
-    telit_to_sgtl_cmd = [
-        "pactl",
-        "load-module",
-        "module-loopback",
-        f"source=alsa_input.usb-Android_LE910C1-NF_0123456789ABCDEF-{interface_number[0]}.mono-fallback",
-        "sink=alsa_output.platform-sound.stereo-fallback",
-        "rate=48000",
-        "latency_msec=80",
-    ]
-
-    # SGTL5000Card → LE910C1
-    sgtl_to_telit_cmd = [
-        "pactl",
-        "load-module",
-        "module-loopback",
-        "source=alsa_input.platform-sound.stereo-fallback",
-        f"sink=alsa_output.usb-Android_LE910C1-NF_0123456789ABCDEF-{interface_number[0]}.mono-fallback",
-        "latency_msec=80",
-    ]
-
-    # try:
-    #     # Start both loopbacks and get their module IDs
-    telit_to_sgtl = subprocess.check_output(telit_to_sgtl_cmd).decode().strip()
-    logging.info(f"Loopbacks loaded - LE910C1 → SGTL5000Card: {telit_to_sgtl}")
-
-    sgtl_to_telit = subprocess.check_output(sgtl_to_telit_cmd).decode().strip()
-    logging.info(f"Loopbacks loaded - SGTL5000Card → LE910C1: {sgtl_to_telit}")
-
-    # except subprocess.CalledProcessError as e:
-    #     logging.info(f"Command failed with return code {e.returncode}")
-    #     logging.info(f"Command: {e.cmd}")
-    #     logging.info(f"Output (if captured): {e.output}")
-
-    return (telit_to_sgtl, sgtl_to_telit)
-
-
-def terminate_pids(module_ids):
-    """
-    Unload the PulseAudio loopback modules with the given module IDs.
-    """
-    for module_id in module_ids:
-        try:
-            # Get the module list first
-            result = subprocess.run(
-                ["pactl", "list", "modules", "short"],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-
-            # Check each line for our module ID and loopback
-            module_exists = any(
-                line.startswith(f"{module_id}\tmodule-loopback")
-                for line in result.stdout.splitlines()
-            )
-
-            if module_exists:
-                subprocess.run(["pactl", "unload-module", str(module_id)], check=True)
-                logging.info(f"Unloaded PulseAudio loopback module {module_id}")
-            else:
-                logging.info(
-                    f"Loopback module {module_id} not found or already unloaded"
-                )
-        except subprocess.CalledProcessError as e:
-            logging.error(f"Failed to unload loopback module {module_id}: {e}")
-        except Exception as e:
-            logging.error(f"Unexpected error with loopback module {module_id}: {e}")
-
-
-def sbc_config_call(serial_connection: serial.Serial, verbose: bool):
-    at_cmd_set = [
-        "ATE1\r",
-        "AT#DVI=0\r",
-        "AT#PCMRXG=1000\r",
-        "AT#DIALMODE=1\r",
-        "AT#DTMF=1\r",
-        "AT+CLIP=1\r",
-        "AT+CMEE=2\r",
-        "AT#AUSBC=1\r",
-        "AT+CEREG=2\r",
-        "AT+CLVL=0\r",
-        "AT+CMER=2,0,0,2\r",  # Enable unsolicited result codes
-        "AT#ADSPC=6\r",
-        "AT+CIND=0,0,1,0,1,1,1,1,0,1,1\r",
-    ]
-
-    for cmd in at_cmd_set:
-        sbc_cmd(cmd, serial_connection, verbose)
-
-
-def sbc_place_call(
+def place_call_with_client(
     number: str,
-    modem: serial.Serial,
     verbose: bool = True,
     no_audio_routing: bool = False,
+    modem_manager_host: str = "localhost",
+    modem_manager_port: int = 5555,
 ) -> bool:
-    sbc_config_call(modem, verbose)
+    """
+    Place a call using the modem manager client interface.
 
-    # Flush any pending data before dialing
-    modem.reset_input_buffer()
+    Args:
+        number: Phone number to dial
+        verbose: Enable verbose logging
+        no_audio_routing: Disable audio routing (establish call only)
+        modem_manager_host: Modem manager server host
+        modem_manager_port: Modem manager server port
 
-    sbc_cmd(f"ATD{number};\r", modem, verbose)  # Place the call
-    audio_pids = None
-    start_time = time.time()
-    timeout = 30  # 30 second timeout
-    call_connected = False
-
-    # Set a shorter timeout on the serial port so we can check for overall timeout
-    original_timeout = modem.timeout
-    modem.timeout = 0.5  # Short timeout for readline to allow timeout checking
-
+    Returns:
+        True if call was successfully established, False otherwise
+    """
     try:
-        while True:
-            # Check for timeout FIRST
-            if (time.time() - start_time > timeout) and call_connected is False:
-                logging.warning("Call connection timeout after 30 seconds")
-                break
+        # Connect to modem manager
+        client = ModemManagerClient(
+            modem_manager_host, modem_manager_port, timeout=CALL_TIMEOUT_SECONDS + 10
+        )
 
-            response = modem.readline().decode().strip()
+        if not client.connect():
+            logging.error("Failed to connect to modem manager")
+            return False
 
-            # Log ALL responses to see what we're getting
-            if response:  # Only log non-empty responses
-                logging.info(f"Waiting for call response: {response}")
+        try:
+            logging.info(f"Placing call to {number} via modem manager...")
 
-            if "+CIEV: call,1" in response:
-                logging.info("Call connected successfully.")
-                if not no_audio_routing:
-                    audio_pids = start_audio_bridge()
-                    logging.info(f"Audio bridge Module IDs: {audio_pids}")
-                else:
-                    logging.info("Audio routing disabled - no audio bridge started")
-                call_connected = True
+            # Request call placement
+            response = client.place_call(number, no_audio_routing)
 
-            elif "+CIEV: call,0" in response:
-                logging.info("Call setup Terminated.")
-                break  # Exit the loop but don't return yet
+            if response.get("status") == "error":
+                logging.error(f"Call placement failed: {response.get('message')}")
+                return False
 
-            elif "NO CARRIER" in response:
-                logging.info("Call terminated")
-                break  # Exit the loop but don't return yet
+            if response.get("status") == "pending":
+                logging.info(f"Call initiated: {response.get('message')}")
 
-    finally:
-        # Restore original timeout
-        modem.timeout = original_timeout
+            # Poll status to wait for call to connect
+            start_time = time.time()
+            call_connected = False
 
-    sbc_cmd("AT+CHUP\r", modem, verbose)
-    if audio_pids and not no_audio_routing:
-        terminate_pids(audio_pids)
-        logging.info("Audio bridge terminated.")
-    return call_connected  # Return the connection status after loop exits
+            while time.time() - start_time < CALL_TIMEOUT_SECONDS:
+                status_response = client.get_status()
+
+                if status_response.get("status") == "success":
+                    status_data = status_response.get("data", {})
+
+                    if status_data.get("call_connected"):
+                        call_connected = True
+                        logging.info(
+                            f"Call connected successfully to "
+                            f"{status_data.get('current_number')}"
+                        )
+                        break
+
+                    # Check if call failed (modem went back to IDLE without connecting)
+                    if status_data.get("state") == "IDLE" and not status_data.get(
+                        "call_active"
+                    ):
+                        logging.warning(
+                            "Call setup failed - modem returned to IDLE state"
+                        )
+                        break
+
+                # Wait a bit before next status check
+                time.sleep(0.5)
+
+            if not call_connected:
+                if time.time() - start_time >= CALL_TIMEOUT_SECONDS:
+                    logging.warning(
+                        f"Call connection timeout after {CALL_TIMEOUT_SECONDS} seconds"
+                    )
+                    # Send hangup to ensure modem returns to IDLE state
+                    try:
+                        logging.info("Sending hangup command to clean up modem state")
+                        client.hangup()
+                        time.sleep(0.5)
+                    except Exception as e:
+                        logging.warning(f"Failed to send hangup after timeout: {e}")
+                return False
+
+            # Call is connected - wait for user to hang up or call to end
+            # Monitor status until call ends
+            logging.info("Call is active. Monitoring call status...")
+
+            while True:
+                status_response = client.get_status()
+
+                if status_response.get("status") == "success":
+                    status_data = status_response.get("data", {})
+
+                    # Check if call ended
+                    if (
+                        not status_data.get("call_active")
+                        and status_data.get("state") == "IDLE"
+                    ):
+                        logging.info("Call has ended")
+                        break
+
+                # Wait before next status check
+                time.sleep(1)
+
+            return True
+
+        finally:
+            client.disconnect()
+
+    except Exception as e:
+        logging.error(f"Error placing call: {e}", exc_info=True)
+        return False
 
 
 if __name__ == "__main__":
-    # Set up logging to syslog with milliseconds in timestamp
-
+    # Set up logging to file and console with milliseconds in timestamp
     logging.basicConfig(
         level=logging.DEBUG,
-        format="%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s",
+        format="%(asctime)s.%(msecs)03d %(levelname)-8s [PC] %(message)s",
         datefmt="%m-%d %H:%M:%S",
         filename="/mnt/data/calls.log",
         filemode="a+",
@@ -228,9 +150,11 @@ if __name__ == "__main__":
     console.setFormatter(formatter)
     logging.getLogger("").addHandler(console)
 
-    parser = argparse.ArgumentParser(description="Serial SBC dialer")
+    parser = argparse.ArgumentParser(
+        description="Place calls via Modem Manager interface"
+    )
     parser.add_argument(
-        "-n", "--number", type=str, help="Phone number to dial", default="9723507770"
+        "-n", "--number", type=str, help="Phone number to dial", default=None
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="Enable verbose output"
@@ -241,23 +165,62 @@ if __name__ == "__main__":
         action="store_true",
         help="Disable audio re-routing (establish call only)",
     )
+    parser.add_argument(
+        "--modem-host",
+        type=str,
+        default="localhost",
+        help="Modem manager server host (default: localhost)",
+    )
+    parser.add_argument(
+        "--modem-port",
+        type=int,
+        default=5555,
+        help="Modem manager server port (default: 5555)",
+    )
 
     args = parser.parse_args()
 
-    serial_connection = serial.Serial()
-    if sbc_connect(serial_connection):
-        logging.info(f"Ready to dial number: {args.number}")
-        call_success = sbc_place_call(
-            args.number,
-            serial_connection,
+    # Load phone numbers from config file
+    config = dotenv_values("/mnt/data/K3_config_settings")
+
+    phone_numbers = []
+
+    # If number specified on command line, use it
+    if args.number:
+        phone_numbers.append(args.number)
+    else:
+        # Load from config file
+        phone_numbers.append(config.get("FIRST_NUMBER", "9723507770"))
+        phone_numbers.append(config.get("SECOND_NUMBER", "9727459072"))
+        phone_numbers.append(config.get("THIRD_NUMBER", "9723507770"))
+
+    call_success = False
+
+    # Try each number until one succeeds
+    for number in phone_numbers:
+        logging.info(f"Attempting to dial number: {number}")
+        call_success = place_call_with_client(
+            number,
             verbose=args.verbose,
             no_audio_routing=args.no_audio_routing,
+            modem_manager_host=args.modem_host,
+            modem_manager_port=args.modem_port,
         )
-        if call_success:
-            logging.info("Call completed successfully")
-        else:
-            logging.warning("Call failed or timed out")
 
+        if call_success:
+            logging.info(f"Call to {number} completed successfully")
+            break
+        else:
+            logging.warning(f"Call to {number} failed or timed out")
+            # Small delay before trying next number
+            if number != phone_numbers[-1]:  # Don't delay after last number
+                logging.info("Waiting 2.5 seconds before trying next number...")
+                time.sleep(2.5)
+
+    if not call_success:
+        logging.error("All call attempts failed")
+
+    # Touch file to indicate completion
     Path("/tmp/setup").touch()
 
-    sbc_disconnect(serial_connection)
+    logging.info("place_call.py exiting")
