@@ -91,12 +91,12 @@ def check_modem_registration(
                             )
                             start_reg_again(ser, verbose)
 
-            time.sleep(5)
+            time.sleep(15)
             logging.debug(f"Waiting again {response}")
 
         except Exception as e:
             logging.error(f"Error querying modem: {e}")
-            time.sleep(5)
+            time.sleep(15)
 
     ser.close()
     logging.warning("Registration timeout.")
