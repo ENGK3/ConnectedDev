@@ -122,7 +122,7 @@ install_or_update_services() {
 if [ "$INSTALL_PACKAGES" = true ]; then
     echo "Installing packages..."
     apt-get install -y  python3-serial microcom pulseaudio btop \
-        python3-aiohttp python3-dotenv lm-sensors alsa-utils
+        python3-aiohttp python3-dotenv lm-sensors alsa-utils bc
 
     # Additional packages for elevator configuration.
     if [ "$CONFIG" == "elevator" ]; then
