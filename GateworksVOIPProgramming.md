@@ -191,7 +191,7 @@ not have internet access.
 
 ```bash
 apt-get install -y baresip asterisk python3-serial microcom pulseaudio btop \
-    python3-aiohttp python3-dotenv lm-sensors
+    python3-aiohttp python3-dotenv lm-sensors bc
 
 # --fix-missing might be needed.
 ```
