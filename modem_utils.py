@@ -10,12 +10,16 @@ import logging
 import time
 from typing import Tuple
 
+import keyring
 import serial
 
 # Timeout constants
 AT_COMMAND_TIMEOUT = 5  # seconds for AT command responses
 
 MAX_NO_DATA_ITERATIONS = 10  # Maximum iterations with no data before giving up early
+
+# Keyring service name for storing secrets
+KEYRING_SERVICE_NAME = "K3-Qseries-Modem"
 
 
 def sbc_cmd(cmd: str, serial_connection: serial.Serial, verbose: bool) -> str:
@@ -645,3 +649,185 @@ def configure_modem_tcp(
         return (10, f"Serial communication error: {str(e)}")
     except Exception as e:
         return (11, f"Unexpected error during modem configuration: {str(e)}")
+
+
+def get_sim_state(serial_connection: serial.Serial, verbose: bool = False) -> bool:
+    """
+    Check if the SIM card is unlocked and ready.
+
+    This function queries the modem using AT+CPIN? command to determine
+    if the SIM card is in a ready/unlocked state.
+
+    Args:
+        serial_connection: Open serial connection to the modem
+        verbose: Enable verbose logging
+
+    Returns:
+        True if SIM is unlocked (READY state)
+        False if SIM is locked or in any other state
+    """
+    try:
+        # Query SIM PIN status
+        # AT command: AT+CPIN?
+        # Response format: +CPIN: <code>
+        # Where <code> can be:
+        #   READY - SIM is unlocked and ready
+        #   SIM PIN - SIM requires PIN
+        #   SIM PUK - SIM requires PUK
+        #   SIM PIN2 - SIM requires PIN2
+        #   SIM PUK2 - SIM requires PUK2
+        response = sbc_cmd_with_timeout(
+            "AT+CPIN?\r", serial_connection, verbose=verbose
+        )
+
+        if "+CPIN:" in response:
+            for line in response.split("\n"):
+                if "+CPIN:" in line:
+                    # Extract the status code
+                    status = line.split(":")[1].strip()
+
+                    if verbose:
+                        logging.info(f"SIM state: {status}")
+
+                    # Return True only if SIM is READY
+                    return status == "READY"
+
+        # If we couldn't parse the response, assume locked
+        if verbose:
+            logging.warning(f"Could not parse SIM state from response: {response}")
+        return False
+
+    except Exception as e:
+        logging.error(f"Error checking SIM state: {str(e)}")
+        return False
+
+
+def unlock_sim(
+    serial_connection: serial.Serial, magic: str, verbose: bool = False
+) -> bool:
+    """
+    Unlock the SIM card using the provided PIN.
+
+    This function uses the AT+CPIN command to unlock a locked SIM card
+    with the provided PIN code.
+
+    Args:
+        serial_connection: Open serial connection to the modem
+        magic: PIN code to unlock the SIM
+        verbose: Enable verbose logging
+
+    Returns:
+        True if SIM was successfully unlocked
+        False if unlock failed or SIM is already unlocked
+    """
+    try:
+        # First check if SIM is already unlocked
+        if get_sim_state(serial_connection, verbose=verbose):
+            if verbose:
+                logging.info("SIM is already unlocked")
+            return True
+
+        # Unlock SIM with PIN
+        # AT command: AT+CPIN=<pin>
+        # Response: OK if successful, ERROR if failed
+        if verbose:
+            logging.info("Attempting to unlock SIM with PIN")
+
+        response = sbc_cmd_with_timeout(
+            f'AT+CPIN="{magic}"\r', serial_connection, verbose=verbose
+        )
+
+        if "OK" in response:
+            if verbose:
+                logging.info("SIM unlocked successfully")
+
+            # Verify the SIM is now in READY state
+            time.sleep(1)  # Give modem time to process
+            return get_sim_state(serial_connection, verbose=verbose)
+        else:
+            logging.error(f"Failed to unlock SIM: {response}")
+            return False
+
+    except Exception as e:
+        logging.error(f"Error unlocking SIM: {str(e)}")
+        return False
+
+
+def get_cpuid() -> str:
+    """
+    Read the CPU ID from the system and return it as a string.
+
+    This function reads the serial number from the device tree firmware
+    interface, which is available on ARM-based embedded systems.
+
+    Returns:
+        CPU ID as a string. Returns "unknown" if CPU ID cannot be determined.
+    """
+    try:
+        with open("/sys/firmware/devicetree/base/serial-number") as f:
+            cpuid = f.read().strip()
+            # Remove null bytes that may be present in device tree data
+            cpuid = cpuid.rstrip("\x00")
+            return cpuid if cpuid else "unknown"
+
+    except FileNotFoundError:
+        logging.error("/sys/firmware/devicetree/base/serial-number not found")
+        return "unknown"
+    except Exception as e:
+        logging.error(f"Error reading CPU ID: {str(e)}")
+        return "unknown"
+
+
+def set_secret(key: str, value: str) -> bool:
+    """
+    Store a secret in the system keyring.
+
+    This function uses the keyring module to securely store a secret value
+    associated with a given key. The secret is stored in the system's
+    credential manager (e.g., GNOME Keyring, KWallet, Windows Credential
+    Manager, macOS Keychain).
+
+    Args:
+        key: The key/identifier for the secret (used as username in keyring)
+        value: The secret value to store (stored as password in keyring)
+
+    Returns:
+        True if the secret was successfully stored, False otherwise
+    """
+    try:
+        keyring.set_password(KEYRING_SERVICE_NAME, key, value)
+        logging.info(f"Secret stored successfully for key: {key}")
+        return True
+    except Exception as e:
+        logging.error(f"Error storing secret for key '{key}': {str(e)}")
+        return False
+
+
+def get_secret(key: str) -> Tuple[bool, str]:
+    """
+    Retrieve a secret from the system keyring.
+
+    This function uses the keyring module to retrieve a previously stored
+    secret value associated with a given key.
+
+    Args:
+        key: The key/identifier for the secret (used as username in keyring)
+
+    Returns:
+        Tuple of (success, secret) where:
+        - success: True if the secret was retrieved, False otherwise
+        - secret: The secret value if found, empty string if not found or error
+    """
+    try:
+        secret = keyring.get_password(KEYRING_SERVICE_NAME, key)
+
+        if secret is None:
+            logging.warning(f"No secret found for key: {key}")
+            return (False, "")
+
+        logging.info(f"Secret retrieved successfully for key: {key}")
+        return (True, secret)
+
+    except Exception as e:
+        logging.error(f"Error retrieving secret for key '{key}': {str(e)}")
+        return (False, "")
