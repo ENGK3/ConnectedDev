@@ -13,7 +13,7 @@ def send_edc_event_data(event_code):
     try:
         # Run the command and capture output
         result = subprocess.run(
-            ["python3", "/mnt/data/send_EDC_info.py", "-e", event_code],
+            ["python3", "/mnt/data/send_EDC_info.py", "-v", "-e", event_code],
             capture_output=True,
             text=True,
         )
@@ -24,7 +24,9 @@ def send_edc_event_data(event_code):
 
     except Exception as e:
         print("Exception occurred:", e)
-        return []
+        return False
+
+    return True
 
 
 json_loaded = False
@@ -32,16 +34,17 @@ while not json_loaded:
     try:
         # get baseline system voltage & temperature
         # Open the JSON file in read mode
-        f = open(json_filename)
-        # Load the JSON data from the file
-        data = json.load(f)
-        voltage = data["gsc_hwmon-isa-0000"]["vdd_vin"]["in1_input"]
-        # temp = data['cpu_thermal-virtual-0']['temp1']['temp1_input']
-        f.close()
-        json_loaded = True
+        with open(json_filename) as f:
+            # Load the JSON data from the file
+            data = json.load(f)
+            voltage = data["gsc_hwmon-isa-0000"]["vdd_vin"]["in1_input"]
+            json_loaded = True
+            break
+
     except Exception as e:
         print("Exception occurred:", e)
-        time.sleep(5)
+
+    time.sleep(5)
 
 # get event reporting frequency
 config = dotenv_values(
@@ -75,16 +78,19 @@ while True:
         try:
             # get system voltage & temperature
             # Open the JSON file in read mode
-            f = open(json_filename)
-            # Load the JSON data from the file
-            data = json.load(f)
-            voltage = data["gsc_hwmon-isa-0000"]["vdd_vin"]["in1_input"]
-            # temp = data['cpu_thermal-virtual-0']['temp1']['temp1_input']
-            f.close()
-            json_loaded = True
+            with open(json_filename) as f:
+                # Load the JSON data from the file
+                data = json.load(f)
+                voltage = data["gsc_hwmon-isa-0000"]["vdd_vin"]["in1_input"]
+                # temp = data['cpu_thermal-virtual-0']['temp1']['temp1_input']
+
+                json_loaded = True
+                break
+
         except Exception as e:
             print("Exception occurred:", e)
-            time.sleep(5)
+
+        time.sleep(5)
 
     # AC Loss
     if (
