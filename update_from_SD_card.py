@@ -32,7 +32,7 @@ def check_for_sd_card():
 
     except Exception as e:
         print("Exception occurred:", e)
-        return []
+        return False
 
 
 def check_mounting_path():
@@ -52,7 +52,7 @@ def check_mounting_path():
                 return True
         except Exception as e:
             print("Exception occurred:", e)
-            return []
+            return False
     if os.path.exists(mount_dir):
         print("Path exists!")
         return True
@@ -75,7 +75,7 @@ def copy_file(src_path, dest_path):
 
     except Exception as e:
         print("Exception occurred:", e)
-        return []
+        return False
 
 
 def extract_tar(file_name, dest_path):
@@ -95,7 +95,7 @@ def extract_tar(file_name, dest_path):
 
     except Exception as e:
         print("Exception occurred:", e)
-        return []
+        return False
 
 
 def get_current_sw_version():
@@ -121,7 +121,7 @@ def get_current_sw_version():
 
     except Exception as e:
         print("Exception occurred:", e)
-        return []
+        return False
 
 
 print("")
