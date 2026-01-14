@@ -78,15 +78,15 @@ def decrypt_with_public_key(encrypted_file_path: str, public_key_path: str) -> s
 
 
 def decrypt_site_store(
-    site_store_path: str = "/mnt/data/site_store",
+    site_store_path: str = "/mnt/data/site_info",
     public_key_path: str = "/mnt/data/site.pub",
 ) -> str:
     """
-    Convenience function to decrypt the site_store file.
+    Convenience function to decrypt the site_info file.
 
     Args:
-        site_store_path: Path to the encrypted site_store file
-        (default: /mnt/data/site_store)
+        site_store_path: Path to the encrypted site_info file
+        (default: /mnt/data/site_info)
         public_key_path: Path to the public key (default: /mnt/data/site.pub)
 
     Returns:
