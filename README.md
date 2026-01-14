@@ -173,7 +173,7 @@ See [ENCRYPTION_USAGE.md](ENCRYPTION_USAGE.md) for detailed encryption/decryptio
 | `K3_config_settings` | `.` | **Generated file**: Kings III configuration file containing site-specific settings (CID, account code, model, APN, APP version, modem UTM, battery voltage) for EDC reporting. This file is generated from the `K3_config_settings.in` template during the build process. |
 | `K3_config_settings.in` | `.` | **Template file**: Version-controlled template for `K3_config_settings`. This file is populated with the APP version and other variables during the build process to produce the final configuration file. |
 | `markdown-pdf.css` | `.` | CSS stylesheet for generating PDF documentation from Markdown files, provides VS Code compatible formatting |
-| `site_info` | `common/` | **Encrypted binary**: RSA-encrypted site configuration containing sensitive data (SIM PIN codes, credentials); decrypted by site_store.py using public key verification |
+| `site_info` | `common/` | **Encrypted binary**: RSA-encrypted site info |
 | `site.pub` | `common/` | **RSA public key**: 4096-bit RSA public key in PKCS8 format for decrypting site_info file; can be distributed freely |
 | `ari.conf` | `VOIP/asterisk/` | Asterisk ARI (Asterisk REST Interface) configuration with user credentials and connection settings |
 | `asterisk.override.conf` | `VOIP/asterisk/` | Systemd override for Asterisk service, adds dependencies on network and ttyUSB2 device with delayed start and restart |
