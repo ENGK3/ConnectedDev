@@ -6,8 +6,9 @@ echo "======================================"
 echo ""
 
 # Define the menu options
-options=("First Telephone Number" "Second Telephone Number" "Third Telephone Number" "Zone Number(s)" "Customer Account Code" "Exit")
+options=("First Telephone Number" "Second Telephone Number" "Third Telephone Number" "Zone Number(s)" "Customer Account Code" "System Info" "Exit")
 telephone_number_options=("Program Telephone Number" "Read Existing Telephone Number" "Exit to Main Menu")
+zone_list_options=("Program Zone Number(s)" "Read Existing Zone(s)" "Exit to Main Menu")
 
 first_number_submenu() {
 
@@ -171,6 +172,60 @@ third_number_submenu() {
     done
 }
 
+zone_number_submenu() {
+
+    cfg_file="/mnt/data/K3_config_settings"
+    key="ZLST"
+
+    echo ""
+    echo "======================================"
+    echo "           Zone Config Menu           "
+    echo "======================================"
+    echo ""
+
+    select opt in "${zone_list_options[@]}"
+    do
+        case $opt in
+            "Program Zone Number(s)")
+                echo ""
+                echo "Please input new Zone Number(s), in the format \"01020304\" for four Zones, for example:"
+                read zone_info
+                if [[ "$zone_info" =~ ^[+-]?[0-9]+$ ]]; then     # check to see if entry is only numbers
+                    echo ""
+                    echo "Updating Zone(s) to \"$zone_info\""
+                    if grep -q "^$key=" "$cfg_file"; then
+                        # Key exists, update it
+                        sed -i "s/^$key=.*/$key=\"$zone_info\"/" "$cfg_file"
+                    else
+                        # Key doesn't exist, append it
+                        echo "$key=\"$zone_info\"" >> "$cfg_file"
+                    fi
+                    echo "done"
+                else
+                    echo ""
+                    echo "Please enter only numerical values for telephone numbers!!!"
+                fi
+                ;;
+            "Read Existing Zone(s)")
+                VALUE=$(grep "^$key=" $cfg_file | cut -d '=' -f2)
+                echo ""
+                echo "Listed Zone(s): $VALUE"
+                ;;
+            "Exit to Main Menu")
+                echo ""
+                echo "Exiting to main menu..."
+                return
+                ;;
+        esac
+        REPLY=  # This line forces the menu to redraw on the next loop
+        echo ""
+        echo "======================================"
+        echo "           Zone Config Menu           "
+        echo "======================================"
+        echo ""
+    done
+}
+
 while true; do
     # Start the select loop to display the menu
     echo ""
@@ -191,12 +246,16 @@ while true; do
                 third_number_submenu
                 ;;
             "Zone Number(s)")
-                echo "Updating Zone Number(s)"
-                # Replace with the actual command you want to run
-                echo "done"
+                zone_number_submenu
                 ;;
             "Customer Account Code")
                 echo "Updating Customer Account Code"
+                # Replace with the actual command you want to run
+                echo "done"
+                ;;
+            "System Info")
+                echo ""
+                echo "Fetching System Info"
                 # Replace with the actual command you want to run
                 echo "done"
                 ;;
