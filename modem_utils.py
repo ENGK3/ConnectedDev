@@ -805,7 +805,7 @@ def set_sim_password_and_lock(
         response = sbc_cmd_with_timeout(
             f"AT+CPWD=SC,{old_pw},{new_pw}\r",
             serial_connection,
-            verbose=verbose,
+            verbose=False,
         )
 
         if "OK" not in response:
