@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Decrypt site_store file using public key (verification pattern).
+Decrypt site_info file using public key (verification pattern).
 This assumes the file was encrypted/signed with the private key.
 """
 
