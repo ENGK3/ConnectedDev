@@ -93,7 +93,7 @@ def decrypt_site_store(
         Decrypted contents as a string
 
     Raises:
-        FileNotFoundError: If site_store or public key doesn't exist
+        FileNotFoundError: If site_info or public key doesn't exist
         subprocess.CalledProcessError: If decryption fails
     """
     return decrypt_with_public_key(site_store_path, public_key_path)
@@ -104,13 +104,13 @@ if __name__ == "__main__":
     import sys
 
     parser = argparse.ArgumentParser(
-        description="Decrypt site_store file using public key"
+        description="Decrypt site_info file using public key"
     )
     parser.add_argument(
         "encrypted_file",
         nargs="?",
-        default="/mnt/data/site_store",
-        help="Path to encrypted file (default: /mnt/data/site_store)",
+        default="/mnt/data/site_info",
+        help="Path to encrypted file (default: /mnt/data/site_info)",
     )
     parser.add_argument(
         "public_key",
