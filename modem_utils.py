@@ -744,7 +744,7 @@ def unlock_sim_with_pin(
             logging.info("Attempting to unlock SIM with PIN")
 
         response = sbc_cmd_with_timeout(
-            f'AT+CPIN="{pw}"\r', serial_connection, verbose=verbose
+            f'AT+CPIN="{pw}"\r', serial_connection, verbose=False
         )
 
         if "OK" in response:
