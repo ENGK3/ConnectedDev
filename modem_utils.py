@@ -781,12 +781,29 @@ def set_sim_password_and_lock(
         True if both operations were successful, False otherwise
     """
     try:
-        # Step 1: Change password using +CPWD=SC,<oldpwd>,<newpwd>
+        # Step 1: Enable SIM lock with new password using +CLCK="SC",1,<pw>
+        if verbose:
+            logging.info("Enabling SIM lock")
+
+        response = sbc_cmd_with_timeout(
+            "AT+CLCK=SC,1,1111\r", serial_connection, verbose=verbose
+        )
+
+        if "OK" in response:
+            if verbose:
+                logging.info("SIM lock enabled successfully")
+        else:
+            logging.error("Failed to enable SIM lock")
+            return False
+
+        time.sleep(1)  # Give modem time to process
+
+        # Step 2: Change password using +CPWD=SC,<oldpwd>,<newpwd>
         if verbose:
             logging.info("Changing SIM password")
 
         response = sbc_cmd_with_timeout(
-            f'AT+CPWD="SC","{old_pw}","{new_pw}"\r',
+            f"AT+CPWD=SC,{old_pw},{new_pw}\r",
             serial_connection,
             verbose=verbose,
         )
@@ -797,24 +814,6 @@ def set_sim_password_and_lock(
 
         if verbose:
             logging.info("SIM password changed successfully")
-
-        time.sleep(1)  # Give modem time to process
-
-        # Step 2: Enable SIM lock with new password using +CLCK="SC",1,<pwd>
-        if verbose:
-            logging.info("Enabling SIM lock")
-
-        response = sbc_cmd_with_timeout(
-            f'AT+CLCK="SC",1,"{new_pw}"\r', serial_connection, verbose=verbose
-        )
-
-        if "OK" in response:
-            if verbose:
-                logging.info("SIM lock enabled successfully")
-            return True
-        else:
-            logging.error("Failed to enable SIM lock")
-            return False
 
     except Exception as e:
         logging.error(f"Error setting SIM password and lock: {str(e)}")
