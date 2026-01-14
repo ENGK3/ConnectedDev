@@ -781,7 +781,7 @@ def set_sim_password_and_lock(
         True if both operations were successful, False otherwise
     """
     try:
-        # Step 1: Enable SIM lock with new password using +CLCK="SC",1,<pw>
+        # Step 1: Enable SIM lock with password using +CLCK="SC",1,<pw>
         if verbose:
             logging.info("Enabling SIM lock")
 
@@ -814,6 +814,8 @@ def set_sim_password_and_lock(
 
         if verbose:
             logging.info("SIM password changed successfully")
+
+        return True
 
     except Exception as e:
         logging.error(f"Error setting SIM password and lock: {str(e)}")
