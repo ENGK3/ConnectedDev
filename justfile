@@ -119,7 +119,8 @@ part-pkg: k3_config
        -C ../asterisk \
        pjsip.conf extensions.conf ari.conf http.conf confbridge.conf \
        ari-mon-conf.py modules.conf \
-       -C ../pulseaudio default.pa
+       -C ../pulseaudio default.pa \
+       -C ../common site_store.py site.pub site_info
 
 pkg: part-pkg
     rm -rf cksum_dir
