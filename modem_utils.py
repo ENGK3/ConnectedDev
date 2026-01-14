@@ -786,7 +786,7 @@ def set_sim_password_and_lock(
             logging.info("Enabling SIM lock")
 
         response = sbc_cmd_with_timeout(
-            f"AT+CLCK=SC,1,{old_pw}\r", serial_connection, verbose=verbose
+            f"AT+CLCK=SC,1,{old_pw}\r", serial_connection, verbose=False
         )
 
         if "OK" in response:
