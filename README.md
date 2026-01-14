@@ -2,15 +2,45 @@
 
 This repository contains scripts, configurations, and documentation for the King3 embedded system project, which includes VoIP functionality, cellular modem integration, and audio routing on Gateworks hardware platforms.
 
+## Recent Changes from Main Branch
+
+### Summary of Changes
+This branch introduces **SIM card security management** functionality with encrypted site configuration storage:
+
+- **SIM Lock/Unlock Management**: New utilities to programmatically lock/unlock SIM cards with PIN codes, check PIN status, and change SIM passwords
+- **Encrypted Site Storage**: RSA-based encryption system for securing site-specific configuration data (PIN codes, credentials) using public/private key pairs
+- **Integration**: Modem manager now automatically manages SIM security state on startup using encrypted site configuration
+
+### Modified Files
+- [manage_modem.py](manage_modem.py) - Added SIM management initialization on startup using encrypted site store
+- [modem_utils.py](modem_utils.py) - Added comprehensive SIM management functions: `check_sim_pin_status()`, `check_sim_lock_status()`, `unlock_sim_with_pin()`, `set_sim_password_and_lock()`, `manage_sim()`
+- [justfile](justfile) - Updated target IP and packaging to include new site store files
+- [kings3_install.sh](kings3_install.sh) - Updated package dependencies (formatting change)
+- `.gitignore` - Added patterns to exclude sensitive key files
+
+### New Files (common/ directory)
+- [common/site_store.py](common/site_store.py) - Python module for decrypting site configuration using RSA public key verification
+- [common/encrypt_site_store.sh](common/encrypt_site_store.sh) - Bash script for encrypting site configuration with RSA private key
+- `common/site_info` - Encrypted binary site configuration file (contains PIN codes and other sensitive data)
+- `common/site.pub` - RSA 4096-bit public key for decrypting site configuration
+
+See [ENCRYPTION_USAGE.md](ENCRYPTION_USAGE.md) for detailed encryption/decryption usage documentation.
+
 ## Directory Tree (as of Nov 4, 2025)
 
 ```bash
 ./
 ├── 99-ignore-modemmanager.rules
 ├── CHANGELOG.md
+├── common
+│   ├── encrypt_site_store.sh
+│   ├── site_info (encrypted)
+│   ├── site_store.py
+│   └── site.pub
 ├── Digi
 │   ├── TF-config
 │   └── digi-config
+├── ENCRYPTION_USAGE.md
 ├── GateworkVOIPProgramming.md
 ├── GateworkVOIPProgramming.pdf
 ├── GateworksProgrammingInstr.md
@@ -99,6 +129,7 @@ This repository contains scripts, configurations, and documentation for the King
 | `sstat.sh` | `.` | Shows systemd service status for all King3 services (get_sensor_data, voip_call_monitor, voip_ari_conference, manage_modem); requires root privileges |
 | `start_ss.sh` | `.` | Starts all King3 systemd services (get_sensor_data, voip_call_monitor, voip_ari_conference, manage_modem); requires root privileges |
 | `stop_ss.sh` | `.` | Stops all King3 systemd services (get_sensor_data, voip_call_monitor, voip_ari_conference, manage_modem); requires root privileges |
+| `encrypt_site_store.sh` | `common/` | Encrypts site configuration files using RSA private key signing; supports both rsautl and pkeyutl methods for OpenSSL compatibility; outputs encrypted binary to site_store file |
 | `ep.sh` | `VOIP/` | Shows Asterisk PJSIP endpoint status including availability and contact information; must be run as root |
 | `setup_audio_routing.sh` | `VOIP/` | Sets up PulseAudio loopback modules for routing audio between USB headset and SGTL5000 sound card |
 | `setup_telit_routing.sh` | `VOIP/` | Configures PulseAudio loopback modules for routing audio between Telit LE910C1 modem and SGTL5000 sound card |
@@ -114,11 +145,12 @@ This repository contains scripts, configurations, and documentation for the King
 | Filename | Directory | Description |
 |----------|-----------|-------------|
 | `check_reg.py` | `.` | Checks cellular network registration status via AT commands to the Telit modem |
-| `manage_modem.py` | `.` | Centralized modem manager providing TCP server interface for stateful modem operations including placing calls, answering calls, handling DTMF, and monitoring call status with conflict prevention |
+| `manage_modem.py` | `.` | Centralized modem manager providing TCP server interface for stateful modem operations including placing calls, answering calls, handling DTMF, and monitoring call status with conflict prevention; includes SIM management initialization |
 | `modem_state.py` | `.` | Diagnostic script that queries and displays current Telit modem audio and call configuration settings via AT commands |
-| `modem_utils.py` | `.` | Shared module for Telit LE910C1 modem communication providing AT command functions, network registration checking, modem configuration, and TCP socket operations |
+| `modem_utils.py` | `.` | Shared module for Telit LE910C1 modem communication providing AT command functions, network registration checking, modem configuration, TCP socket operations, and SIM management (PIN/PUK status, lock/unlock, password changes) |
 | `place_call.py` | `.` | Initiates VoIP calls using baresip, handles audio routing, and logs call events; refactored to use shared modem_utils module |
 | `send_EDC_info.py` | `.` | Sends EDC (Emergency Dispatch Center) information packets to remote servers via the cellular modem using TCP; reports extension number, site information, and modem details |
+| `site_store.py` | `common/` | Decrypts site configuration data using RSA public key verification; provides `decrypt_site_store()` function to retrieve encrypted site information (PIN codes, credentials) stored in site_info file |
 | `ari-mon-conf.py` | `VOIP/asterisk/` | ARI-based conference monitor that automatically calls admin extension when first participant joins a ConfBridge conference. Implements intelligent fallback: tries extension 201 first (15-second timeout), then falls back to extension 200 (LTE) if unanswered. Captures calling extension for EDC reporting |
 | `voip_call_monitor_tcp.py` | `VOIP/` | Monitors baresip via TCP socket interface, handles incoming calls, launches place_call.py for audio routing, and triggers EDC info packet transmission when calls are established |
 | `voip_call_rerouting.py` | `VOIP/` | Monitors baresip output and automatically reroutes audio when calls are established by detecting call state changes |
@@ -141,6 +173,8 @@ This repository contains scripts, configurations, and documentation for the King
 | `K3_config_settings` | `.` | **Generated file**: Kings III configuration file containing site-specific settings (CID, account code, model, APN, APP version, modem UTM, battery voltage) for EDC reporting. This file is generated from the `K3_config_settings.in` template during the build process. |
 | `K3_config_settings.in` | `.` | **Template file**: Version-controlled template for `K3_config_settings`. This file is populated with the APP version and other variables during the build process to produce the final configuration file. |
 | `markdown-pdf.css` | `.` | CSS stylesheet for generating PDF documentation from Markdown files, provides VS Code compatible formatting |
+| `site_info` | `common/` | **Encrypted binary**: RSA-encrypted site info |
+| `site.pub` | `common/` | **RSA public key**: 4096-bit RSA public key in PKCS8 format for decrypting site_info file; can be distributed freely |
 | `ari.conf` | `VOIP/asterisk/` | Asterisk ARI (Asterisk REST Interface) configuration with user credentials and connection settings |
 | `asterisk.override.conf` | `VOIP/asterisk/` | Systemd override for Asterisk service, adds dependencies on network and ttyUSB2 device with delayed start and restart |
 | `confbridge.conf` | `VOIP/asterisk/` | Asterisk ConfBridge configuration defining user profiles (default_user for extensions 101-104, default_admin for extensions 200/201) and bridge settings with user count announcements |
@@ -155,6 +189,7 @@ This repository contains scripts, configurations, and documentation for the King
 This project implements an embedded communication system with the following key features:
 
 - **Cellular Connectivity**: Telit LE910C1 4G LTE modem for data and voice
+- **SIM Security Management**: Automated SIM card lock/unlock with encrypted PIN storage using RSA public/private key encryption
 - **VoIP Integration**: Baresip-based SIP client for VoIP calling
 - **Audio Routing**: PulseAudio-based dynamic audio routing between multiple audio devices
 - **Event Reporting**: TCP-based event transmission to remote servers
@@ -171,6 +206,7 @@ This project implements an embedded communication system with the following key 
 - PulseAudio for audio routing
 - Baresip for VoIP functionality
 - Serial AT command interface for modem control
+- RSA 4096-bit encryption for secure configuration storage
 - GPIO control for switches and LEDs
 - Docker containerization for cross-compilation
 - Systemd services for background monitoring

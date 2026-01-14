@@ -9,3 +9,4 @@ K3_config_settings
 releases
 logs
 cksum_dir/
+common/site.priv

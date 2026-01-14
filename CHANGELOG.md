@@ -1,6 +1,6 @@
 # CHANGELOG Kings III Software Changes
 
-## Version V00.03.03+ UNRELEASED
+## Version V00.03.04
 
 ### Added
 
@@ -48,6 +48,8 @@ modem_utils.py updated to use the info from the different lookup files.
 
 Changed EVT_MON_PERIOD_SECS to 600, so that it matches the get_sensor_data.timer interval.
 Cleaned up events_monitor.py
+
+Added code to unlock the sim and lock it if necessary.
 
 ### Removed
 
