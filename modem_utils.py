@@ -10,16 +10,12 @@ import logging
 import time
 from typing import Tuple
 
-import keyring
 import serial
 
 # Timeout constants
 AT_COMMAND_TIMEOUT = 5  # seconds for AT command responses
 
 MAX_NO_DATA_ITERATIONS = 10  # Maximum iterations with no data before giving up early
-
-# Keyring service name for storing secrets
-KEYRING_SERVICE_NAME = "K3-Qseries-Modem"
 
 
 def sbc_cmd(cmd: str, serial_connection: serial.Serial, verbose: bool) -> str:
@@ -651,31 +647,26 @@ def configure_modem_tcp(
         return (11, f"Unexpected error during modem configuration: {str(e)}")
 
 
-def get_sim_state(serial_connection: serial.Serial, verbose: bool = False) -> bool:
+def check_sim_pin_status(
+    serial_connection: serial.Serial, verbose: bool = False
+) -> str:
     """
-    Check if the SIM card is unlocked and ready.
+    Query the current SIM PIN status.
 
-    This function queries the modem using AT+CPIN? command to determine
-    if the SIM card is in a ready/unlocked state.
+    This function checks what state the SIM card is in by querying +CPIN?
 
     Args:
         serial_connection: Open serial connection to the modem
         verbose: Enable verbose logging
 
     Returns:
-        True if SIM is unlocked (READY state)
-        False if SIM is locked or in any other state
+        String indicating the SIM status:
+        - "READY" - SIM is unlocked and ready
+        - "SIM PIN" - SIM requires PIN
+        - "SIM PUK" - SIM requires PUK
+        - "ERROR" - Could not determine status or error occurred
     """
     try:
-        # Query SIM PIN status
-        # AT command: AT+CPIN?
-        # Response format: +CPIN: <code>
-        # Where <code> can be:
-        #   READY - SIM is unlocked and ready
-        #   SIM PIN - SIM requires PIN
-        #   SIM PUK - SIM requires PUK
-        #   SIM PIN2 - SIM requires PIN2
-        #   SIM PUK2 - SIM requires PUK2
         response = sbc_cmd_with_timeout(
             "AT+CPIN?\r", serial_connection, verbose=verbose
         )
@@ -683,151 +674,234 @@ def get_sim_state(serial_connection: serial.Serial, verbose: bool = False) -> bo
         if "+CPIN:" in response:
             for line in response.split("\n"):
                 if "+CPIN:" in line:
-                    # Extract the status code
                     status = line.split(":")[1].strip()
-
                     if verbose:
-                        logging.info(f"SIM state: {status}")
+                        logging.info(f"SIM PIN status: {status}")
+                    return status
 
-                    # Return True only if SIM is READY
-                    return status == "READY"
-
-        # If we couldn't parse the response, assume locked
-        if verbose:
-            logging.warning(f"Could not parse SIM state from response: {response}")
-        return False
+        logging.warning(f"Could not parse SIM PIN status from response: {response}")
+        return "ERROR"
 
     except Exception as e:
-        logging.error(f"Error checking SIM state: {str(e)}")
-        return False
+        logging.error(f"Error checking SIM PIN status: {str(e)}")
+        return "ERROR"
 
 
-def unlock_sim(
-    serial_connection: serial.Serial, magic: str, verbose: bool = False
-) -> bool:
+def check_sim_lock_status(
+    serial_connection: serial.Serial, verbose: bool = False
+) -> Tuple[bool, str]:
     """
-    Unlock the SIM card using the provided PIN.
+    Check if the SIM card lock facility is enabled.
 
-    This function uses the AT+CPIN command to unlock a locked SIM card
-    with the provided PIN code.
+    This function queries +CLCK="SC",2 to determine if the SIM lock is active.
 
     Args:
         serial_connection: Open serial connection to the modem
-        magic: PIN code to unlock the SIM
         verbose: Enable verbose logging
 
     Returns:
-        True if SIM was successfully unlocked
-        False if unlock failed or SIM is already unlocked
+        Tuple of (success, lock_status) where:
+        - success: True if query was successful, False on error
+        - lock_status: "0" if not locked, "1" if locked, "" on error
     """
     try:
-        # First check if SIM is already unlocked
-        if get_sim_state(serial_connection, verbose=verbose):
-            if verbose:
-                logging.info("SIM is already unlocked")
-            return True
+        response = sbc_cmd_with_timeout(
+            'AT+CLCK="SC",2\r', serial_connection, verbose=verbose
+        )
 
-        # Unlock SIM with PIN
-        # AT command: AT+CPIN=<pin>
-        # Response: OK if successful, ERROR if failed
+        if "+CLCK:" in response:
+            for line in response.split("\n"):
+                if "+CLCK:" in line:
+                    lock_status = line.split(":")[1].strip()
+                    if verbose:
+                        logging.info(f"SIM lock status: {lock_status}")
+                    return (True, lock_status)
+
+        logging.warning(f"Could not parse SIM lock status from response: {response}")
+        return (False, "")
+
+    except Exception as e:
+        logging.error(f"Error checking SIM lock status: {str(e)}")
+        return (False, "")
+
+
+def unlock_sim_with_pin(
+    serial_connection: serial.Serial, pw: str, verbose: bool = False
+) -> bool:
+    """
+    Unlock a SIM card that requires a PIN using +CPIN command.
+
+    Args:
+        serial_connection: Open serial connection to the modem
+        pw: PIN code to unlock the SIM (not logged for security)
+        verbose: Enable verbose logging
+
+    Returns:
+        True if unlock was successful, False otherwise
+    """
+    try:
         if verbose:
             logging.info("Attempting to unlock SIM with PIN")
 
         response = sbc_cmd_with_timeout(
-            f'AT+CPIN="{magic}"\r', serial_connection, verbose=verbose
+            f'AT+CPIN="{pw}"\r', serial_connection, verbose=verbose
         )
 
         if "OK" in response:
             if verbose:
                 logging.info("SIM unlocked successfully")
-
-            # Verify the SIM is now in READY state
             time.sleep(1)  # Give modem time to process
-            return get_sim_state(serial_connection, verbose=verbose)
+            return True
         else:
-            logging.error(f"Failed to unlock SIM: {response}")
+            logging.error("Failed to unlock SIM - incorrect PIN or other error")
             return False
 
     except Exception as e:
-        logging.error(f"Error unlocking SIM: {str(e)}")
+        logging.error(f"Error unlocking SIM with PIN: {str(e)}")
         return False
 
 
-def get_cpuid() -> str:
+def set_sim_password_and_lock(
+    serial_connection: serial.Serial, old_pw: str, new_pw: str, verbose: bool = False
+) -> bool:
     """
-    Read the CPU ID from the system and return it as a string.
+    Change the SIM password and enable the SIM lock.
 
-    This function reads the serial number from the device tree firmware
-    interface, which is available on ARM-based embedded systems.
-
-    Returns:
-        CPU ID as a string. Returns "unknown" if CPU ID cannot be determined.
-    """
-    try:
-        with open("/sys/firmware/devicetree/base/serial-number") as f:
-            cpuid = f.read().strip()
-            # Remove null bytes that may be present in device tree data
-            cpuid = cpuid.rstrip("\x00")
-            return cpuid if cpuid else "unknown"
-
-    except FileNotFoundError:
-        logging.error("/sys/firmware/devicetree/base/serial-number not found")
-        return "unknown"
-    except Exception as e:
-        logging.error(f"Error reading CPU ID: {str(e)}")
-        return "unknown"
-
-
-def set_secret(key: str, value: str) -> bool:
-    """
-    Store a secret in the system keyring.
-
-    This function uses the keyring module to securely store a secret value
-    associated with a given key. The secret is stored in the system's
-    credential manager (e.g., GNOME Keyring, KWallet, Windows Credential
-    Manager, macOS Keychain).
+    This function:
+    1. Changes the SIM password from old_pw (default "1111") to new_pw using +CPWD
+    2. Enables the SIM lock with the new password using +CLCK
 
     Args:
-        key: The key/identifier for the secret (used as username in keyring)
-        value: The secret value to store (stored as password in keyring)
+        serial_connection: Open serial connection to the modem
+        old_pw: Current/default SIM password (typically "1111")
+        new_pw: New SIM password to set (not logged for security)
+        verbose: Enable verbose logging
 
     Returns:
-        True if the secret was successfully stored, False otherwise
+        True if both operations were successful, False otherwise
     """
     try:
-        keyring.set_password(KEYRING_SERVICE_NAME, key, value)
-        logging.info(f"Secret stored successfully for key: {key}")
-        return True
+        # Step 1: Change password using +CPWD=SC,<oldpwd>,<newpwd>
+        if verbose:
+            logging.info("Changing SIM password")
+
+        response = sbc_cmd_with_timeout(
+            f'AT+CPWD="SC","{old_pw}","{new_pw}"\r',
+            serial_connection,
+            verbose=verbose,
+        )
+
+        if "OK" not in response:
+            logging.error("Failed to change SIM password")
+            return False
+
+        if verbose:
+            logging.info("SIM password changed successfully")
+
+        time.sleep(1)  # Give modem time to process
+
+        # Step 2: Enable SIM lock with new password using +CLCK="SC",1,<pwd>
+        if verbose:
+            logging.info("Enabling SIM lock")
+
+        response = sbc_cmd_with_timeout(
+            f'AT+CLCK="SC",1,"{new_pw}"\r', serial_connection, verbose=verbose
+        )
+
+        if "OK" in response:
+            if verbose:
+                logging.info("SIM lock enabled successfully")
+            return True
+        else:
+            logging.error("Failed to enable SIM lock")
+            return False
+
     except Exception as e:
-        logging.error(f"Error storing secret for key '{key}': {str(e)}")
+        logging.error(f"Error setting SIM password and lock: {str(e)}")
         return False
 
 
-def get_secret(key: str) -> Tuple[bool, str]:
+def manage_sim(
+    serial_connection: serial.Serial, pw: str, verbose: bool = False
+) -> bool:
     """
-    Retrieve a secret from the system keyring.
+    Manage SIM card locking and unlocking based on current state.
 
-    This function uses the keyring module to retrieve a previously stored
-    secret value associated with a given key.
+    This function implements the SIM Lock/Unlock flow that:
+    1. Checks if SIM is READY
+       - If YES: Checks if SIM lock is enabled (CLCK=0)
+         - If lock not enabled (0): Sets password and enables lock
+         - If lock is enabled (1): Returns success (already configured)
+       - If NO: Checks if SIM status is "SIM PIN"
+         - If YES: Unlocks with provided PIN
+         - If NO: Returns error (unexpected state)
 
     Args:
-        key: The key/identifier for the secret (used as username in keyring)
+        serial_connection: Open serial connection to the modem
+        pw: Password/PIN to use for unlocking or setting SIM lock
+            WARNING: This password is sensitive and NOT logged
+        verbose: Enable verbose logging (password is never logged)
 
     Returns:
-        Tuple of (success, secret) where:
-        - success: True if the secret was retrieved, False otherwise
-        - secret: The secret value if found, empty string if not found or error
+        True if SIM management was successful, False otherwise
     """
     try:
-        secret = keyring.get_password(KEYRING_SERVICE_NAME, key)
+        logging.info("Starting SIM management flow")
 
-        if secret is None:
-            logging.warning(f"No secret found for key: {key}")
-            return (False, "")
+        # Step 1: Check CPIN status
+        pin_status = check_sim_pin_status(serial_connection, verbose=verbose)
 
-        logging.info(f"Secret retrieved successfully for key: {key}")
-        return (True, secret)
+        if pin_status == "READY":
+            logging.info("SIM is READY - checking lock status")
+
+            # Step 2: Check if SIM lock is enabled
+            success, lock_status = check_sim_lock_status(
+                serial_connection, verbose=verbose
+            )
+
+            if not success:
+                logging.error("Failed to query SIM lock status")
+                return False
+
+            if lock_status == "0":
+                # SIM is not locked - set password and enable lock
+                logging.info("SIM lock is not enabled - configuring lock")
+                default_pin = "1111"  # Default SIM PIN
+
+                if set_sim_password_and_lock(
+                    serial_connection, default_pin, pw, verbose=verbose
+                ):
+                    logging.info("SIM lock configured successfully")
+                    return True
+                else:
+                    logging.error("Failed to configure SIM lock")
+                    return False
+
+            elif lock_status == "1":
+                # SIM lock is already enabled
+                logging.info("SIM lock is already enabled")
+                return True
+
+            else:
+                logging.error(f"Unexpected lock status: {lock_status}")
+                return False
+
+        elif pin_status == "SIM PIN":
+            # SIM requires PIN - unlock it
+            logging.info("SIM requires PIN - unlocking")
+
+            if unlock_sim_with_pin(serial_connection, pw, verbose=verbose):
+                logging.info("SIM unlocked successfully")
+                return True
+            else:
+                logging.error("Failed to unlock SIM with provided PIN")
+                return False
+
+        else:
+            # Unexpected SIM state (PUK, ERROR, etc.)
+            logging.error(f"Unexpected SIM state: {pin_status}")
+            return False
 
     except Exception as e:
-        logging.error(f"Error retrieving secret for key '{key}': {str(e)}")
-        return (False, "")
+        logging.error(f"Error in SIM management flow: {str(e)}")
+        return False

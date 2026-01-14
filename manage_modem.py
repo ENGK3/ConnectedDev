@@ -24,11 +24,12 @@ from typing import Any, Dict, Optional, Tuple
 
 import serial
 from dotenv import dotenv_values
+from site_store import decrypt_site_store
 
 from audio_routing import start_audio_bridge, terminate_pids
 
 # Import shared modem utilities
-from modem_utils import sbc_cmd, sbc_connect, sbc_disconnect
+from modem_utils import manage_sim, sbc_cmd, sbc_connect, sbc_disconnect
 
 # Configuration defaults
 DEFAULT_SERIAL_PORT = "/dev/ttyUSB2"
@@ -1416,6 +1417,12 @@ def main():
     serial_connection = serial.Serial()
     if not sbc_connect(serial_connection, port=args.modem, baudrate=args.baud):
         logging.error("Failed to connect to modem")
+        sys.exit(1)
+
+    # Before going to manage the modem, retrieve site store information
+    site_info = decrypt_site_store()
+    if not manage_sim(serial_connection, site_info, args.verbose):
+        logging.error("Failed to manage SIM")
         sys.exit(1)
 
     try:
