@@ -1421,7 +1421,7 @@ def main():
 
     # Before going to manage the modem, retrieve site store information
     site_info = decrypt_site_store()
-    if not manage_sim(serial_connection, site_info, args.verbose):
+    if not manage_sim(serial_connection, site_info, True):
         logging.error("Failed to manage SIM")
         sys.exit(1)
 
