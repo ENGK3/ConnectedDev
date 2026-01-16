@@ -271,11 +271,11 @@ networking and justfile have been configured correctly.
 
 ### Execute the config script on the target
 
-Once the script "voip_config.sh" is present on the target, in the '/mnt/data'
+Once the script "kings3_install.sh" is present on the target, in the '/mnt/data'
 directory, it can be run as root with.
 
 ```bash
-./voip_config.sh
+./kings3_install.sh --config elevator --package --update
 ```
 
 This script will put various files in the correct locations on the file system.
