@@ -9,6 +9,7 @@ echo ""
 options=("First Telephone Number" "Second Telephone Number" "Third Telephone Number" "Zone Number(s)" "Customer Account Code" "System Info" "Exit")
 telephone_number_options=("Program Telephone Number" "Read Existing Telephone Number" "Exit to Main Menu")
 zone_list_options=("Program Zone Number(s)" "Read Existing Zone(s)" "Exit to Main Menu")
+account_number_options=("Program Customer Account Number" "Read Existing Customer Account Number" "Exit to Main Menu")
 
 first_number_submenu() {
 
@@ -203,7 +204,7 @@ zone_number_submenu() {
                     echo "done"
                 else
                     echo ""
-                    echo "Please enter only numerical values for telephone numbers!!!"
+                    echo "Please enter only numerical values for Zone numbers!!!"
                 fi
                 ;;
             "Read Existing Zone(s)")
@@ -221,6 +222,57 @@ zone_number_submenu() {
         echo ""
         echo "======================================"
         echo "           Zone Config Menu           "
+        echo "======================================"
+        echo ""
+    done
+}
+
+account_number_submenu() {
+
+    cfg_file="/mnt/data/K3_config_settings"
+    key="AC"
+
+    echo ""
+    echo "======================================"
+    echo "     Customer Account Number Menu     "
+    echo "======================================"
+    echo ""
+
+    select opt in "${account_number_options[@]}"
+    do
+        case $opt in
+            "Program Customer Account Number")
+                echo ""
+                echo "Please input new Customer Account Number:"
+                read account_number
+
+                echo ""
+                echo "Updating Customer Account Number to \"$account_number\""
+                if grep -q "^$key=" "$cfg_file"; then
+                    # Key exists, update it
+                    sed -i "s/^$key=.*/$key=\"$account_number\"/" "$cfg_file"
+                else
+                    # Key doesn't exist, append it
+                    echo "$key=\"$account_number\"" >> "$cfg_file"
+                fi
+                echo "done"
+
+                ;;
+            "Read Existing Customer Account Number")
+                VALUE=$(grep "^$key=" $cfg_file | cut -d '=' -f2)
+                echo ""
+                echo "Listed Customer Account Number: $VALUE"
+                ;;
+            "Exit to Main Menu")
+                echo ""
+                echo "Exiting to main menu..."
+                return
+                ;;
+        esac
+        REPLY=  # This line forces the menu to redraw on the next loop
+        echo ""
+        echo "======================================"
+        echo "     Customer Account Number Menu     "
         echo "======================================"
         echo ""
     done
@@ -249,15 +301,11 @@ while true; do
                 zone_number_submenu
                 ;;
             "Customer Account Code")
-                echo "Updating Customer Account Code"
-                # Replace with the actual command you want to run
-                echo "done"
+                account_number_submenu
                 ;;
             "System Info")
                 echo ""
-                echo "Fetching System Info"
-                # Replace with the actual command you want to run
-                echo "done"
+                echo "Placeholder for a future update"
                 ;;
             "Exit")
                 echo "Exiting..."
