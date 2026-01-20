@@ -10,6 +10,7 @@ options=("First Telephone Number" "Second Telephone Number" "Third Telephone Num
 telephone_number_options=("Program Telephone Number" "Read Existing Telephone Number" "Exit to Main Menu")
 zone_list_options=("Program Zone Number(s)" "Read Existing Zone(s)" "Exit to Main Menu")
 account_number_options=("Program Customer Account Number" "Read Existing Customer Account Number" "Exit to Main Menu")
+sys_info_options=("Hardware Sensor Readings" "Cellular Info" "Exit to Main Menu")
 
 first_number_submenu() {
 
@@ -278,6 +279,45 @@ account_number_submenu() {
     done
 }
 
+sys_info_submenu() {
+
+    # cfg_file="/mnt/data/K3_config_settings"
+    # key="AC"
+
+    echo ""
+    echo "======================================"
+    echo "           System Info Menu           "
+    echo "======================================"
+    echo ""
+
+    select opt in "${sys_info_options[@]}"
+    do
+        case $opt in
+            "Hardware Sensor Readings")
+                eval $(python3 /mnt/data/programming/menu_sensor_update.py)
+                echo ""
+                echo "System Voltage: $sys_voltage V"
+                echo "System Temperature: $sys_temperature *C"
+                ;;
+            "Cellular Info")
+                echo ""
+                echo "Still working on this..."
+                ;;
+            "Exit to Main Menu")
+                echo ""
+                echo "Exiting to main menu..."
+                return
+                ;;
+        esac
+        REPLY=  # This line forces the menu to redraw on the next loop
+        echo ""
+        echo "======================================"
+        echo "           System Info Menu           "
+        echo "======================================"
+        echo ""
+    done
+}
+
 while true; do
     # Start the select loop to display the menu
     echo ""
@@ -304,8 +344,7 @@ while true; do
                 account_number_submenu
                 ;;
             "System Info")
-                echo ""
-                echo "Placeholder for a future update"
+                sys_info_submenu
                 ;;
             "Exit")
                 echo "Exiting..."
