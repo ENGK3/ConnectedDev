@@ -1,13 +1,13 @@
 #!/bin/bash
 ##############################################################################
-# edit_primary_phone.sh
+# edit_second_phone.sh
 #
 # Updates the SECOND_NUMBER value in K3_config_settings file
 #
 # Usage: edit_second_phone.sh <phone_number>
 #
 # Arguments:
-#   phone_number - New phone number (1-30 digits) to set as FIRST_NUMBER
+#   phone_number - New phone number (1-30 digits) to set as SECOND_NUMBER
 #
 # Returns:
 #   0 - Success
@@ -54,12 +54,12 @@ BACKUP_FILE="${BACKUP_DIR}/K3_config_settings_${TIMESTAMP}.bak"
 cp "$CONFIG_FILE" "$BACKUP_FILE"
 log "INFO: Backed up config to: $BACKUP_FILE"
 
-# Update FIRST_NUMBER using sed
+# Update SECOND_NUMBER using sed
 # This handles both quoted and unquoted values
 if grep -q '^SECOND_NUMBER=' "$CONFIG_FILE"; then
-    # Replace existing FIRST_NUMBER value
+    # Replace existing SECOND_NUMBER value
     sed -i "s/^SECOND_NUMBER=.*/SECOND_NUMBER=\"$PHONE_NUMBER\"/" "$CONFIG_FILE"
-    log "INFO: Updated FIRST_NUMBER to: $PHONE_NUMBER"
+    log "INFO: Updated SECOND_NUMBER to: $PHONE_NUMBER"
 else
     # SECOND_NUMBER doesn't exist, append it
     echo "SECOND_NUMBER=\"$PHONE_NUMBER\"" >> "$CONFIG_FILE"
