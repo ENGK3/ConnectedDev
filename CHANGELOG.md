@@ -1,5 +1,22 @@
 # CHANGELOG Kings III Software Changes
 
+## Version V00.03.04+ Unreleased
+
+### Added
+
+edit_config_phone.sh script to change the programmed phone numbers in the config file.
+test_edit_phone_numbers.sh a test to check the script to edit the config file works
+as expected.
+
+### Changed
+
+Updated the extensions.conf and confbridge.conf files to have the dtmf programming for
+playing back and editing the three phone numbers that are to be called.
+
+### Removed
+
+### Known Issues
+
 ## Version V00.03.04
 
 ### Added
