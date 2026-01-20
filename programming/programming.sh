@@ -300,8 +300,19 @@ sys_info_submenu() {
                 echo "System Temperature: $sys_temperature *C"
                 ;;
             "Cellular Info")
+                eval $(python3 /mnt/data/programming/menu_modem_stats.py)
                 echo ""
-                echo "Still working on this..."
+                echo "ICCID: $iccid"
+                echo "IMEI: $imei"
+                echo "IMSI: $imsi"
+                echo "RSRQ: $rsrq"
+                echo "RSRP: $rsrp"
+                echo "Modem Temp: $modem_temp *C"
+                echo "Network: $network"
+                echo "IMS Registration: $ims_reg"
+                echo "Signal Quality: $signal_quality"
+                echo "Facility Lock: $facility_lock"
+                echo "APN: $apn"
                 ;;
             "Exit to Main Menu")
                 echo ""
