@@ -15,6 +15,9 @@ playing back and editing the three phone numbers that are to be called.
 
 ### Removed
 
+The early install scripts voip_config.sh and config_sys.sh have been removed from the repo.
+
+
 ### Known Issues
 
 ## Version V00.03.04
