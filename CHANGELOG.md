@@ -54,6 +54,7 @@ The early install scripts voip_config.sh and config_sys.sh have been removed fro
 ### Known Issues
 
 Setting the SIM lock for T-Mobile sims does not work.
+Entering data in the dtmf programming accepts only digits currently.
 
 ## Version V00.03.04
 
