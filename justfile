@@ -117,7 +117,7 @@ part-pkg: k3_config
        ari-mon-conf.py modules.conf \
        -C ../pulseaudio default.pa \
        -C ../../common \
-       site_store.py site.pub site_info
+       site_store.py site.pub site_info edit_config_phone.sh
 
 pkg: part-pkg
     rm -rf cksum_dir

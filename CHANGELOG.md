@@ -12,6 +12,9 @@ as expected.
 
 Updated the extensions.conf and confbridge.conf files to have the dtmf programming for
 playing back and editing the three phone numbers that are to be called.
+Added a edit of the K3_config_settings in the install to set which config is installed, in
+the form of the HW_APP variable. It can be set to "Pool" or "Elevator"
+Changed the kings3_install.sh script to be able to verify that the installed files match those in the package.
 
 ### Removed
 

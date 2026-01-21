@@ -13,6 +13,8 @@ fi
 CONFIG=""
 UPDATE=false
 INSTALL_PACKAGES=false
+VERIFY_MODE=false
+MD5_FILE=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -28,24 +30,241 @@ while [[ $# -gt 0 ]]; do
             INSTALL_PACKAGES=true
             shift
             ;;
+        --verify)
+            VERIFY_MODE=true
+            MD5_FILE="$2"
+            shift 2
+            ;;
         *)
             echo "Unknown option: $1"
             echo "Usage: $0 --config <pool|elevator> [--update] [--package]"
+            echo "       $0 --verify <md5-file>"
             exit 1
             ;;
     esac
 done
 
+# Verification function
+verify_installation() {
+    local md5_file="$1"
+    local config_file="/mnt/data/K3_config_settings"
+
+    # Color codes
+    local RED='\033[0;31m'
+    local GREEN='\033[0;32m'
+    local YELLOW='\033[1;33m'
+    local NC='\033[0m'
+
+    # Counters
+    local total_files=0
+    local verified_files=0
+    local failed_files=0
+    local missing_files=0
+
+    echo ""
+    echo "=============================================="
+    echo "Starting installation verification..."
+    echo "MD5 file: $md5_file"
+    echo "=============================================="
+    echo ""
+
+    # Check if MD5 file exists
+    if [ ! -f "$md5_file" ]; then
+        echo -e "${RED}Error: MD5 file not found: $md5_file${NC}"
+        exit 1
+    fi
+
+    # Read HW_APP from config file
+    local hw_app=""
+    if [ -f "$config_file" ]; then
+        hw_app=$(grep '^HW_APP=' "$config_file" | cut -d'"' -f2)
+        echo -e "${GREEN}Installation type: $hw_app${NC}"
+        echo ""
+    else
+        echo -e "${YELLOW}Warning: Config file not found: $config_file${NC}"
+        echo -e "${YELLOW}Unable to determine installation type${NC}"
+        echo ""
+    fi
+
+    # Arrays for failures
+    local -a failed_list
+    local -a missing_list
+
+    # Process each line in MD5 file
+    while IFS= read -r line; do
+        local expected_md5=$(echo "$line" | awk '{print $1}')
+        local filename=$(echo "$line" | awk '{$1=""; print $0}' | sed 's/^ *//')
+        local installed_path=""
+
+        # Map filename to installed location
+        case "$filename" in
+            *.py)
+                installed_path="/mnt/data/$filename"
+                ;;
+            *.service)
+                if [[ "$filename" == "pulseaudio.service" ]]; then
+                    installed_path="/home/kuser/.config/systemd/user/$filename"
+                else
+                    installed_path="/etc/systemd/system/$filename"
+                fi
+                ;;
+            *.timer)
+                installed_path="/etc/systemd/system/$filename"
+                ;;
+            *.sh)
+                installed_path="/mnt/data/$filename"
+                ;;
+            "K3_config_settings")
+                installed_path="/mnt/data/$filename"
+                ;;
+            sounds/*)
+                local sound_file="${filename#sounds/}"
+                installed_path="/usr/local/share/asterisk/sounds/$sound_file"
+                ;;
+            "99-ignore-modemmanager.rules")
+                installed_path="/etc/udev/rules.d/$filename"
+                ;;
+            "daemon.conf")
+                installed_path="/etc/pulse/$filename"
+                ;;
+            *.csv)
+                installed_path="/mnt/data/$filename"
+                ;;
+            "imx8mm-venice-gw7xxx-0x-gpio.dtbo")
+                installed_path="/mnt/data/$filename"
+                ;;
+            "microcom.alias"|"CHANGELOG.md")
+                installed_path="/mnt/data/$filename"
+                ;;
+            "extensions.conf"|"confbridge.conf"|"pjsip.conf"|"modules.conf"|"ari.conf"|"http.conf")
+                if [[ "$hw_app" == "Elevator" ]]; then
+                    installed_path="/etc/asterisk/$filename"
+                else
+                    continue
+                fi
+                ;;
+            "interfaces")
+                if [[ "$hw_app" == "Elevator" ]]; then
+                    installed_path="/etc/network/$filename"
+                else
+                    continue
+                fi
+                ;;
+            "default.pa")
+                if [[ "$hw_app" == "Elevator" ]]; then
+                    installed_path="/etc/pulse/$filename"
+                else
+                    continue
+                fi
+                ;;
+            "accounts"|"config")
+                if [[ "$hw_app" == "Elevator" ]]; then
+                    installed_path="/home/kuser/.baresip/$filename"
+                else
+                    continue
+                fi
+                ;;
+            "voip_call_monitor_tcp.py"|"voip_call_monitor.service"|"voip_ari_conference.service"|"ari-mon-conf.py")
+                if [[ "$hw_app" == "Elevator" ]]; then
+                    if [[ "$filename" == *.py ]]; then
+                        installed_path="/mnt/data/$filename"
+                    else
+                        installed_path="/etc/systemd/system/$filename"
+                    fi
+                else
+                    continue
+                fi
+                ;;
+            "site_store.py"|"site.pub"|"site_info")
+                installed_path="/mnt/data/$filename"
+                ;;
+            "GW-Setup-V"*.md5|"kings3_install.sh")
+                continue
+                ;;
+            *)
+                continue
+                ;;
+        esac
+
+        total_files=$((total_files + 1))
+
+        # Check if file exists
+        if [ ! -f "$installed_path" ]; then
+            missing_files=$((missing_files + 1))
+            missing_list+=("$filename -> $installed_path")
+            echo -e "${RED}[MISSING]${NC} $filename"
+            continue
+        fi
+
+        # Calculate and compare checksums
+        local actual_md5=$(md5sum "$installed_path" | awk '{print $1}')
+        if [ "$expected_md5" == "$actual_md5" ]; then
+            verified_files=$((verified_files + 1))
+            echo -e "${GREEN}[OK]${NC} $filename"
+        else
+            failed_files=$((failed_files + 1))
+            failed_list+=("$filename -> $installed_path")
+            echo -e "${RED}[FAIL]${NC} $filename (checksum mismatch)"
+        fi
+    done < "$md5_file"
+
+    # Print summary
+    echo ""
+    echo "=============================================="
+    echo "Verification Summary"
+    echo "=============================================="
+    echo -e "Total files checked:    $total_files"
+    echo -e "${GREEN}Verified (OK):          $verified_files${NC}"
+    echo -e "${RED}Failed (checksum):      $failed_files${NC}"
+    echo -e "${RED}Missing (not found):    $missing_files${NC}"
+    echo "=============================================="
+
+    if [ $failed_files -gt 0 ]; then
+        echo ""
+        echo -e "${RED}Files with checksum mismatches:${NC}"
+        for item in "${failed_list[@]}"; do
+            echo "  - $item"
+        done
+    fi
+
+    if [ $missing_files -gt 0 ]; then
+        echo ""
+        echo -e "${RED}Missing files:${NC}"
+        for item in "${missing_list[@]}"; do
+            echo "  - $item"
+        done
+    fi
+
+    echo ""
+
+    # Exit with appropriate code
+    if [ $failed_files -gt 0 ] || [ $missing_files -gt 0 ]; then
+        echo -e "${RED}Verification FAILED!${NC}"
+        exit 1
+    else
+        echo -e "${GREEN}Verification SUCCESSFUL! All files match.${NC}"
+        exit 0
+    fi
+}
+
+# If verify mode, run verification and exit
+if [ "$VERIFY_MODE" = true ]; then
+    verify_installation "$MD5_FILE"
+    exit $?
+fi
+
 # Validate config parameter
 if [ -z "$CONFIG" ]; then
     echo "Error: --config parameter is required"
     echo "Usage: $0 --config <pool|elevator> [--update] [--package]"
+    echo "       $0 --verify <md5-file>"
     exit 1
 fi
 
 if [ "$CONFIG" != "pool" ] && [ "$CONFIG" != "elevator" ]; then
     echo "Error: --config must be either 'pool' or 'elevator'"
     echo "Usage: $0 --config <pool|elevator> [--update] [--package]"
+    echo "       $0 --verify <md5-file>"
     exit 1
 fi
 
@@ -58,6 +277,15 @@ echo "Update mode: $UPDATE"
 echo "Install packages: $INSTALL_PACKAGES"
 echo ""
 echo "=============================================="
+
+install_common_snd_files() {
+    echo "Installing common sound files for dtmf functionality..."
+    mkdir -p /usr/local/share/asterisk/sounds/ENU
+    cp -r /mnt/data/sounds/ENU/* /usr/local/share/asterisk/sounds/ENU/.
+    echo "Finished installing common sound files."
+}
+
+
 
 # Function to install or update services
 # Usage: install_or_update_services service1 [service2 ...]
@@ -134,12 +362,15 @@ else
     echo "Skipping package installation (use --package to install packages)"
 fi
 
+install_common_snd_files()
+
 # Pool configuration (based on config_sys.sh)
 if [ "$CONFIG" == "pool" ]; then
     echo "Configuring for Pool mode..."
 
     # Set audio routing to ON for pool mode
     sed -i 's/^ENABLE_AUDIO_ROUTING=.*/ENABLE_AUDIO_ROUTING="ON"/' /mnt/data/K3_config_settings
+    sed -i 's/^HW_APP=.*/HW_APP="Pool"/' /mnt/data/K3_config_settings
 
     cp /mnt/data/99-ignore-modemmanager.rules  /etc/udev/rules.d/99-ignore-modemmanager.rules
 
@@ -173,6 +404,7 @@ elif [ "$CONFIG" == "elevator" ]; then
 
     # Set audio routing to OFF for elevator mode
     sed -i 's/^ENABLE_AUDIO_ROUTING=.*/ENABLE_AUDIO_ROUTING="OFF"/' /mnt/data/K3_config_settings
+    sed -i 's/^HW_APP=.*/HW_APP="Elevator"/' /mnt/data/K3_config_settings
 
     cp /mnt/data/extensions.conf /etc/asterisk/extensions.conf
     cp /mnt/data/confbridge.conf /etc/asterisk/confbridge.conf
