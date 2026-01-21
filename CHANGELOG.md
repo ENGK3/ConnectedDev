@@ -11,9 +11,8 @@ Implemented the reset to factory defaults for the configuration settings.
 
 Added ANSWER_COUNT="2" and PROGRAM_CODE="1234" in the config file, for the dtmf programming, but they are not implemented in the code, YET.
 
-
 Completed the elevator verification of the elevator installation. This can be run with
-the following:
+the following command:
 
 ```bash
 ./kings3_install.sh --verify GW-Setup-V00.03.04-24-g0d82072.md5
@@ -37,7 +36,6 @@ OVERALL VERIFICATION PASSED!
 ================================
 ```
 
-
 ### Changed
 
 Updated the extensions.conf and confbridge.conf files to have the dtmf programming for
@@ -47,12 +45,16 @@ the form of the HW_APP variable. It can be set to "Pool" or "Elevator"
 Changed the kings3_install.sh script to be able to verify that the installed files match those in the package.
 Changed the name of the K3_config_settings file to be K3_config_setting.default
 
+The kings3_install.sh script was changed to copy in new values from K3_config_settings.default file only if the K3_config_settings is not present.
+
 ### Removed
 
 The early install scripts voip_config.sh and config_sys.sh have been removed from the repo.
 
-
 ### Known Issues
+
+Setting the SIM lock for T-Mobile sims does not work.
+Entering data in the dtmf programming accepts only digits currently.
 
 ## Version V00.03.04
 
