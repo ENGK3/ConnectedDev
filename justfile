@@ -43,7 +43,7 @@ modem: k3_config
     scp manage_modem.service {{nuser}}@{{target}}:/mnt/data/manage_modem.service
     scp VOIP/voip_call_monitor_tcp.py {{nuser}}@{{target}}:/mnt/data/voip_call_monitor_tcp.py
     scp send_EDC_info.py {{nuser}}@{{target}}:/mnt/data/send_EDC_info.py
-    scp K3_config_settings {{nuser}}@{{target}}:/mnt/data/K3_config_settings
+    scp K3_config_settings.default {{nuser}}@{{target}}:/mnt/data/K3_config_settings.default
 
 voip:
     scp VOIP/voip_call_monitor_tcp.py {{nuser}}@{{target}}:/mnt/data/voip_call_monitor_tcp.py
@@ -90,15 +90,15 @@ vpush: asterisk voip modem pulse modem
 my_version := `grep '^VERSION=' VERSION_INFO | cut -d= -f2`
 
 k3_config:
-    cat K3_config_settings.in > K3_config_settings
-    echo 'APP="{{my_version}}"' >> K3_config_settings
+    cat K3_config_settings.in > K3_config_settings.default
+    echo 'APP="{{my_version}}"' >> K3_config_settings.default
 
 part-pkg: k3_config
     rm -f GW-Setup*.t*
     tar -cvf GW-Setup-{{my_version}}.tar \
        place_call.py check_reg.py modem_utils.py send_EDC_info.py \
        manage_modem.py manage_modem.service modem_manager_client.py \
-       daemon.conf pulseaudio.service K3_config_settings modem_state.py \
+       daemon.conf pulseaudio.service K3_config_settings.default modem_state.py \
        99-ignore-modemmanager.rules CHANGELOG.md \
        get_sensor_data.py get_sensor_data.service get_sensor_data.timer \
        sstat.sh stop_ss.sh start_ss.sh ep.sh  switch_detect.sh \
