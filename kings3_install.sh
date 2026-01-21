@@ -51,6 +51,115 @@ install_common_snd_files() {
     echo "Finished installing common sound files."
 }
 
+# Verify /mnt/data/sounds directory contains only expected files
+verify_sounds_directory() {
+    local sounds_dir="/mnt/data/sounds"
+
+    # Color codes
+    local RED='\033[0;31m'
+    local GREEN='\033[0;32m'
+    local YELLOW='\033[1;33m'
+    local NC='\033[0m'
+
+    echo ""
+    echo "=============================================="
+    echo "Verifying /mnt/data/sounds directory..."
+    echo "=============================================="
+    echo ""
+
+    # Expected sound files (excluding subdirectories)
+    local -a expected_files=(
+        "S0000302.wav"
+        "S0000301.wav"
+        "S0000305.wav"
+        "ENU00456-48k.wav"
+        "S0000303-48k.wav"
+        "ENU00209-48k.wav"
+        "S0000300.wav"
+        "ENU00456.wav"
+        "ENU00209.wav"
+        "ENU00459.wav"
+        "S0000304.wav"
+        "ENU00439.wav"
+        "ENU00012.wav"
+        "S0000209.wav"
+        "S0000303.wav"
+    )
+
+    # Check if sounds directory exists
+    if [ ! -d "$sounds_dir" ]; then
+        echo -e "${RED}Error: Sounds directory not found: $sounds_dir${NC}"
+        return 1
+    fi
+
+    local missing_count=0
+    local extra_count=0
+    local found_count=0
+
+    # Check for expected files
+    echo "Checking for expected files:"
+    for file in "${expected_files[@]}"; do
+        if [ -f "$sounds_dir/$file" ]; then
+            echo -e "${GREEN}[OK]${NC} $file"
+            found_count=$((found_count + 1))
+        else
+            echo -e "${RED}[MISSING]${NC} $file"
+            missing_count=$((missing_count + 1))
+        fi
+    done
+
+    echo ""
+    echo "Checking for unexpected files:"
+
+    # Check for unexpected files (excluding directories and hidden files)
+    local has_unexpected=false
+    while IFS= read -r -d '' file; do
+        local basename=$(basename "$file")
+        # Skip if it's a directory
+        [ -d "$file" ] && continue
+        # Skip hidden files
+        [[ "$basename" == .* ]] && continue
+
+        # Check if file is in expected list
+        local is_expected=false
+        for expected in "${expected_files[@]}"; do
+            if [ "$basename" == "$expected" ]; then
+                is_expected=true
+                break
+            fi
+        done
+
+        if [ "$is_expected" = false ]; then
+            echo -e "${YELLOW}[UNEXPECTED]${NC} $basename"
+            has_unexpected=true
+            extra_count=$((extra_count + 1))
+        fi
+    done < <(find "$sounds_dir" -maxdepth 1 -type f -print0)
+
+    if [ "$has_unexpected" = false ]; then
+        echo -e "${GREEN}No unexpected files found${NC}"
+    fi
+
+    echo ""
+    echo "=============================================="
+    echo "Sounds Directory Verification Summary"
+    echo "=============================================="
+    echo -e "Expected files:    ${#expected_files[@]}"
+    echo -e "${GREEN}Found:             $found_count${NC}"
+    echo -e "${RED}Missing:           $missing_count${NC}"
+    echo -e "${YELLOW}Unexpected:        $extra_count${NC}"
+    echo "=============================================="
+    echo ""
+
+    if [ $missing_count -gt 0 ] || [ $extra_count -gt 0 ]; then
+        echo -e "${RED}Sounds directory verification FAILED!${NC}"
+        return 1
+    else
+        echo -e "${GREEN}Sounds directory verification SUCCESSFUL!${NC}"
+        return 0
+    fi
+}
+
 # Verification function
 verify_installation() {
     local md5_file="$1"
@@ -111,6 +220,13 @@ verify_installation() {
             *.service)
                 if [[ "$filename" == "pulseaudio.service" ]]; then
                     installed_path="/home/kuser/.config/systemd/user/$filename"
+                elif [[ "$filename" == "switch_mon.service" ]]; then
+                    # switch_mon.service is only used in Pool installations
+                    if [[ "$hw_app" == "Pool" ]]; then
+                        installed_path="/etc/systemd/system/$filename"
+                    else
+                        continue
+                    fi
                 else
                     installed_path="/etc/systemd/system/$filename"
                 fi
@@ -124,9 +240,14 @@ verify_installation() {
             "K3_config_settings")
                 installed_path="/mnt/data/$filename"
                 ;;
-            sounds/*)
+            sounds/ENU/*)
                 local sound_file="${filename#sounds/}"
                 installed_path="/usr/local/share/asterisk/sounds/$sound_file"
+                ;;
+            sounds/*)
+                # Skip root-level sound files - they should only be in /mnt/data/sounds
+                # and are verified separately by verify_sounds_directory()
+                continue
                 ;;
             "99-ignore-modemmanager.rules")
                 installed_path="/etc/udev/rules.d/$filename"
@@ -247,17 +368,35 @@ verify_installation() {
     # Exit with appropriate code
     if [ $failed_files -gt 0 ] || [ $missing_files -gt 0 ]; then
         echo -e "${RED}Verification FAILED!${NC}"
-        exit 1
+        return 1
     else
         echo -e "${GREEN}Verification SUCCESSFUL! All files match.${NC}"
-        exit 0
+        return 0
     fi
 }
 
 # If verify mode, run verification and exit
 if [ "$VERIFY_MODE" = true ]; then
     verify_installation "$MD5_FILE"
-    exit $?
+    install_result=$?
+
+    verify_sounds_directory
+    sounds_result=$?
+
+    # Exit with failure if either verification failed
+    if [ $install_result -ne 0 ] || [ $sounds_result -ne 0 ]; then
+        echo ""
+        echo -e "\033[0;31m================================\033[0m"
+        echo -e "\033[0;31mOVERALL VERIFICATION FAILED!\033[0m"
+        echo -e "\033[0;31m================================\033[0m"
+        exit 1
+    else
+        echo ""
+        echo -e "\033[0;32m================================\033[0m"
+        echo -e "\033[0;32mOVERALL VERIFICATION PASSED!\033[0m"
+        echo -e "\033[0;32m================================\033[0m"
+        exit 0
+    fi
 fi
 
 # Validate config parameter
