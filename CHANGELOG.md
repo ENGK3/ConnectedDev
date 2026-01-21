@@ -9,6 +9,31 @@ test_edit_phone_numbers.sh a test to check the script to edit the config file wo
 as expected.
 Implemented the reset to factory defaults for the configuration settings.
 
+Completed the elevator verification of the elevator installation. This can be run with
+the following:
+
+```bash
+./kings3_install.sh --verify GW-Setup-V00.03.04-24-g0d82072.md5
+.... output abbreviated ...
+Checking for unexpected files:
+No unexpected files found
+
+==============================================
+Sounds Directory Verification Summary
+==============================================
+Expected files:    15
+Found:             15
+Missing:           0
+Unexpected:        0
+==============================================
+
+Sounds directory verification SUCCESSFUL!
+
+================================
+OVERALL VERIFICATION PASSED!
+================================
+```
+
 ### Changed
 
 Updated the extensions.conf and confbridge.conf files to have the dtmf programming for
