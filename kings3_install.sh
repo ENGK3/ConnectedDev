@@ -44,6 +44,13 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+install_common_snd_files() {
+    echo "Installing common sound files for dtmf functionality..."
+    mkdir -p /usr/local/share/asterisk/sounds/ENU
+    cp -r /mnt/data/sounds/ENU/* /usr/local/share/asterisk/sounds/ENU/.
+    echo "Finished installing common sound files."
+}
+
 # Verification function
 verify_installation() {
     local md5_file="$1"
@@ -278,12 +285,6 @@ echo "Install packages: $INSTALL_PACKAGES"
 echo ""
 echo "=============================================="
 
-install_common_snd_files() {
-    echo "Installing common sound files for dtmf functionality..."
-    mkdir -p /usr/local/share/asterisk/sounds/ENU
-    cp -r /mnt/data/sounds/ENU/* /usr/local/share/asterisk/sounds/ENU/.
-    echo "Finished installing common sound files."
-}
 
 
 
@@ -362,7 +363,7 @@ else
     echo "Skipping package installation (use --package to install packages)"
 fi
 
-install_common_snd_files()
+install_common_snd_files
 
 # Pool configuration (based on config_sys.sh)
 if [ "$CONFIG" == "pool" ]; then
@@ -455,6 +456,7 @@ elif [ "$CONFIG" == "elevator" ]; then
         voip_call_monitor.service \
         voip_ari_conference.service \
         manage_modem.service \
+        events_monitor.service \
         get_sensor_data.timer \
         set-governor.service
 
