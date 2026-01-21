@@ -424,8 +424,124 @@ echo "Install packages: $INSTALL_PACKAGES"
 echo ""
 echo "=============================================="
 
+# Function to update config settings while preserving existing values
+# Reads K3_config_settings.default and merges new settings into K3_config_settings
+# Preserves all existing values in K3_config_settings, adds missing settings from .default
+# Always preserves APP version from K3_config_settings
+update_config_settings() {
+    local config_file="/mnt/data/K3_config_settings"
+    local default_file="/mnt/data/K3_config_settings.default"
+    local temp_file="/tmp/K3_config_settings.tmp"
 
+    echo "Updating configuration settings..."
 
+    # Check if both files exist
+    if [ ! -f "$config_file" ]; then
+        echo "Warning: $config_file not found, cannot update settings"
+        return 1
+    fi
+
+    if [ ! -f "$default_file" ]; then
+        echo "Warning: $default_file not found, cannot update settings"
+        return 1
+    fi
+
+    # Create associative arrays to store settings
+    declare -A existing_settings
+    declare -A default_settings
+    declare -A existing_comments
+
+    # Read existing K3_config_settings file
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Skip empty lines
+        if [ -z "$line" ]; then
+            continue
+        fi
+
+        # Extract variable name and value (handle inline comments)
+        if [[ $line =~ ^([A-Za-z_][A-Za-z0-9_]*)=\"([^\"]*)\"(.*)$ ]]; then
+            local var_name="${BASH_REMATCH[1]}"
+            local var_value="${BASH_REMATCH[2]}"
+            local comment="${BASH_REMATCH[3]}"
+            existing_settings["$var_name"]="$var_value"
+            existing_comments["$var_name"]="$comment"
+        fi
+    done < "$config_file"
+
+    # Read K3_config_settings.default file
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Skip empty lines
+        if [ -z "$line" ]; then
+            continue
+        fi
+
+        # Extract variable name and value (handle inline comments)
+        if [[ $line =~ ^([A-Za-z_][A-Za-z0-9_]*)=\"([^\"]*)\"(.*)$ ]]; then
+            local var_name="${BASH_REMATCH[1]}"
+            local var_value="${BASH_REMATCH[2]}"
+            local comment="${BASH_REMATCH[3]}"
+            default_settings["$var_name"]="$var_value"
+
+            # Store comment if not already in existing_comments
+            if [ -z "${existing_comments[$var_name]}" ] && [ -n "$comment" ]; then
+                existing_comments["$var_name"]="$comment"
+            fi
+        fi
+    done < "$default_file"
+
+    # Build the updated config file
+    > "$temp_file"  # Clear temp file
+
+    # Process all settings from default file (to maintain order)
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Keep empty lines
+        if [ -z "$line" ]; then
+            echo "" >> "$temp_file"
+            continue
+        fi
+
+        # Check if line is a variable assignment
+        if [[ $line =~ ^([A-Za-z_][A-Za-z0-9_]*)= ]]; then
+            local var_name="${BASH_REMATCH[1]}"
+
+            # Special case: Always preserve APP version from existing config
+            if [ "$var_name" = "APP" ] && [ -n "${existing_settings[$var_name]}" ]; then
+                echo "${var_name}=\"${existing_settings[$var_name]}\"${existing_comments[$var_name]}" >> "$temp_file"
+                echo "  - Preserved existing APP version: ${existing_settings[$var_name]}"
+            # If setting exists in current config, use the existing value
+            elif [ -n "${existing_settings[$var_name]+isset}" ]; then
+                echo "${var_name}=\"${existing_settings[$var_name]}\"${existing_comments[$var_name]}" >> "$temp_file"
+            # If setting doesn't exist in current config, add it from default
+            else
+                echo "$line" >> "$temp_file"
+                echo "  + Added new setting: $var_name=\"${default_settings[$var_name]}\""
+            fi
+        else
+            # Keep comments and other lines as-is
+            echo "$line" >> "$temp_file"
+        fi
+    done < "$default_file"
+
+    # Check if there are any settings in existing config that are not in default
+    # (These should be preserved at the end of the file)
+    local added_extra=false
+    for var_name in "${!existing_settings[@]}"; do
+        if [ -z "${default_settings[$var_name]+isset}" ]; then
+            if [ "$added_extra" = false ]; then
+                echo "" >> "$temp_file"
+                echo "# Additional settings from previous configuration" >> "$temp_file"
+                added_extra=true
+            fi
+            echo "${var_name}=\"${existing_settings[$var_name]}\"${existing_comments[$var_name]}" >> "$temp_file"
+            echo "  - Preserved legacy setting: $var_name"
+        fi
+    done
+
+    # Replace the original config file with updated version
+    mv "$temp_file" "$config_file"
+    echo "Configuration settings updated successfully!"
+    echo ""
+}
 
 # Function to install or update services
 # Usage: install_or_update_services service1 [service2 ...]
@@ -508,6 +624,11 @@ install_common_snd_files
 if [ "$CONFIG" == "pool" ]; then
     echo "Configuring for Pool mode..."
 
+    # Update config settings if in update mode
+    if [ "$UPDATE" = true ]; then
+        update_config_settings
+    fi
+
     # Set audio routing to ON for pool mode
     sed -i 's/^ENABLE_AUDIO_ROUTING=.*/ENABLE_AUDIO_ROUTING="ON"/' /mnt/data/K3_config_settings
     sed -i 's/^HW_APP=.*/HW_APP="Pool"/' /mnt/data/K3_config_settings
@@ -541,6 +662,11 @@ if [ "$CONFIG" == "pool" ]; then
 # Elevator configuration (based on voip_config.sh)
 elif [ "$CONFIG" == "elevator" ]; then
     echo "Configuring for Elevator mode..."
+
+    # Update config settings if in update mode
+    if [ "$UPDATE" = true ]; then
+        update_config_settings
+    fi
 
     # Set audio routing to OFF for elevator mode
     sed -i 's/^ENABLE_AUDIO_ROUTING=.*/ENABLE_AUDIO_ROUTING="OFF"/' /mnt/data/K3_config_settings
