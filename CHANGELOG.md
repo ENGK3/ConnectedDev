@@ -7,6 +7,7 @@
 edit_config_phone.sh script to change the programmed phone numbers in the config file.
 test_edit_phone_numbers.sh a test to check the script to edit the config file works
 as expected.
+Implemented the reset to factory defaults for the configuration settings.
 
 ### Changed
 
@@ -15,6 +16,7 @@ playing back and editing the three phone numbers that are to be called.
 Added a edit of the K3_config_settings in the install to set which config is installed, in
 the form of the HW_APP variable. It can be set to "Pool" or "Elevator"
 Changed the kings3_install.sh script to be able to verify that the installed files match those in the package.
+Changed the name of the K3_config_settings file to be K3_config_setting.default
 
 ### Removed
 
