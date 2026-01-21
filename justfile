@@ -106,7 +106,6 @@ part-pkg: k3_config
        sounds/* *.dtbo microcom.alias daemon.conf  dtmf_collector.py \
        led_blue.sh led_green.sh led_red.sh audio_routing.py update_uid.sh \
        events_monitor.py events_monitor.service update_from_SD_card.py \
-       RSRP_LUT.csv RSRQ_LUT.csv RSSI_LUT.csv \
        -C VOIP \
        voip_call_monitor_tcp.py voip_call_monitor.service \
        voip_ari_conference.service interfaces \
@@ -117,7 +116,8 @@ part-pkg: k3_config
        ari-mon-conf.py modules.conf \
        -C ../pulseaudio default.pa \
        -C ../../common \
-       site_store.py site.pub site_info edit_config_phone.sh
+       site_store.py site.pub site_info edit_config_phone.sh \
+       RSRP_LUT.csv RSRQ_LUT.csv RSSI_LUT.csv
 
 pkg: part-pkg
     rm -rf cksum_dir
