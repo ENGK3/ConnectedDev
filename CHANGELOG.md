@@ -9,6 +9,9 @@ test_edit_phone_numbers.sh a test to check the script to edit the config file wo
 as expected.
 Implemented the reset to factory defaults for the configuration settings.
 
+Added ANSWER_COUNT="2" and PROGRAM_CODE="1234" in the config file, for the dtmf programming, but they are not implemented in the code, YET.
+
+
 Completed the elevator verification of the elevator installation. This can be run with
 the following:
 
@@ -33,6 +36,7 @@ Sounds directory verification SUCCESSFUL!
 OVERALL VERIFICATION PASSED!
 ================================
 ```
+
 
 ### Changed
 
