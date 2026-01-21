@@ -6,10 +6,11 @@ echo "======================================"
 echo ""
 
 # Define the menu options
-options=("First Telephone Number" "Second Telephone Number" "Third Telephone Number" "Zone Number(s)" "Customer Account Code" "System Info" "Exit")
+options=("First Telephone Number" "Second Telephone Number" "Third Telephone Number" "Zone Number(s)" "Customer Account Code" "Audio Settings" "System Info" "Exit")
 telephone_number_options=("Program Telephone Number" "Read Existing Telephone Number" "Exit to Main Menu")
 zone_list_options=("Program Zone Number(s)" "Read Existing Zone(s)" "Exit to Main Menu")
 account_number_options=("Program Customer Account Number" "Read Existing Customer Account Number" "Exit to Main Menu")
+audio_submenu_options=("Enable / Disable Speaker Audio" "Adjust Main Volume" "Adjust AVC Max Gain" "Adjust PCM Level" "Play Test Sound" "Exit to Main Menu")
 sys_info_options=("Hardware Sensor Readings" "Cellular Info" "Exit to Main Menu")
 
 first_number_submenu() {
@@ -279,6 +280,78 @@ account_number_submenu() {
     done
 }
 
+audio_submenu() {
+
+    echo ""
+    echo "======================================"
+    echo "          Audio Config Menu           "
+    echo "======================================"
+    echo ""
+
+    select opt in "${audio_submenu_options[@]}"
+    do
+        case $opt in
+            "Enable / Disable Speaker Audio")
+                on=1
+                off=0
+                echo ""
+                echo "Enter 0 to disable audio, or 1 to enable audio"
+                read response
+                    if [[ "$response" -eq "$off" ]]; then
+                        amixer set Lineout off
+                        echo ""
+                        echo "Audio disabled"
+                    fi
+                    if [[ "$response" -eq "$on" ]]; then
+                        amixer set Lineout on
+                        echo ""
+                        echo "Audio enabled"
+                    fi
+                ;;
+            "Adjust Main Volume")
+                echo ""
+                amixer get Lineout
+                echo ""
+                echo "Enter the desired Main Volume setting from 0-100"
+                read main_vol
+                amixer set Lineout $main_vol%
+                ;;
+            "Adjust AVC Max Gain")
+                echo ""
+                amixer get 'AVC Max Gain'
+                echo ""
+                echo "Enter the desired Gain setting from 0-2"
+                read gain
+                amixer set 'AVC Max Gain' $gain
+                ;;
+            "Adjust PCM Level")
+                echo ""
+                amixer get 'PCM'
+                echo ""
+                echo "Enter the desired PCM Volume setting from 0-192"
+                read pcm_level
+                amixer set 'PCM' $pcm_level
+                ;;
+            "Play Test Sound")
+                echo ""
+                aplay /usr/share/sounds/alsa/Front_Center.wav
+                echo ""
+                ;;
+            "Exit to Main Menu")
+                echo ""
+                echo "Exiting to main menu..."
+                return
+                ;;
+        esac
+        REPLY=  # This line forces the menu to redraw on the next loop
+        echo ""
+        echo "======================================"
+        echo "          Audio Config Menu           "
+        echo "======================================"
+        echo ""
+    done
+}
+
 sys_info_submenu() {
 
     # cfg_file="/mnt/data/K3_config_settings"
@@ -305,12 +378,12 @@ sys_info_submenu() {
                 echo "ICCID: $iccid"
                 echo "IMEI: $imei"
                 echo "IMSI: $imsi"
-                echo "RSRQ: $rsrq"
-                echo "RSRP: $rsrp"
+                echo "RSRQ: $rsrq dBm"
+                echo "RSRP: $rsrp dBm"
                 echo "Modem Temp: $modem_temp *C"
                 echo "Network: $network"
                 echo "IMS Registration: $ims_reg"
-                echo "Signal Quality: $signal_quality"
+                echo "Signal Quality: $signal_quality dBm"
                 echo "Facility Lock: $facility_lock"
                 echo "APN: $apn"
                 ;;
@@ -353,6 +426,9 @@ while true; do
                 ;;
             "Customer Account Code")
                 account_number_submenu
+                ;;
+            "Audio Settings")
+                audio_submenu
                 ;;
             "System Info")
                 sys_info_submenu
