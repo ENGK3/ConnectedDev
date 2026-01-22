@@ -43,7 +43,7 @@ playing back and editing the three phone numbers that are to be called.
 Added a edit of the K3_config_settings in the install to set which config is installed, in
 the form of the HW_APP variable. It can be set to "Pool" or "Elevator"
 Changed the kings3_install.sh script to be able to verify that the installed files match those in the package.
-Changed the name of the K3_config_settings file to be K3_config_setting.default
+Changed the name of the K3_config_settings file to be K3_config_settings.default
 
 The kings3_install.sh script was changed to copy in new values from K3_config_settings.default file only if the K3_config_settings is not present.
 
