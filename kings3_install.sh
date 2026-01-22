@@ -504,7 +504,13 @@ update_config_settings() {
         if [[ $line =~ ^([A-Za-z_][A-Za-z0-9_]*)= ]]; then
             local var_name="${BASH_REMATCH[1]}"
 
-            # Special case: Always preserve APP version from existing config
+            # Special case: Always preserve APP version from existing config.
+            # The APP variable encodes the currently installed application/version
+            # on this system. When merging with a default config during updates,
+            # we must not overwrite APP with the default value, since the default
+            # may point to a different or newer version than what is actually
+            # installed. Keeping the existing APP value ensures the running
+            # software and its recorded version stay in sync across updates.
             if [ "$var_name" = "APP" ] && [ -n "${existing_settings[$var_name]}" ]; then
                 echo "${var_name}=\"${existing_settings[$var_name]}\"${existing_comments[$var_name]}" >> "$temp_file"
                 echo "  - Preserved existing APP version: ${existing_settings[$var_name]}"
