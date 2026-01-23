@@ -95,16 +95,16 @@ get_current_phone_numbers() {
     fi
 }
 
-# Test the edit_config_phone.sh script with a specific phone number variable
+# Test the edit_config.sh script with a specific phone number variable
 test_phone_number() {
     local VAR_NAME="$1"
     local TEST_NUMBER="$2"
 
-    log_info "Testing edit_config_phone.sh with ${VAR_NAME}..."
+    log_info "Testing edit_config.sh with ${VAR_NAME}..."
 
     # Test with valid phone number
     log_info "Testing with valid phone number: $TEST_NUMBER"
-    if ssh "$TARGET_HOST" "/mnt/data/edit_config_phone.sh $VAR_NAME $TEST_NUMBER"; then
+    if ssh "$TARGET_HOST" "/mnt/data/edit_config.sh $VAR_NAME $TEST_NUMBER"; then
         log_success "Script executed successfully for $VAR_NAME"
 
         # Verify the change
@@ -119,13 +119,13 @@ test_phone_number() {
     fi
 }
 
-# Test the edit_config_phone.sh script with validation tests
+# Test the edit_config.sh script with validation tests
 test_script_validation() {
-    log_info "Testing edit_config_phone.sh validation..."
+    log_info "Testing edit_config.sh validation..."
 
     # Test with invalid phone number (non-numeric)
     log_info "Testing with invalid phone number (non-numeric)..."
-    if ssh "$TARGET_HOST" "/mnt/data/edit_config_phone.sh FIRST_NUMBER ABC123" 2>&1 | grep -q "ERROR.*Invalid"; then
+    if ssh "$TARGET_HOST" "/mnt/data/edit_config.sh FIRST_NUMBER ABC123" 2>&1 | grep -q "ERROR.*Invalid"; then
         log_success "Script correctly rejected non-numeric input"
     else
         log_warn "Script did not properly validate non-numeric input"
@@ -134,7 +134,7 @@ test_script_validation() {
     # Test with phone number too long (>30 digits)
     log_info "Testing with phone number too long (31 digits)..."
     LONG_NUMBER="1234567890123456789012345678901"
-    if ssh "$TARGET_HOST" "/mnt/data/edit_config_phone.sh FIRST_NUMBER $LONG_NUMBER" 2>&1 | grep -q "ERROR.*Invalid"; then
+    if ssh "$TARGET_HOST" "/mnt/data/edit_config.sh FIRST_NUMBER $LONG_NUMBER" 2>&1 | grep -q "ERROR.*Invalid"; then
         log_success "Script correctly rejected phone number > 30 digits"
     else
         log_warn "Script did not properly validate phone number length"
@@ -142,7 +142,7 @@ test_script_validation() {
 
     # Test with empty phone number
     log_info "Testing with empty phone number..."
-    if ssh "$TARGET_HOST" "/mnt/data/edit_config_phone.sh FIRST_NUMBER ''" 2>&1 | grep -q "ERROR"; then
+    if ssh "$TARGET_HOST" "/mnt/data/edit_config.sh FIRST_NUMBER ''" 2>&1 | grep -q "ERROR"; then
         log_success "Script correctly rejected empty input"
     else
         log_warn "Script did not properly validate empty input"
@@ -150,7 +150,7 @@ test_script_validation() {
 
     # Test with invalid config variable name
     log_info "Testing with invalid config variable name..."
-    if ssh "$TARGET_HOST" "/mnt/data/edit_config_phone.sh 'INVALID VAR' 5551234567" 2>&1 | grep -q "ERROR.*Invalid"; then
+    if ssh "$TARGET_HOST" "/mnt/data/edit_config.sh 'INVALID VAR' 5551234567" 2>&1 | grep -q "ERROR.*Invalid"; then
         log_success "Script correctly rejected invalid variable name"
     else
         log_warn "Script did not properly validate variable name"
@@ -163,7 +163,7 @@ restore_original_values() {
 
     if [ -n "$ORIGINAL_FIRST" ]; then
         log_info "Restoring FIRST_NUMBER: $ORIGINAL_FIRST"
-        if ssh "$TARGET_HOST" "/mnt/data/edit_config_phone.sh FIRST_NUMBER $ORIGINAL_FIRST"; then
+        if ssh "$TARGET_HOST" "/mnt/data/edit_config.sh FIRST_NUMBER $ORIGINAL_FIRST"; then
             log_success "FIRST_NUMBER restored"
         else
             log_error "Failed to restore FIRST_NUMBER"
@@ -172,7 +172,7 @@ restore_original_values() {
 
     if [ -n "$ORIGINAL_SECOND" ]; then
         log_info "Restoring SECOND_NUMBER: $ORIGINAL_SECOND"
-        if ssh "$TARGET_HOST" "/mnt/data/edit_config_phone.sh SECOND_NUMBER $ORIGINAL_SECOND"; then
+        if ssh "$TARGET_HOST" "/mnt/data/edit_config.sh SECOND_NUMBER $ORIGINAL_SECOND"; then
             log_success "SECOND_NUMBER restored"
         else
             log_error "Failed to restore SECOND_NUMBER"
@@ -181,7 +181,7 @@ restore_original_values() {
 
     if [ -n "$ORIGINAL_THIRD" ]; then
         log_info "Restoring THIRD_NUMBER: $ORIGINAL_THIRD"
-        if ssh "$TARGET_HOST" "/mnt/data/edit_config_phone.sh THIRD_NUMBER $ORIGINAL_THIRD"; then
+        if ssh "$TARGET_HOST" "/mnt/data/edit_config.sh THIRD_NUMBER $ORIGINAL_THIRD"; then
             log_success "THIRD_NUMBER restored"
         else
             log_error "Failed to restore THIRD_NUMBER"

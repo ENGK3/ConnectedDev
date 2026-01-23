@@ -116,7 +116,7 @@ part-pkg: k3_config
        ari-mon-conf.py modules.conf \
        -C ../pulseaudio default.pa \
        -C ../../common \
-       site_store.py site.pub site_info edit_config_phone.sh \
+       site_store.py site.pub site_info edit_config.sh \
        RSRP_LUT.csv RSRQ_LUT.csv RSSI_LUT.csv
 
 pkg: part-pkg

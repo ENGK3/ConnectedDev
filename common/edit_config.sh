@@ -1,10 +1,10 @@
 #!/bin/bash
 ##############################################################################
-# edit_config_phone.sh
+# edit_config.sh
 #
 # Updates a phone number value in K3_config_settings file
 #
-# Usage: edit_config_phone.sh <config_variable> <phone_number>
+# Usage: edit_config.sh <config_variable> <phone_number>
 #
 # Arguments:
 #   config_variable - The config variable name (e.g., FIRST_NUMBER, SECOND_NUMBER, THIRD_NUMBER)
