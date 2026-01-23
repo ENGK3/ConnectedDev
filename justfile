@@ -101,13 +101,13 @@ part-pkg: k3_config
        daemon.conf pulseaudio.service K3_config_settings.default modem_state.py \
        99-ignore-modemmanager.rules CHANGELOG.md \
        get_sensor_data.py get_sensor_data.service get_sensor_data.timer \
-       sstat.sh stop_ss.sh start_ss.sh ep.sh  switch_detect.sh \
+       sstat.sh stop_ss.sh start_ss.sh switch_detect.sh \
        set-governor.service kings3_install.sh switch_mon.service switch_mon.sh \
        sounds/* *.dtbo microcom.alias daemon.conf  dtmf_collector.py \
        led_blue.sh led_green.sh led_red.sh audio_routing.py update_uid.sh \
        events_monitor.py events_monitor.service update_from_SD_card.py \
        -C VOIP \
-       voip_call_monitor_tcp.py voip_call_monitor.service \
+       voip_call_monitor_tcp.py voip_call_monitor.service ep.sh \
        voip_ari_conference.service interfaces \
        -C baresip \
        accounts config \
