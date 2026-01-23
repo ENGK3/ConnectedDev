@@ -1,6 +1,6 @@
 # CHANGELOG Kings III Software Changes
 
-## Version V00.03.04+ Unreleased
+## Version V00.03.05
 
 ### Added
 
@@ -8,6 +8,8 @@ edit_config.sh script to change the programmed phone numbers in the config file.
 test_edit_phone_numbers.sh a test to check the script to edit the config file works
 as expected.
 Implemented the reset to factory defaults for the configuration settings.
+Implemented the ability to change the Customer Account code, BUT, only can enter digits.
+Using letters in dtmf entry is not yet implemented.
 
 Added ANSWER_COUNT="2" and PROGRAM_CODE="1234" in the config file, for the dtmf programming, but they are not implemented in the code, YET.
 

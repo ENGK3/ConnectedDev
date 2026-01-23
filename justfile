@@ -1,6 +1,6 @@
 
-target := "172.20.10.223"   # Gateworks Target
-#target := "172.27.17.41"
+#target := "172.20.10.223"   # Gateworks Target
+target := "172.27.17.43"
 
 #nuser := "root"
 nuser := "kuser"
