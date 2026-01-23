@@ -548,7 +548,7 @@ update_config_settings() {
     echo "Configuration settings updated successfully!"
     echo ""
 
-    chmod asterisk:asterisk "$config_file"
+    chown asterisk:asterisk "$config_file"
 }
 
 # Function to install or update services
