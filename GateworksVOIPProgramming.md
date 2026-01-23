@@ -496,6 +496,13 @@ The variable 'WHITELIST' is used to control which incoming call numbers will be 
 The ENABLE_AUDIO_ROUTING is used to define whether or not the audio loop back is needed. (This is
 currently untested in the pool config.)
 
+**NOTE:** This file **MUST** be owned by the asterisk user.
+Changing the ownership can be done as root if manual edits are needed.
+
+```bash
+chown asterisk:asterisk /mnt/data/K3_config_settings
+```
+
 ## Setup of Viking phone
 
 Load the Viking IP Programming V1.5.0 tool.
@@ -554,3 +561,15 @@ Baresip command: {"command": "dtmf", "params": "*"}
 Asterisk ConfBridge (receives DTMF via RTP)
                ↓
 elevator_admin_menu triggers (*5 or 5 → addcallers context)
+
+### TESTING
+
+Additional python libraries are needed to be able to run the target based tests.
+The development of tests for the dialplans are still a work in progress. This note is
+left to describe the additional components that will be needed.
+
+These are:
+
+```bash
+python3-pytest-mock python3-pytest-timeout python3-pytest-xdist python3-pytest-cov
+```

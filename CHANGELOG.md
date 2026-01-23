@@ -47,6 +47,9 @@ Changed the name of the K3_config_settings file to be K3_config_settings.default
 
 The kings3_install.sh script was changed to copy in new values from K3_config_settings.default file only if the K3_config_settings is not present.
 
+The kings3_install.sh script was changed to make sure the K3_config_settings file is owned by the asterisk user.
+IF this is not the case, the updating of the file will not happen correctly.
+
 ### Removed
 
 The early install scripts voip_config.sh and config_sys.sh have been removed from the repo.

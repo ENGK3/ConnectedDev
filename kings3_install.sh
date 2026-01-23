@@ -547,6 +547,8 @@ update_config_settings() {
     mv "$temp_file" "$config_file"
     echo "Configuration settings updated successfully!"
     echo ""
+
+    chmod asterisk:asterisk "$config_file"
 }
 
 # Function to install or update services
