@@ -244,7 +244,9 @@ A tar file "GW-VoIP-Setup.tgz" can be copied into the
 
 ```bash
 cd /mnt/data
-tar -zxf GW-VoIP-Setup.tgz
+#tar -zxf GW-Setup-V<version>.tgz
+# e.g.
+tar -zxf GW-Setup-V00.03.04.tgz
 ```
 
 ### Push Method
