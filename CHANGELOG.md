@@ -1,5 +1,66 @@
 # CHANGELOG Kings III Software Changes
 
+## Version V00.03.05
+
+### Added
+
+edit_config.sh script to change the programmed phone numbers in the config file.
+test_edit_phone_numbers.sh a test to check the script to edit the config file works
+as expected.
+Implemented the reset to factory defaults for the configuration settings.
+Implemented the ability to change the Customer Account code, BUT, only can enter digits.
+Using letters in dtmf entry is not yet implemented.
+
+Added ANSWER_COUNT="2" and PROGRAM_CODE="1234" in the config file, for the dtmf programming, but they are not implemented in the code, YET.
+
+Completed the elevator verification of the elevator installation. This can be run with
+the following command:
+
+```bash
+./kings3_install.sh --verify GW-Setup-V00.03.04-24-g0d82072.md5
+.... output abbreviated ...
+Checking for unexpected files:
+No unexpected files found
+
+==============================================
+Sounds Directory Verification Summary
+==============================================
+Expected files:    15
+Found:             15
+Missing:           0
+Unexpected:        0
+==============================================
+
+Sounds directory verification SUCCESSFUL!
+
+================================
+OVERALL VERIFICATION PASSED!
+================================
+```
+
+### Changed
+
+Updated the extensions.conf and confbridge.conf files to have the dtmf programming for
+playing back and editing the three phone numbers that are to be called.
+The king3_install scripts now edits the K3_config_settings in the installation to set which config is installed, in
+the form of the HW_APP variable. It can be set to "Pool" or "Elevator"
+Changed the kings3_install.sh script to be able to verify that the installed files match those in the package.
+Changed the name of the K3_config_settings file to be K3_config_settings.default
+
+The kings3_install.sh script was changed to copy in new values from K3_config_settings.default file only if the K3_config_settings is not present.
+
+The kings3_install.sh script was changed to make sure the K3_config_settings file is owned by the asterisk user.
+IF this is not the case, the updating of the file will not happen correctly.
+
+### Removed
+
+The early install scripts voip_config.sh and config_sys.sh have been removed from the repo.
+
+### Known Issues
+
+Setting the SIM lock for T-Mobile sims does not work.
+Entering data in the dtmf programming accepts only digits currently.
+
 ## Version V00.03.04
 
 ### Added

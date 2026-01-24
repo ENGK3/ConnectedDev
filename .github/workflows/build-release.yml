@@ -1,4 +1,4 @@
-name: Build VOIP Release Package
+name: Build Kings3 Release Package
 
 on:
   push:
@@ -39,8 +39,8 @@ jobs:
       - name: Upload release package
         uses: actions/upload-artifact@v4
         with:
-          name: GW-VoIP-Package-${{ steps.get_version.outputs.version }}
-          path: GW-VoIP-Pkg-${{ steps.get_version.outputs.version }}.zip
+          name: GW-Package-${{ steps.get_version.outputs.version }}
+          path: GW-Pkg-${{ steps.get_version.outputs.version }}.zip
           retention-days: 90
 
       - name: Upload additional artifacts
@@ -48,7 +48,7 @@ jobs:
         with:
           name: Release-Documentation-${{ steps.get_version.outputs.version }}
           path: |
-            GW-VoIP-Setup-${{ steps.get_version.outputs.version }}.tgz
+            GW-Setup-${{ steps.get_version.outputs.version }}.tgz
             CHANGELOG.${{ steps.get_version.outputs.version }}.pdf
             GateworkVOIPProgramming.${{ steps.get_version.outputs.version }}.pdf
           retention-days: 90

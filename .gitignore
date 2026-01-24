@@ -5,8 +5,10 @@ GateworkVOIPProgramming.pdf
 integrity-system
 *.tgz
 VERSION_INFO
+K3_config_settings.default
 K3_config_settings
 releases
 logs
 cksum_dir/
 common/site.priv
+save_sounds/

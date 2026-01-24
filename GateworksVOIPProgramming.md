@@ -239,12 +239,14 @@ This method describes what is needed to be done using the tarball.
 
 First get the tar file of the package to the system into the '/mnt/' directory.
 
-A tar file "GW-VoIP-Setup.tgz" can be copied into the
+A tar file "GW-Setup-V\<version\>.tgz" can be copied into the
 '/mnt/data' location and un-tar-ed there. The un-tar command should be run as root.
 
 ```bash
 cd /mnt/data
-tar -zxf GW-VoIP-Setup.tgz
+#tar -zxf GW-Setup-V<version>.tgz
+# e.g.
+tar -zxf GW-Setup-V00.03.04.tgz
 ```
 
 ### Push Method
@@ -271,11 +273,11 @@ networking and justfile have been configured correctly.
 
 ### Execute the config script on the target
 
-Once the script "voip_config.sh" is present on the target, in the '/mnt/data'
+Once the script "kings3_install.sh" is present on the target, in the '/mnt/data'
 directory, it can be run as root with.
 
 ```bash
-./voip_config.sh
+./kings3_install.sh --config elevator --package --update
 ```
 
 This script will put various files in the correct locations on the file system.
@@ -496,6 +498,13 @@ The variable 'WHITELIST' is used to control which incoming call numbers will be 
 The ENABLE_AUDIO_ROUTING is used to define whether or not the audio loop back is needed. (This is
 currently untested in the pool config.)
 
+**NOTE:** This file **MUST** be owned by the asterisk user.
+Changing the ownership can be done as root if manual edits are needed.
+
+```bash
+chown asterisk:asterisk /mnt/data/K3_config_settings
+```
+
 ## Setup of Viking phone
 
 Load the Viking IP Programming V1.5.0 tool.
@@ -554,3 +563,15 @@ Baresip command: {"command": "dtmf", "params": "*"}
 Asterisk ConfBridge (receives DTMF via RTP)
                ↓
 elevator_admin_menu triggers (*5 or 5 → addcallers context)
+
+### TESTING
+
+Additional python libraries are needed to be able to run the target based tests.
+The development of tests for the dialplans are still a work in progress. This note is
+left to describe the additional components that will be needed.
+
+These are:
+
+```bash
+python3-pytest-mock python3-pytest-timeout python3-pytest-xdist python3-pytest-cov
+```
