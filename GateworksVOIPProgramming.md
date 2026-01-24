@@ -239,7 +239,7 @@ This method describes what is needed to be done using the tarball.
 
 First get the tar file of the package to the system into the '/mnt/' directory.
 
-A tar file "GW-VoIP-Setup.tgz" can be copied into the
+A tar file "GW-Setup-V\<version\>.tgz" can be copied into the
 '/mnt/data' location and un-tar-ed there. The un-tar command should be run as root.
 
 ```bash
