@@ -876,14 +876,21 @@ def manage_sim(
                     return True
                 else:
                     # First attempt failed - retry with alternate default PIN
-                    logging.warning("Failed to configure SIM lock with default PIN '1111', retrying with '1234'")
+                    logging.warning(
+                        "Failed to configure SIM lock with default PIN '1111',"
+                        " retrying with '1234'"
+                    )
                     if set_sim_password_and_lock(
                         serial_connection, "1234", pw, verbose=verbose
                     ):
-                        logging.info("SIM lock configured successfully with alternate PIN")
+                        logging.info(
+                            "SIM lock configured successfully with alternate PIN"
+                        )
                         return True
                     else:
-                        logging.error("Failed to configure SIM lock with both default PINs")
+                        logging.error(
+                            "Failed to configure SIM lock with both default PINs"
+                        )
                         return False
 
             elif lock_status == "1":
@@ -900,7 +907,6 @@ def manage_sim(
             logging.info("SIM requires PIN - unlocking")
 
             if unlock_sim_with_pin(serial_connection, pw, verbose=verbose):
-                logging.info("SIM unlocked successfully")
                 return True
             else:
                 logging.error("Failed to unlock SIM with provided PIN")
@@ -918,7 +924,7 @@ def manage_sim(
 
 def get_msisdn(
     serial_connection: serial.Serial, verbose: bool = False
-) -> Tuple[bool, str]:
+) -> Tuple[bool, str | None]:
     """
     Get the MSISDN (phone number) from the SIM card using AT+CNUM.
 
@@ -941,9 +947,7 @@ def get_msisdn(
         +CNUM: "Voice Line 1","+15551234567",145
     """
     try:
-        response = sbc_cmd_with_timeout(
-            "AT+CNUM\r", serial_connection, verbose=verbose
-        )
+        response = sbc_cmd_with_timeout("AT+CNUM\r", serial_connection, verbose=verbose)
 
         if "+CNUM:" in response:
             for line in response.split("\n"):
@@ -962,7 +966,9 @@ def get_msisdn(
                             logging.warning("MSISDN field is empty")
                             return (False, None)
 
-            logging.warning("No MSISDN found in response (SIM may not have phone number stored)")
+            logging.warning(
+                "No MSISDN found in response " "(SIM may not have phone number stored)"
+            )
             return (False, None)
 
         elif "OK" in response:
