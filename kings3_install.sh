@@ -32,8 +32,12 @@ while [[ $# -gt 0 ]]; do
             ;;
         --verify)
             VERIFY_MODE=true
-            MD5_FILE="$2"
-            shift 2
+            if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
+                MD5_FILE="$2"
+                shift 2
+            else
+                shift
+            fi
             ;;
         *)
             echo "Unknown option: $1"
@@ -43,6 +47,13 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Validate that verification file is provided when using --verify
+if [ "$VERIFY_MODE" = true ] && [ -z "$MD5_FILE" ]; then
+    echo "Error: --verify requires a verification file to be specified"
+    echo "Usage: $0 --verify <md5-file>"
+    exit 1
+fi
 
 install_common_snd_files() {
     echo "Installing common sound files for dtmf functionality..."
