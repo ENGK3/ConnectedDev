@@ -6,10 +6,11 @@ echo "======================================"
 echo ""
 
 # Define the menu options
-options=("First Telephone Number" "Second Telephone Number" "Third Telephone Number" "Zone Number(s)" "Customer Account Code" "Audio Settings" "System Info" "Exit")
+options=("First Telephone Number" "Second Telephone Number" "Third Telephone Number" "Zone Number(s)" "Customer Account Code" "Whitelist Settings" "Audio Settings" "System Info" "Exit")
 telephone_number_options=("Program Telephone Number" "Read Existing Telephone Number" "Exit to Main Menu")
 zone_list_options=("Program Zone Number(s)" "Read Existing Zone(s)" "Exit to Main Menu")
 account_number_options=("Program Customer Account Number" "Read Existing Customer Account Number" "Exit to Main Menu")
+whitelist_options=("Program Whitelist Number(s)" "Read Existing Whitelist Number(s)" "Exit to Main Menu")
 audio_submenu_options=("Enable / Disable Speaker Audio" "Adjust Main Volume" "Adjust AVC Max Gain" "Adjust PCM Level" "Play Test Sound" "Exit to Main Menu")
 sys_info_options=("Hardware Sensor Readings" "Cellular Info" "Exit to Main Menu")
 
@@ -280,6 +281,83 @@ account_number_submenu() {
     done
 }
 
+whitelist_submenu() {
+    cfg_file="/mnt/data/K3_config_settings"
+    key="WHITELIST"
+
+    echo ""
+    echo "======================================"
+    echo "       Whitelist Settings Menu        "
+    echo "======================================"
+    echo ""
+
+    select opt in "${whitelist_options[@]}"
+    do
+        case $opt in
+            "Program Whitelist Number(s)")
+                append=0
+                write=1
+
+                echo ""
+                echo "Enter '0' to append number to whitelist, or enter '1' to erase and write a new number to the whitelist:"
+                read write_option
+                if [[ "$write_option" -eq "$append" ]]; then
+                    current_whitelist=$(grep "^${key}=" "$cfg_file" | sed -e "s/^${key}=//" -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+                    echo "Please input new number to append to whitelist:"
+                    read phone_number_append
+                    if [[ "$phone_number_append" =~ ^[+-]?[0-9]+$ ]]; then     # check to see if entry is only numbers
+                        echo ""
+                        echo "Appending new number ($phone_number_append) to whitelist"
+                        if grep -q "^$key=" "$cfg_file"; then
+                            # Key exists, update it
+                            sed -i "s/^$key=.*/$key=\"$current_whitelist,$phone_number_append\"/" "$cfg_file"
+                        fi
+                        echo "done"
+                    else
+                        echo ""
+                        echo "Please enter only numerical values for telephone numbers!!!"
+                    fi
+                fi
+                if [[ "$write_option" -eq "$write" ]]; then
+                    echo "Erasing whitelist... Please input new number to write to whitelist:"
+                    read phone_number_write
+                    if [[ "$phone_number_write" =~ ^[+-]?[0-9]+$ ]]; then     # check to see if entry is only numbers
+                        echo ""
+                        echo "Writing new number ($phone_number_write) to whitelist"
+                        if grep -q "^$key=" "$cfg_file"; then
+                            # Key exists, update it
+                            sed -i "s/^$key=.*/$key=\"$phone_number_write\"/" "$cfg_file"
+                        else
+                            # Key doesn't exist, append it
+                            echo "$key=\"$phone_number_write\"" >> "$cfg_file"
+                        fi
+                        echo "done"
+                    else
+                        echo ""
+                        echo "Please enter only numerical values for telephone numbers!!!"
+                    fi
+                fi
+                ;;
+            "Read Existing Whitelist Number(s)")
+                VALUE=$(grep "^$key=" $cfg_file | cut -d '=' -f2)
+                echo ""
+                echo "Listed Whitelist Number(s): $VALUE"
+                ;;
+            "Exit to Main Menu")
+                echo ""
+                echo "Exiting to main menu..."
+                return
+                ;;
+        esac
+        REPLY=  # This line forces the menu to redraw on the next loop
+        echo ""
+        echo "======================================"
+        echo "       Whitelist Settings Menu        "
+        echo "======================================"
+        echo ""
+    done
+}
+
 audio_submenu() {
 
     echo ""
@@ -328,9 +406,9 @@ audio_submenu() {
                 echo ""
                 amixer get 'PCM'
                 echo ""
-                echo "Enter the desired PCM Volume setting from 0-192"
+                echo "Enter the desired PCM Volume setting from 0-100"
                 read pcm_level
-                amixer set 'PCM' $pcm_level
+                amixer set 'PCM' $pcm_level%
                 ;;
             "Play Test Sound")
                 echo ""
@@ -354,8 +432,8 @@ audio_submenu() {
 
 sys_info_submenu() {
 
-    # cfg_file="/mnt/data/K3_config_settings"
-    # key="AC"
+    cfg_file="/mnt/data/K3_config_settings"
+    key="CID"
 
     echo ""
     echo "======================================"
@@ -374,7 +452,10 @@ sys_info_submenu() {
                 ;;
             "Cellular Info")
                 eval $(python3 /mnt/data/programming/menu_modem_stats.py)
+                # cid=$(grep "^$key=" $cfg_file | cut -d '=' -f2)
+                cid=$(grep "^${key}=" "$cfg_file" | sed -e "s/^${key}=//" -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
                 echo ""
+                echo "Caller ID Number: $cid"
                 echo "ICCID: $iccid"
                 echo "IMEI: $imei"
                 echo "IMSI: $imsi"
@@ -427,6 +508,9 @@ while true; do
             "Customer Account Code")
                 account_number_submenu
                 ;;
+            "Whitelist Settings")
+                whitelist_submenu
+                ;;
             "Audio Settings")
                 audio_submenu
                 ;;
@@ -434,7 +518,9 @@ while true; do
                 sys_info_submenu
                 ;;
             "Exit")
+                echo ""
                 echo "Exiting..."
+                echo ""
                 exit
                 ;;
             *)
