@@ -1,0 +1,17 @@
+# Development and Testing Dependencies
+# Install with: pip install -r requirements.dev.txt
+
+# Testing framework
+pytest>=7.0.0
+
+# Serial communication library (required by modem_utils)
+pyserial>=3.5
+
+# Environment variable management (used by tested modules)
+python-dotenv>=1.0.0
+
+# Async HTTP client/server (used by ARI monitor)
+aiohttp>=3.8.0
+
+# Code quality tools
+ruff>=0.1.0  # Linter and formatter

@@ -3,6 +3,12 @@ Unit tests for modem_utils module, specifically testing the manage_sim function'
 retry behavior with different PIN values.
 """
 
+import sys
+from pathlib import Path
+
+# Add parent directory to path to import modem_utils
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import pytest
 from unittest.mock import Mock, patch, call
 import serial
