@@ -62,6 +62,10 @@ BACKUP_FILE="${BACKUP_DIR}/K3_config_settings_${TIMESTAMP}.bak"
 cp "$CONFIG_FILE" "$BACKUP_FILE"
 log "INFO: Backed up config to: $BACKUP_FILE"
 
+# Save original ownership and permissions
+ORIG_OWNER=$(stat -c '%U:%G' "$CONFIG_FILE")
+ORIG_PERMS=$(stat -c '%a' "$CONFIG_FILE")
+
 # Update config variable using sed
 # This handles both quoted and unquoted values
 if grep -q "^${CONFIG_VAR}=" "$CONFIG_FILE"; then
@@ -73,6 +77,11 @@ else
     echo "${CONFIG_VAR}=\"$PHONE_NUMBER\"" >> "$CONFIG_FILE"
     log "INFO: Added ${CONFIG_VAR}: $PHONE_NUMBER"
 fi
+
+# Restore original ownership and permissions
+# This ensures kuser:asterisk 664 is maintained regardless of who runs the script
+chown "$ORIG_OWNER" "$CONFIG_FILE" 2>/dev/null || true
+chmod "$ORIG_PERMS" "$CONFIG_FILE" 2>/dev/null || true
 
 # Verify the change was made
 if grep -q "^${CONFIG_VAR}=\"$PHONE_NUMBER\"" "$CONFIG_FILE"; then

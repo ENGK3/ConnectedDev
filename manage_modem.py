@@ -1433,6 +1433,10 @@ def main():
 
     if success and msisdn:
         # Read current CID from config file
+        # IF the msisd has a leading "1" then drop it before saving
+        # to the config file.
+        if msisdn.startswith("1"):
+            msisdn = msisdn[1:]
         config = dotenv_values(config_file)
         current_cid = config.get("CID", "")
 

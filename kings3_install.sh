@@ -554,7 +554,10 @@ update_config_settings() {
     echo "Configuration settings updated successfully!"
     echo ""
 
-    chown asterisk:asterisk "$config_file"
+    # Set ownership to kuser:asterisk and permissions to 664
+    # This allows both kuser (manage_modem) and asterisk (dialplan) to write
+    chown kuser:asterisk "$config_file"
+    chmod 664 "$config_file"
 }
 
 # Function to install or update services
@@ -638,6 +641,13 @@ install_common_snd_files
 if [ "$CONFIG" == "pool" ]; then
     echo "Configuring for Pool mode..."
 
+    # Add kuser to asterisk group for shared file access
+    usermod -a -G asterisk kuser 2>/dev/null || echo "Note: kuser already in asterisk group or user doesn't exist yet"
+
+    # Set group sticky bit on /mnt/data so new files inherit asterisk group
+    chgrp asterisk /mnt/data
+    chmod g+s /mnt/data
+
     # Update config settings if in update mode
     if [ "$UPDATE" = true ]; then
         update_config_settings
@@ -683,6 +693,13 @@ if [ "$CONFIG" == "pool" ]; then
 # Elevator configuration (based on voip_config.sh)
 elif [ "$CONFIG" == "elevator" ]; then
     echo "Configuring for Elevator mode..."
+
+    # Add kuser to asterisk group for shared file access
+    usermod -a -G asterisk kuser 2>/dev/null || echo "Note: kuser already in asterisk group or user doesn't exist yet"
+
+    # Set group sticky bit on /mnt/data so new files inherit asterisk group
+    chgrp asterisk /mnt/data
+    chmod g+s /mnt/data
 
     # Update config settings if in update mode
     if [ "$UPDATE" = true ]; then
