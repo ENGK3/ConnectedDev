@@ -12,3 +12,5 @@ logs
 cksum_dir/
 common/site.priv
 save_sounds/
+__pycache__/
+tests/__pycache__/

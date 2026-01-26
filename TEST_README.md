@@ -65,6 +65,7 @@ For the integration tests (shell scripts):
 |-----------|------|-------------|
 | `test_modem_utils.py::TestManageSim` | Python/pytest | Unit tests for the `modem_utils.manage_sim()` function, testing retry behavior with different PIN values and SIM states |
 | `test_modem_utils.py::TestGetMsisdn` | Python/pytest | Unit tests for the `modem_utils.get_msisdn()` function, testing MSISDN (phone number) extraction from SIM using AT+CNUM command with various response formats and error conditions |
+| `test_msisdn_cid_update.py::TestMsisdnCidUpdate` | Python/pytest | Unit tests for the MSISDN/CID update logic in `manage_modem.py`, verifying that the CID config field is properly updated when the SIM's MSISDN differs from the stored value |
 | `test_edit_phone_numbers.sh` | Bash/Integration | Integration test for DTMF phone number editing features (01#, 02#, 03#). Tests the edit_config.sh script, Asterisk configuration, validation logic, and backup functionality |
 
 ## Running the Tests
@@ -137,6 +138,16 @@ Tests the following scenarios for the `get_msisdn()` function:
 - Malformed response parsing
 - Exception handling for serial communication errors
 - Multiline response parsing
+
+### test_msisdn_cid_update.py::TestMsisdnCidUpdate
+
+Tests the following scenarios for the MSISDN/CID update logic:
+- CID is updated when MSISDN from SIM differs from config (simulates SIM swap)
+- CID is NOT updated when MSISDN matches stored CID (normal operation)
+- CID is NOT updated when MSISDN retrieval fails (SIM without provisioned number)
+- CID update works with international format phone numbers (e.g., `+441234567890`)
+- CID is added when missing from config file (first run or corrupted config)
+- Exception handling during config file update (permission errors, disk full)
 
 ### test_edit_phone_numbers.sh
 

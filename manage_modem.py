@@ -23,13 +23,13 @@ from datetime import datetime
 from typing import Any, Dict, Optional, Tuple
 
 import serial
-from dotenv import dotenv_values
+from dotenv import dotenv_values, set_key
 from site_store import decrypt_site_store
 
 from audio_routing import start_audio_bridge, terminate_pids
 
 # Import shared modem utilities
-from modem_utils import manage_sim, sbc_cmd, sbc_connect, sbc_disconnect
+from modem_utils import get_msisdn, manage_sim, sbc_cmd, sbc_connect, sbc_disconnect
 
 # Configuration defaults
 DEFAULT_SERIAL_PORT = "/dev/ttyUSB2"
@@ -1424,6 +1424,35 @@ def main():
     if not manage_sim(serial_connection, site_info, True):
         logging.error("Failed to manage SIM")
         sys.exit(1)
+
+    # After SIM is unlocked, retrieve MSISDN and update CID if necessary
+    config_file = "/mnt/data/K3_config_settings"
+    logging.info("Retrieving MSISDN from SIM card...")
+    success, msisdn = get_msisdn(serial_connection, verbose=True)
+
+    if success and msisdn:
+        # Read current CID from config file
+        config = dotenv_values(config_file)
+        current_cid = config.get("CID", "")
+
+        if current_cid != msisdn:
+            logging.info(f"CID mismatch detected - updating config file")
+            logging.info(f"Previous CID: {current_cid}")
+            logging.info(f"New CID (from SIM): {msisdn}")
+
+            # Update CID in config file
+            try:
+                set_key(config_file, "CID", msisdn)
+                logging.info(f"Successfully updated CID to {msisdn} in {config_file}")
+            except Exception as e:
+                logging.error(f"Failed to update CID in config file: {e}")
+        else:
+            logging.info(f"CID matches SIM MSISDN: {msisdn}")
+    else:
+        logging.warning(
+            "Could not retrieve MSISDN from SIM - CID in config file will not be updated. "
+            "This may occur if the carrier has not provisioned the phone number on the SIM card."
+        )
 
     try:
         # Create state machine
