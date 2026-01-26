@@ -15,7 +15,6 @@ import logging
 import os
 import queue
 import socket
-import stat
 import sys
 import threading
 import time
@@ -24,7 +23,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional, Tuple
 
 import serial
-from dotenv import dotenv_values, set_key
+from dotenv import dotenv_values
 from site_store import decrypt_site_store
 
 from audio_routing import start_audio_bridge, terminate_pids
@@ -1446,18 +1445,34 @@ def main():
             logging.info(f"New CID (from SIM): {msisdn}")
 
             # Update CID in config file
+            # Note: Using manual file update instead of set_key() because set_key()
+            # tries to preserve permissions via chmod, which fails when we don't own
+            # the file (even with group write permissions)
             try:
-                # Get current file permissions before update
-                file_stat = os.stat(config_file)
-                original_mode = stat.S_IMODE(file_stat.st_mode)
+                # Read all lines from config file
+                with open(config_file) as f:
+                    lines = f.readlines()
 
-                set_key(config_file, "CID", msisdn)
+                # Update or add CID line
+                cid_found = False
+                updated_lines = []
+                for line in lines:
+                    if line.startswith("CID="):
+                        updated_lines.append(f'CID="{msisdn}"\n')
+                        cid_found = True
+                    else:
+                        updated_lines.append(line)
 
-                # Restore permissions to 664 (rw-rw-r--)
-                # Allows kuser write and asterisk group read
-                os.chmod(config_file, 0o664)
+                # If CID wasn't in file, append it
+                if not cid_found:
+                    updated_lines.append(f'CID="{msisdn}"\n')
+
+                # Write back to file
+                # This works with group write permissions
+                with open(config_file, "w") as f:
+                    f.writelines(updated_lines)
+
                 logging.info(f"Successfully updated CID to {msisdn} in {config_file}")
-                logging.debug("Restored file permissions.")
             except Exception as e:
                 logging.error(f"Failed to update CID in config file: {e}")
         else:
