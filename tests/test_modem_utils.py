@@ -224,5 +224,180 @@ class TestManageSim:
             assert result is False
 
 
+class TestGetMsisdn:
+    """Test suite for the get_msisdn function."""
+
+    @pytest.fixture
+    def mock_serial(self):
+        """Create a mock serial connection."""
+        mock = Mock(spec=serial.Serial)
+        return mock
+
+    def test_get_msisdn_success_simple_format(self, mock_serial):
+        """
+        Test get_msisdn with successful response in simple format.
+        Response: +CNUM: "","15551234567",129
+        """
+        with patch('modem_utils.sbc_cmd_with_timeout') as mock_cmd:
+            # Configure mock - simple format without name
+            mock_cmd.return_value = '+CNUM: "","15551234567",129'
+
+            # Execute
+            success, msisdn = modem_utils.get_msisdn(mock_serial, verbose=False)
+
+            # Assertions
+            assert success is True
+            assert msisdn == "15551234567"
+            mock_cmd.assert_called_once_with(
+                "AT+CNUM\r", mock_serial, verbose=False
+            )
+
+    def test_get_msisdn_success_with_name(self, mock_serial):
+        """
+        Test get_msisdn with successful response including subscriber name.
+        Response: +CNUM: "Voice Line 1","+15551234567",145
+        """
+        with patch('modem_utils.sbc_cmd_with_timeout') as mock_cmd:
+            # Configure mock - format with name and + prefix
+            mock_cmd.return_value = '+CNUM: "Voice Line 1","+15551234567",145'
+
+            # Execute
+            success, msisdn = modem_utils.get_msisdn(mock_serial, verbose=False)
+
+            # Assertions
+            assert success is True
+            assert msisdn == "+15551234567"
+            mock_cmd.assert_called_once_with(
+                "AT+CNUM\r", mock_serial, verbose=False
+            )
+
+    def test_get_msisdn_success_international_format(self, mock_serial):
+        """
+        Test get_msisdn with international format phone number.
+        Response: +CNUM: "My Phone","+441234567890",145
+        """
+        with patch('modem_utils.sbc_cmd_with_timeout') as mock_cmd:
+            # Configure mock - international format
+            mock_cmd.return_value = '+CNUM: "My Phone","+441234567890",145'
+
+            # Execute
+            success, msisdn = modem_utils.get_msisdn(mock_serial, verbose=False)
+
+            # Assertions
+            assert success is True
+            assert msisdn == "+441234567890"
+
+    def test_get_msisdn_no_number_stored_ok_response(self, mock_serial):
+        """
+        Test get_msisdn when SIM has no MSISDN stored (OK response only).
+        This happens when the SIM doesn't have a phone number programmed.
+        """
+        with patch('modem_utils.sbc_cmd_with_timeout') as mock_cmd:
+            # Configure mock - command succeeds but no number
+            mock_cmd.return_value = 'OK'
+
+            # Execute
+            success, msisdn = modem_utils.get_msisdn(mock_serial, verbose=False)
+
+            # Assertions
+            assert success is False
+            assert msisdn is None
+            mock_cmd.assert_called_once_with(
+                "AT+CNUM\r", mock_serial, verbose=False
+            )
+
+    def test_get_msisdn_empty_number_field(self, mock_serial):
+        """
+        Test get_msisdn when response has empty number field.
+        Response: +CNUM: "","",129
+        """
+        with patch('modem_utils.sbc_cmd_with_timeout') as mock_cmd:
+            # Configure mock - empty number field
+            mock_cmd.return_value = '+CNUM: "","",129'
+
+            # Execute
+            success, msisdn = modem_utils.get_msisdn(mock_serial, verbose=False)
+
+            # Assertions
+            assert success is False
+            assert msisdn is None
+
+    def test_get_msisdn_error_response(self, mock_serial):
+        """
+        Test get_msisdn when modem returns ERROR.
+        """
+        with patch('modem_utils.sbc_cmd_with_timeout') as mock_cmd:
+            # Configure mock - ERROR response
+            mock_cmd.return_value = 'ERROR'
+
+            # Execute
+            success, msisdn = modem_utils.get_msisdn(mock_serial, verbose=False)
+
+            # Assertions
+            assert success is False
+            assert msisdn is None
+
+    def test_get_msisdn_cme_error_response(self, mock_serial):
+        """
+        Test get_msisdn when modem returns CME ERROR.
+        """
+        with patch('modem_utils.sbc_cmd_with_timeout') as mock_cmd:
+            # Configure mock - CME ERROR response
+            mock_cmd.return_value = '+CME ERROR: 10'
+
+            # Execute
+            success, msisdn = modem_utils.get_msisdn(mock_serial, verbose=False)
+
+            # Assertions
+            assert success is False
+            assert msisdn is None
+
+    def test_get_msisdn_malformed_response(self, mock_serial):
+        """
+        Test get_msisdn with malformed response (unexpected format).
+        """
+        with patch('modem_utils.sbc_cmd_with_timeout') as mock_cmd:
+            # Configure mock - malformed response
+            mock_cmd.return_value = '+CNUM: malformed'
+
+            # Execute
+            success, msisdn = modem_utils.get_msisdn(mock_serial, verbose=False)
+
+            # Assertions
+            assert success is False
+            assert msisdn is None
+
+    def test_get_msisdn_exception_handling(self, mock_serial):
+        """
+        Test get_msisdn exception handling when an unexpected error occurs.
+        """
+        with patch('modem_utils.sbc_cmd_with_timeout') as mock_cmd:
+            # Configure mock to raise exception
+            mock_cmd.side_effect = Exception("Serial communication error")
+
+            # Execute
+            success, msisdn = modem_utils.get_msisdn(mock_serial, verbose=False)
+
+            # Assertions
+            assert success is False
+            assert msisdn is None
+
+    def test_get_msisdn_multiline_response(self, mock_serial):
+        """
+        Test get_msisdn with multiline response (some modems return multiple lines).
+        Should extract the first valid MSISDN found.
+        """
+        with patch('modem_utils.sbc_cmd_with_timeout') as mock_cmd:
+            # Configure mock - multiline response
+            mock_cmd.return_value = 'AT+CNUM\n+CNUM: "","15551234567",129\nOK'
+
+            # Execute
+            success, msisdn = modem_utils.get_msisdn(mock_serial, verbose=False)
+
+            # Assertions
+            assert success is True
+            assert msisdn == "15551234567"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

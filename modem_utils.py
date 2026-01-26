@@ -914,3 +914,70 @@ def manage_sim(
     except Exception as e:
         logging.error(f"Error in SIM management flow: {str(e)}")
         return False
+
+
+def get_msisdn(
+    serial_connection: serial.Serial, verbose: bool = False
+) -> Tuple[bool, str]:
+    """
+    Get the MSISDN (phone number) from the SIM card using AT+CNUM.
+
+    This function queries the SIM card for the subscriber number (MSISDN).
+    Note: The MSISDN must be stored on the SIM card by the carrier for this
+    command to return a phone number.
+
+    Args:
+        serial_connection: Open serial connection to the modem
+        verbose: Enable verbose logging
+
+    Returns:
+        Tuple of (success, msisdn) where:
+        - success: True if query was successful and number found, False otherwise
+        - msisdn: The phone number string if found, None if not found or on error
+
+    Example response from AT+CNUM:
+        +CNUM: "","15551234567",129
+        or
+        +CNUM: "Voice Line 1","+15551234567",145
+    """
+    try:
+        response = sbc_cmd_with_timeout(
+            "AT+CNUM\r", serial_connection, verbose=verbose
+        )
+
+        if "+CNUM:" in response:
+            for line in response.split("\n"):
+                if "+CNUM:" in line:
+                    # Parse the response: +CNUM: "alpha","number",type
+                    # The number is in the second quoted field
+                    parts = line.split(",")
+                    if len(parts) >= 2:
+                        # Extract the phone number from quotes
+                        number = parts[1].strip().strip('"')
+                        if number:
+                            if verbose:
+                                logging.info(f"MSISDN found: {number}")
+                            return (True, number)
+                        else:
+                            logging.warning("MSISDN field is empty")
+                            return (False, None)
+
+            logging.warning("No MSISDN found in response (SIM may not have phone number stored)")
+            return (False, None)
+
+        elif "OK" in response:
+            # Command succeeded but no MSISDN is stored on the SIM
+            logging.warning("AT+CNUM returned OK but no MSISDN stored on SIM")
+            return (False, None)
+
+        elif "ERROR" in response or "+CME ERROR" in response:
+            logging.error(f"Error querying MSISDN: {response}")
+            return (False, None)
+
+        else:
+            logging.warning(f"Unexpected response from AT+CNUM: {response}")
+            return (False, None)
+
+    except Exception as e:
+        logging.error(f"Exception while querying MSISDN: {str(e)}")
+        return (False, None)

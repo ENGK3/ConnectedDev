@@ -63,7 +63,8 @@ For the integration tests (shell scripts):
 
 | Test Name | Type | Description |
 |-----------|------|-------------|
-| `test_modem_utils.py` | Python/pytest | Unit tests for the `modem_utils` module, specifically testing the `manage_sim()` function's retry behavior with different PIN values and SIM states |
+| `test_modem_utils.py::TestManageSim` | Python/pytest | Unit tests for the `modem_utils.manage_sim()` function, testing retry behavior with different PIN values and SIM states |
+| `test_modem_utils.py::TestGetMsisdn` | Python/pytest | Unit tests for the `modem_utils.get_msisdn()` function, testing MSISDN (phone number) extraction from SIM using AT+CNUM command with various response formats and error conditions |
 | `test_edit_phone_numbers.sh` | Bash/Integration | Integration test for DTMF phone number editing features (01#, 02#, 03#). Tests the edit_config.sh script, Asterisk configuration, validation logic, and backup functionality |
 
 ## Running the Tests
@@ -111,7 +112,7 @@ Default target (if not specified): `root@GWorks2`
 
 ## Test Coverage
 
-### test_modem_utils.py
+### test_modem_utils.py::TestManageSim
 
 Tests the following scenarios for the `manage_sim()` function:
 - SIM READY state with unlocked SIM and successful PIN setup (first attempt)
@@ -122,6 +123,20 @@ Tests the following scenarios for the `manage_sim()` function:
 - Unexpected SIM states (e.g., PUK required)
 - Lock status check failures
 - Exception handling
+
+### test_modem_utils.py::TestGetMsisdn
+
+Tests the following scenarios for the `get_msisdn()` function:
+- Successful MSISDN extraction with simple format (e.g., `+CNUM: "","15551234567",129`)
+- Successful MSISDN extraction with subscriber name (e.g., `+CNUM: "Voice Line 1","+15551234567",145`)
+- International phone number format (e.g., `+441234567890`)
+- No MSISDN stored on SIM (OK response only)
+- Empty number field in response
+- ERROR response handling
+- CME ERROR response handling
+- Malformed response parsing
+- Exception handling for serial communication errors
+- Multiline response parsing
 
 ### test_edit_phone_numbers.sh
 
