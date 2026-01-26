@@ -15,6 +15,7 @@ import logging
 import os
 import queue
 import socket
+import stat
 import sys
 import threading
 import time
@@ -1436,22 +1437,32 @@ def main():
         current_cid = config.get("CID", "")
 
         if current_cid != msisdn:
-            logging.info(f"CID mismatch detected - updating config file")
+            logging.info("CID mismatch detected - updating config file")
             logging.info(f"Previous CID: {current_cid}")
             logging.info(f"New CID (from SIM): {msisdn}")
 
             # Update CID in config file
             try:
+                # Get current file permissions before update
+                file_stat = os.stat(config_file)
+                original_mode = stat.S_IMODE(file_stat.st_mode)
+
                 set_key(config_file, "CID", msisdn)
+
+                # Restore permissions to 664 (rw-rw-r--)
+                # Allows kuser write and asterisk group read
+                os.chmod(config_file, 0o664)
                 logging.info(f"Successfully updated CID to {msisdn} in {config_file}")
+                logging.debug("Restored file permissions.")
             except Exception as e:
                 logging.error(f"Failed to update CID in config file: {e}")
         else:
             logging.info(f"CID matches SIM MSISDN: {msisdn}")
     else:
         logging.warning(
-            "Could not retrieve MSISDN from SIM - CID in config file will not be updated. "
-            "This may occur if the carrier has not provisioned the phone number on the SIM card."
+            "Could not retrieve MSISDN from SIM - CID in config file will not be"
+            " updated. This may occur if the carrier has not provisioned the phone"
+            " number on the SIM card."
         )
 
     try:

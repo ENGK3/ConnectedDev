@@ -641,6 +641,9 @@ if [ "$CONFIG" == "pool" ]; then
     # Update config settings if in update mode
     if [ "$UPDATE" = true ]; then
         update_config_settings
+        # Ensure proper ownership and permissions after update
+        chown kuser:asterisk /mnt/data/K3_config_settings
+        chmod 664 /mnt/data/K3_config_settings
     fi
 
     # Set audio routing to ON for pool mode
@@ -659,6 +662,10 @@ if [ "$CONFIG" == "pool" ]; then
 
     touch /mnt/data/calls.log
     chmod ugo+w /mnt/data/calls.log
+
+    # Ensure K3_config_settings has proper ownership and permissions
+    chown kuser:asterisk /mnt/data/K3_config_settings
+    chmod 664 /mnt/data/K3_config_settings
 
     loginctl enable-linger kuser
 
@@ -680,6 +687,9 @@ elif [ "$CONFIG" == "elevator" ]; then
     # Update config settings if in update mode
     if [ "$UPDATE" = true ]; then
         update_config_settings
+        # Ensure proper ownership and permissions after update
+        chown kuser:asterisk /mnt/data/K3_config_settings
+        chmod 664 /mnt/data/K3_config_settings
     fi
 
     # Set audio routing to OFF for elevator mode
@@ -701,6 +711,10 @@ elif [ "$CONFIG" == "elevator" ]; then
     # Create call log file and change ownership.
     touch /mnt/data/calls.log
     chown kuser:kuser /mnt/data/calls.log
+
+    # Ensure K3_config_settings has proper ownership and permissions
+    chown kuser:asterisk /mnt/data/K3_config_settings
+    chmod 664 /mnt/data/K3_config_settings
 
     # Baresip setup
     mkdir -p /home/kuser/.baresip
