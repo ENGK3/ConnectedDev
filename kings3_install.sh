@@ -707,6 +707,10 @@ elif [ "$CONFIG" == "elevator" ]; then
          /etc/asterisk/confbridge.conf /etc/asterisk/ari.conf \
          /etc/asterisk/http.conf
 
+    # Restart Asterisk to apply configuration changes
+    echo "Restarting Asterisk..."
+    systemctl restart asterisk
+    echo "Asterisk restarted successfully"
 
     # Create call log file and change ownership.
     touch /mnt/data/calls.log
