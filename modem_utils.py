@@ -875,8 +875,16 @@ def manage_sim(
                     logging.info("SIM lock configured successfully")
                     return True
                 else:
-                    logging.error("Failed to configure SIM lock")
-                    return False
+                    # First attempt failed - retry with alternate default PIN
+                    logging.warning("Failed to configure SIM lock with default PIN '1111', retrying with '1234'")
+                    if set_sim_password_and_lock(
+                        serial_connection, "1234", pw, verbose=verbose
+                    ):
+                        logging.info("SIM lock configured successfully with alternate PIN")
+                        return True
+                    else:
+                        logging.error("Failed to configure SIM lock with both default PINs")
+                        return False
 
             elif lock_status == "1":
                 # SIM lock is already enabled
