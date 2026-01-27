@@ -107,6 +107,71 @@ def load_config(config_file: str) -> tuple[Dict[str, bool], bool]:
     return whitelist_dict, enable_audio_routing
 
 
+def update_cid_from_sim(serial_connection: serial.Serial, config_file: str) -> None:
+    """Retrieve MSISDN from SIM and update CID in config file if needed.
+
+    Args:
+        serial_connection: Active serial connection to the modem
+        config_file: Path to K3_config_settings file
+    """
+    logging.info("Retrieving MSISDN from SIM card...")
+    success, msisdn = get_msisdn(serial_connection, verbose=True)
+
+    if not success or not msisdn:
+        logging.warning(
+            "Could not retrieve MSISDN from SIM - CID in config file will not be"
+            " updated. This may occur if the carrier has not provisioned the phone"
+            " number on the SIM card."
+        )
+        return
+
+    # If the MSISDN has a leading "1", drop it before saving to the config file
+    if msisdn.startswith("1"):
+        msisdn = msisdn[1:]
+
+    # Read current CID from config file
+    config = dotenv_values(config_file)
+    current_cid = config.get("CID", "")
+
+    if current_cid == msisdn:
+        logging.info(f"CID matches SIM MSISDN: {msisdn}")
+        return
+
+    # CID mismatch - update config file
+    logging.info("CID mismatch detected - updating config file")
+    logging.info(f"Previous CID: {current_cid}")
+    logging.info(f"New CID (from SIM): {msisdn}")
+
+    try:
+        # Read all lines from config file
+        with open(config_file) as f:
+            lines = f.readlines()
+
+        # Update or add CID line
+        cid_found = False
+        updated_lines = []
+        for line in lines:
+            if line.startswith("CID="):
+                updated_lines.append(f'CID="{msisdn}"\n')
+                cid_found = True
+            else:
+                updated_lines.append(line)
+
+        # If CID wasn't in file, append it
+        if not cid_found:
+            updated_lines.append(f'CID="{msisdn}"\n')
+
+        # Write back to file
+        # Note: This works with group write permissions, unlike set_key()
+        # which tries to preserve permissions via chmod
+        with open(config_file, "w") as f:
+            f.writelines(updated_lines)
+
+        logging.info(f"Successfully updated CID to {msisdn} in {config_file}")
+    except Exception as e:
+        logging.error(f"Failed to update CID in config file: {e}")
+
+
 class ModemState(enum.Enum):
     """Modem state machine states."""
 
@@ -1425,64 +1490,13 @@ def main():
         logging.error("Failed to manage SIM")
         sys.exit(1)
 
+    logging.info("Waiting 5 seconds for SIM to settle...")
+    time.sleep(5)
+    logging.info("Continuing modem management...")
+
     # After SIM is unlocked, retrieve MSISDN and update CID if necessary
     config_file = "/mnt/data/K3_config_settings"
-    logging.info("Retrieving MSISDN from SIM card...")
-    success, msisdn = get_msisdn(serial_connection, verbose=True)
-
-    if success and msisdn:
-        # Read current CID from config file
-        # IF the msisd has a leading "1" then drop it before saving
-        # to the config file.
-        if msisdn.startswith("1"):
-            msisdn = msisdn[1:]
-        config = dotenv_values(config_file)
-        current_cid = config.get("CID", "")
-
-        if current_cid != msisdn:
-            logging.info("CID mismatch detected - updating config file")
-            logging.info(f"Previous CID: {current_cid}")
-            logging.info(f"New CID (from SIM): {msisdn}")
-
-            # Update CID in config file
-            # Note: Using manual file update instead of set_key() because set_key()
-            # tries to preserve permissions via chmod, which fails when we don't own
-            # the file (even with group write permissions)
-            try:
-                # Read all lines from config file
-                with open(config_file) as f:
-                    lines = f.readlines()
-
-                # Update or add CID line
-                cid_found = False
-                updated_lines = []
-                for line in lines:
-                    if line.startswith("CID="):
-                        updated_lines.append(f'CID="{msisdn}"\n')
-                        cid_found = True
-                    else:
-                        updated_lines.append(line)
-
-                # If CID wasn't in file, append it
-                if not cid_found:
-                    updated_lines.append(f'CID="{msisdn}"\n')
-
-                # Write back to file
-                # This works with group write permissions
-                with open(config_file, "w") as f:
-                    f.writelines(updated_lines)
-
-                logging.info(f"Successfully updated CID to {msisdn} in {config_file}")
-            except Exception as e:
-                logging.error(f"Failed to update CID in config file: {e}")
-        else:
-            logging.info(f"CID matches SIM MSISDN: {msisdn}")
-    else:
-        logging.warning(
-            "Could not retrieve MSISDN from SIM - CID in config file will not be"
-            " updated. This may occur if the carrier has not provisioned the phone"
-            " number on the SIM card."
-        )
+    update_cid_from_sim(serial_connection, config_file)
 
     try:
         # Create state machine
