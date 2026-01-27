@@ -11,6 +11,7 @@ Added ability to enter the letters 'A' - 'F' and '*' and '#' as part of the dtmf
 Added the sub-menu for the manual tests, for the following commands:
 05 and 07.
 
+Added implementation of answering only after "ANSWER_COUNT" rings.
 
 ### Changed
 
@@ -34,8 +35,6 @@ Issue #11, "Need to update "CID" field in K3_config_settings dynamically"
 Issue #10, "Need to add ability to use T-Mobile SIMs after 00.03.04 update"
 
 ### Known Issues
-
-
 
 ## Version V00.03.05
 
