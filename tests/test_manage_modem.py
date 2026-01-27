@@ -14,6 +14,7 @@ import serial
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "common"))
 
 from manage_modem import (
     ModemStateMachine,
@@ -34,12 +35,31 @@ class FakeSerial:
     def __init__(self):
         self.port = "/dev/ttyFAKE"
         self.baudrate = 115200
-        self.timeout = 1.0
+        self.timeout = 0.1  # Fast timeout for tests
         self._is_open = True
         self.input_buffer = queue.Queue()  # Data coming FROM the modem (to be read)
         self.output_buffer = []  # Data sent TO the modem (captured commands)
         self.output_lock = threading.Lock()
         self.command_waiters = {}  # Map of command_fragment -> threading.Event
+        self.responses = {
+            "AT": "OK",
+            "ATE0": "OK", 
+            "ATE1": "OK",
+            "AT+CMEE=2": "OK",
+            "AT#DVI=0": "OK",
+            "AT#PCMRXG=1000": "OK",
+            "AT#DIALMODE=1": "OK",
+            "AT#DTMF=1": "OK",
+            "AT+CLIP=1": "OK",
+            "AT#AUSBC=1": "OK",
+            "AT+CEREG=2": "OK",
+            "AT+CLVL=0": "OK",
+            "AT+CMER=2,0,0,2": "OK",
+            "AT#ADSPC=6": "OK",
+            "AT+CIND=0,0,1,0,1,1,1,1,0,1,1": "OK",
+            "AT+CHUP": "OK",
+            "ATA": "OK"
+        }
 
     @property
     def is_open(self):
@@ -55,11 +75,44 @@ class FakeSerial:
         if not self._is_open:
             raise serial.SerialException("Port not open")
         
-        decoded = data.decode() if isinstance(data, bytes) else data
+        # Handle both bytes and str
+        if isinstance(data, str):
+            decoded = data
+            raw_data = data.encode()
+        else:
+            decoded = data.decode()
+            raw_data = data
+
         with self.output_lock:
             self.output_buffer.append(decoded)
             
+            # Generate response logic
+            command_clean = decoded.strip()
+            
+            # 1. Echo (simulate modem echo)
+            # sbc_cmd expects echo first, then response
+            self.input_buffer.put(raw_data) 
+            
+            # 2. Determine response
+            response = None
+            
+            # Handle ATD (Dialing)
+            if command_clean.startswith("ATD"):
+                # ATD returns OK almost immediately for voice calls (according to PDF, ends with ;)
+                response = "OK"
+                
+            elif command_clean in self.responses:
+                response = self.responses[command_clean]
+            else:
+                # Default to OK for unknown config commands to keep tests moving
+                response = "OK"
+                
+            if response:
+                # Append \r\n
+                self.input_buffer.put(f"\r\n{response}\r\n".encode())
+
             # Check if anyone is waiting for this command
+            # Do this LAST so waiters see the buffer populated
             for cmd, event in self.command_waiters.items():
                 if cmd in decoded:
                     event.set()
@@ -78,7 +131,7 @@ class FakeSerial:
             # wait for data up to timeout
             data = self.input_buffer.get(timeout=self.timeout)
             logging.debug(f"[FAKE MODEM] Sending: {data.strip()}")
-            return data.encode()
+            return data
         except queue.Empty:
             return b""
 
@@ -95,7 +148,7 @@ class FakeSerial:
         """Inject data to be read by the script."""
         if not data.endswith('\n') and not data.endswith('\r'):
             data += '\r\n'
-        self.input_buffer.put(data)
+        self.input_buffer.put(data.encode())
 
     def wait_for_command(self, fragment, timeout=2.0):
         """Wait until a specific command is written to the serial port."""
@@ -119,9 +172,18 @@ class FakeSerial:
             self.command_waiters = {}
 
 
+
 class TestManageModem:
     @pytest.fixture(autouse=True)
     def setup_teardown(self):
+        # Setup logging to file
+        logger = logging.getLogger()
+        file_handler = logging.FileHandler("modem_test.log", mode='w')
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+        logger.setLevel(logging.DEBUG)
+
         # Setup
         self.fake_serial = FakeSerial()
         self.whitelist = {"+1234567890": True}
@@ -130,6 +192,13 @@ class TestManageModem:
         # Start server on a random port (0 lets OS choose, but we need to know it)
         # We'll pick a static high port for testing to avoid complexity
         self.test_port = 5556 
+        self.server = ModemTCPServer(self.sm, port=self.test_port)
+        
+        self.server.server_socket = MagicMock()
+        # Mock bind/listen since we want to avoid actual network binding issues in CI/dev
+        # Actually, let's use real socket but handle cleanup well, OR stick to previous implementation
+        # Previous implementation used real socket. Let's stick to it but ensure cleanup.
+        
         self.server = ModemTCPServer(self.sm, port=self.test_port)
         
         self.server_thread = threading.Thread(target=self.server.start, daemon=True)
@@ -141,6 +210,10 @@ class TestManageModem:
         yield
         
         # Teardown
+        # Remove file handler
+        logger.removeHandler(file_handler)
+        file_handler.close()
+
         # Send shutdown command via valid socket
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -152,7 +225,10 @@ class TestManageModem:
             
         self.sm.shutdown_flag.set()
         if self.server.server_socket:
-            self.server.server_socket.close()
+            try:
+                self.server.server_socket.close()
+            except:
+                pass
 
     def send_command(self, command_dict):
         """Helper to send JSON command and get response."""
