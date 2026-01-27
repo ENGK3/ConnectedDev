@@ -42,9 +42,9 @@ if ! echo "$CONFIG_VAR" | grep -qE '^[A-Z_][A-Z0-9_]*$'; then
     exit 1
 fi
 
-# Validate phone number (1-30 digits only)
-if ! echo "$PHONE_NUMBER" | grep -qE '^[0-9]{1,30}$'; then
-    log "ERROR: Invalid phone number format: $PHONE_NUMBER (must be 1-30 digits)"
+# Validate phone number (1-30 characters: digits, A-F, *, #)
+if ! echo "$PHONE_NUMBER" | grep -qE '^[0-9A-F*#]{1,30}$'; then
+    log "ERROR: Invalid phone number format: $PHONE_NUMBER (must be 1-30 characters: 0-9, A-F, *, #)"
     exit 1
 fi
 
