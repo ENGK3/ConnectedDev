@@ -14,10 +14,6 @@ version:
 show-version:
     ./show_version.sh
 
-push: modem switch leds service sounds boot pulse voip asterisk
-
-vpush: asterisk voip modem pulse modem
-
 my_version := `grep '^VERSION=' VERSION_INFO | cut -d= -f2`
 
 k3_config:
