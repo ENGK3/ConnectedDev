@@ -1340,7 +1340,7 @@ def monitor_serial_port(state_machine: ModemStateMachine, tcp_server=None):
                     if state_machine.ring_count >= state_machine.answer_count:
                         logging.info(
                             f"Ring count {state_machine.ring_count} reached, "
-                            "answering call"
+                            f"answering call"
                         )
                         state_machine.answer_incoming_call()
                 else:
