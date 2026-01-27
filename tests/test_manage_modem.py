@@ -178,7 +178,7 @@ class TestManageModem:
     def setup_teardown(self):
         # Setup logging to file
         logger = logging.getLogger()
-        file_handler = logging.FileHandler("modem_test.log", mode='w')
+        file_handler = logging.FileHandler("modem_test.log", mode='a')
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
@@ -292,7 +292,7 @@ class TestManageModem:
         # So we MUST send OK or something.
         # Actually ATD command usually waits for CONNECT or OK.
         # sbc_cmd handles OK.
-        self.fake_serial.add_response("OK")
+        # self.fake_serial.add_response("OK") # REMOVED: Auto-handled by FakeSerial now
         
         # Now it enters the loop waiting for +CIEV: call,1
         self.fake_serial.add_response("+CIEV: call,1")
