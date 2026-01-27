@@ -5,6 +5,7 @@
 ### Added
 
 Created a tests directory and added a TEST_README.md to describe the different tests.
+New tests, tests/test_dtmf_translate.py and test_manage_modem.py to test functionality.
 
 ### Changed
 
