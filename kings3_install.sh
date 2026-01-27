@@ -619,6 +619,66 @@ install_or_update_services() {
     done
 }
 
+# Function to setup common system configurations
+setup_common_system() {
+    echo "Setting up common system configurations..."
+
+    # Add kuser to asterisk group for shared file access
+    usermod -a -G asterisk kuser 2>/dev/null || echo "Note: kuser already in asterisk group or user doesn't exist yet"
+
+    # Set group sticky bit on /mnt/data so new files inherit asterisk group
+    chgrp asterisk /mnt/data
+    chmod g+s /mnt/data
+}
+
+# Function to update config settings if in update mode
+update_config_if_needed() {
+    if [ "$UPDATE" = true ]; then
+        update_config_settings
+        set_config_permissions
+    fi
+}
+
+# Function to set config file permissions
+set_config_permissions() {
+    chown kuser:asterisk /mnt/data/K3_config_settings
+    chmod 664 /mnt/data/K3_config_settings
+}
+
+# Function to setup PulseAudio user service
+setup_pulseaudio_user_service() {
+    mkdir -p /home/kuser/.config/systemd/user
+    cp /mnt/data/pulseaudio.service /home/kuser/.config/systemd/user/pulseaudio.service
+    # Everything under kuser needs to be owned by kuser.
+    # IF not when doing the "systemctl --user enable pulseaudio.service" it will fail.
+    chown -R kuser:kuser /home/kuser/.config
+}
+
+# Function to setup common files
+setup_common_files() {
+    # Modem manager rules
+    cp /mnt/data/99-ignore-modemmanager.rules /etc/udev/rules.d/99-ignore-modemmanager.rules
+
+    # PulseAudio daemon config
+    cp /mnt/data/daemon.conf /etc/pulse/daemon.conf
+
+    # Sensor data service (used by timer)
+    cp /mnt/data/get_sensor_data.service /etc/systemd/system/
+}
+
+# Function to setup calls log with appropriate ownership
+setup_calls_log() {
+    local owner="$1"  # "kuser:kuser" or "ugo+w"
+
+    touch /mnt/data/calls.log
+
+    if [ "$owner" = "ugo+w" ]; then
+        chmod ugo+w /mnt/data/calls.log
+    else
+        chown "$owner" /mnt/data/calls.log
+    fi
+}
+
 # In both types of configurations, ensure the following packages are installed.
 if [ "$INSTALL_PACKAGES" = true ]; then
     echo "Installing packages..."
@@ -641,46 +701,19 @@ install_common_snd_files
 if [ "$CONFIG" == "pool" ]; then
     echo "Configuring for Pool mode..."
 
-    # Add kuser to asterisk group for shared file access
-    usermod -a -G asterisk kuser 2>/dev/null || echo "Note: kuser already in asterisk group or user doesn't exist yet"
-
-    # Set group sticky bit on /mnt/data so new files inherit asterisk group
-    chgrp asterisk /mnt/data
-    chmod g+s /mnt/data
-
-    # Update config settings if in update mode
-    if [ "$UPDATE" = true ]; then
-        update_config_settings
-        # Ensure proper ownership and permissions after update
-        chown kuser:asterisk /mnt/data/K3_config_settings
-        chmod 664 /mnt/data/K3_config_settings
-    fi
+    setup_common_system
+    update_config_if_needed
 
     # Set audio routing to ON for pool mode
     sed -i 's/^ENABLE_AUDIO_ROUTING=.*/ENABLE_AUDIO_ROUTING="ON"/' /mnt/data/K3_config_settings
     sed -i 's/^HW_APP=.*/HW_APP="Pool"/' /mnt/data/K3_config_settings
 
-    cp /mnt/data/99-ignore-modemmanager.rules  /etc/udev/rules.d/99-ignore-modemmanager.rules
-
-    cp /mnt/data/daemon.conf /etc/pulse/daemon.conf
-
-    mkdir -p /home/kuser/.config/systemd/user
-    cp /mnt/data/pulseaudio.service /home/kuser/.config/systemd/user/pulseaudio.service
-    # Everything under kuser needs to be owned by kuser.
-    # IF not when doing the "systemctl --user enable pulseaudio.service" it will fail.
-    chown -R kuser:kuser /home/kuser/.config
-
-    touch /mnt/data/calls.log
-    chmod ugo+w /mnt/data/calls.log
-
-    # Ensure K3_config_settings has proper ownership and permissions
-    chown kuser:asterisk /mnt/data/K3_config_settings
-    chmod 664 /mnt/data/K3_config_settings
+    setup_common_files
+    setup_pulseaudio_user_service
+    setup_calls_log "ugo+w"
+    set_config_permissions
 
     loginctl enable-linger kuser
-
-    # Copy get_sensor_data.service separately (it's used by the timer)
-    cp /mnt/data/get_sensor_data.service /etc/systemd/system/
 
     install_or_update_services switch_mon.service \
         manage_modem.service \
@@ -694,25 +727,14 @@ if [ "$CONFIG" == "pool" ]; then
 elif [ "$CONFIG" == "elevator" ]; then
     echo "Configuring for Elevator mode..."
 
-    # Add kuser to asterisk group for shared file access
-    usermod -a -G asterisk kuser 2>/dev/null || echo "Note: kuser already in asterisk group or user doesn't exist yet"
-
-    # Set group sticky bit on /mnt/data so new files inherit asterisk group
-    chgrp asterisk /mnt/data
-    chmod g+s /mnt/data
-
-    # Update config settings if in update mode
-    if [ "$UPDATE" = true ]; then
-        update_config_settings
-        # Ensure proper ownership and permissions after update
-        chown kuser:asterisk /mnt/data/K3_config_settings
-        chmod 664 /mnt/data/K3_config_settings
-    fi
+    setup_common_system
+    update_config_if_needed
 
     # Set audio routing to OFF for elevator mode
     sed -i 's/^ENABLE_AUDIO_ROUTING=.*/ENABLE_AUDIO_ROUTING="OFF"/' /mnt/data/K3_config_settings
     sed -i 's/^HW_APP=.*/HW_APP="Elevator"/' /mnt/data/K3_config_settings
 
+    # Asterisk configuration files
     cp /mnt/data/extensions.conf /etc/asterisk/extensions.conf
     cp /mnt/data/confbridge.conf /etc/asterisk/confbridge.conf
     cp /mnt/data/pjsip.conf /etc/asterisk/pjsip.conf
@@ -729,18 +751,11 @@ elif [ "$CONFIG" == "elevator" ]; then
     systemctl restart asterisk
     echo "Asterisk restarted successfully"
 
-    # Create call log file and change ownership.
-    touch /mnt/data/calls.log
-    chown kuser:kuser /mnt/data/calls.log
-
-    # Ensure K3_config_settings has proper ownership and permissions
-    chown kuser:asterisk /mnt/data/K3_config_settings
-    chmod 664 /mnt/data/K3_config_settings
+    setup_calls_log "kuser:kuser"
+    set_config_permissions
 
     # Baresip setup
     mkdir -p /home/kuser/.baresip
-
-
     cp /mnt/data/accounts /home/kuser/.baresip/accounts
     cp /mnt/data/config /home/kuser/.baresip/config
     chown -R kuser:kuser /home/kuser/.baresip
@@ -748,22 +763,11 @@ elif [ "$CONFIG" == "elevator" ]; then
     # Network interfaces setup
     cp /mnt/data/interfaces /etc/network/interfaces
 
-    # PulseAudio setup
+    # PulseAudio setup (elevator-specific default.pa)
     cp /mnt/data/default.pa /etc/pulse/default.pa
-    cp /mnt/data/daemon.conf /etc/pulse/daemon.conf
 
-    mkdir -p /home/kuser/.config/systemd/user
-    cp /mnt/data/pulseaudio.service /home/kuser/.config/systemd/user/pulseaudio.service
-    # Everything under kuser needs to be owned by kuser.
-    # IF not when doing the "systemctl --user enable pulseaudio.service" it will fail.
-    chown -R kuser:kuser /home/kuser/.config
-
-
-    # Turn off the modem manager attempting to manage the cellular modem.
-    cp /mnt/data/99-ignore-modemmanager.rules  /etc/udev/rules.d/99-ignore-modemmanager.rules
-
-    # Copy get_sensor_data.service separately (it's used by the timer)
-    cp /mnt/data/get_sensor_data.service /etc/systemd/system/
+    setup_common_files
+    setup_pulseaudio_user_service
 
     # Install or update all services
     install_or_update_services \

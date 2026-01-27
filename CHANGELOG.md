@@ -4,6 +4,7 @@
 
 ### Added
 
+Created a tests directory and added a TEST_README.md to describe the different tests.
 
 ### Changed
 
@@ -13,8 +14,13 @@ Sim unlocking code now uses the TMobile PIN if the AT&T version doesn't work. No
 
 The ownership of the K3_config_settings is owned by asterisk because of the need to have asterisk edit the file.  Also the sticky bit on the /mnt/data directory was set so the ownership doesn't change to the last writer for the K3_config_settings file.
 
+Tweaked the ./kings3_install.sh verify function. Also added a restart of Asterisk as part of the update to pick up Asterisk config file changes.
+
+Refactored the kings3_install.sh script to be more maintainable.
+
 ### Removed
 
+NA.
 
 ### Fixed
 
