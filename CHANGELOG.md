@@ -1,11 +1,16 @@
 # CHANGELOG Kings III Software Changes
 
-## Version V00.03.05+ UNRELEASED.
+## Version V00.03.05+ UNRELEASED
 
 ### Added
 
 Created a tests directory and added a TEST_README.md to describe the different tests.
 New tests, tests/test_dtmf_translate.py and test_manage_modem.py to test functionality.
+Added ability to enter the letters 'A' - 'F' and '*' and '#' as part of the dtmf data entry.
+
+Added the sub-menu for the manual tests, for the following commands:
+05 and 07.
+
 
 ### Changed
 
