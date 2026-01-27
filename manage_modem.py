@@ -46,7 +46,7 @@ AT_HANGUP = "AT+CHUP\r"
 AT_CLIP_ENABLE = "AT+CLIP=1\r"
 
 
-def load_config(config_file: str) -> tuple[Dict[str, bool], bool]:
+def load_config(config_file: str) -> tuple[Dict[str, bool], bool, int]:
     """
     Load configuration from config file.
 
@@ -54,13 +54,14 @@ def load_config(config_file: str) -> tuple[Dict[str, bool], bool]:
         config_file: Path to K3_config_settings file
 
     Returns:
-        Tuple of (whitelist dict with phone numbers as keys, enable_audio_routing flag)
+        Tuple of (whitelist dict with phone numbers as keys, enable_audio_routing flag, answer_count)
     """
     whitelist_dict = {}
+    default_answer_count = 2
 
     if not os.path.exists(config_file):
         logging.warning(f"Config file not found: {config_file}")
-        return whitelist_dict, DEFAULT_ENABLE_AUDIO_ROUTING
+        return whitelist_dict, DEFAULT_ENABLE_AUDIO_ROUTING, default_answer_count
 
     try:
         # Load config file using dotenv
@@ -69,10 +70,11 @@ def load_config(config_file: str) -> tuple[Dict[str, bool], bool]:
         whitelist_str = config.get("WHITELIST", "")
         if not whitelist_str:
             logging.warning("WHITELIST not found in config file")
-            # Still load audio routing setting
+            # Still load audio routing setting and answer count
             enable_audio = config.get("ENABLE_AUDIO_ROUTING", "true").lower()
             enable_audio_routing = enable_audio in ["true", "1", "yes", "on"]
-            return whitelist_dict, enable_audio_routing
+            answer_count = default_answer_count
+            return whitelist_dict, enable_audio_routing, answer_count
 
         # Parse comma-separated numbers
         numbers = [num.strip() for num in whitelist_str.split(",")]
@@ -100,11 +102,31 @@ def load_config(config_file: str) -> tuple[Dict[str, bool], bool]:
         )
         logging.info(f"Audio routing enabled: {enable_audio_routing}")
 
+        # Load and validate ANSWER_COUNT
+        answer_count_str = config.get("ANSWER_COUNT", str(default_answer_count))
+        try:
+            answer_count = int(answer_count_str)
+            if answer_count < 2 or answer_count > 20:
+                logging.warning(
+                    f"ANSWER_COUNT value {answer_count} is outside valid range (2-20). "
+                    f"Using default value of 2."
+                )
+                answer_count = 2
+            else:
+                logging.info(f"ANSWER_COUNT set to {answer_count}")
+        except ValueError:
+            logging.warning(
+                f"Invalid ANSWER_COUNT value '{answer_count_str}'. "
+                f"Using default value of 2."
+            )
+            answer_count = 2
+
     except Exception as e:
         logging.error(f"Error loading config: {e}", exc_info=True)
         enable_audio_routing = DEFAULT_ENABLE_AUDIO_ROUTING
+        answer_count = default_answer_count
 
-    return whitelist_dict, enable_audio_routing
+    return whitelist_dict, enable_audio_routing, answer_count
 
 
 def update_cid_from_sim(serial_connection: serial.Serial, config_file: str) -> None:
@@ -226,11 +248,13 @@ class ModemStateMachine:
         serial_connection: serial.Serial,
         whitelist: Dict[str, bool],
         enable_audio_routing: bool = True,
+        answer_count: int = 2,
     ):
         self.serial = serial_connection
         self.whitelist = whitelist  # Dictionary of allowed numbers
         # Enable audio loopback for POOL, disable for elevator
         self.enable_audio_routing = enable_audio_routing
+        self.answer_count = answer_count  # Number of rings before answering
         self.state = ModemState.IDLE
         self.call_info = CallInfo()
         self.state_lock = threading.Lock()
@@ -239,6 +263,9 @@ class ModemStateMachine:
         self.pending_requests = {}  # request_id -> CommandRequest
         self.shutdown_flag = threading.Event()
         self.incoming_call_callbacks = []  # Callbacks for incoming call notifications
+        # Track incoming call rings
+        self.ring_count = 0
+        self.pending_caller_number = None
 
     def get_state(self) -> ModemState:
         """Thread-safe state getter."""
@@ -651,9 +678,15 @@ class ModemStateMachine:
             # Send hangup to reject the incoming call
             with self.serial_lock:
                 sbc_cmd(AT_HANGUP, self.serial, verbose=True)
+            # Reset ring tracking
+            self.ring_count = 0
+            self.pending_caller_number = None
             return
 
         logging.info(f"Incoming call from {caller_number}")
+        # Store caller number for ring tracking
+        self.pending_caller_number = caller_number
+        self.ring_count = 0
         self.set_state(ModemState.ANSWERING_CALL)
 
         # Check whitelist (dictionary lookup)
@@ -668,7 +701,25 @@ class ModemStateMachine:
             self.set_state(ModemState.IDLE)
             return
 
-        logging.info(f"Number {caller_number} is whitelisted, answering call")
+        logging.info(
+            f"Number {caller_number} is whitelisted, will answer after "
+            f"{self.answer_count} rings"
+        )
+
+        # Note: Actual answering is now handled in monitor_serial_port
+        # based on ring_count reaching answer_count
+        return
+
+    def answer_incoming_call(self):
+        """Actually answer the incoming call after required number of rings."""
+        caller_number = self.pending_caller_number
+        if not caller_number:
+            logging.error("Cannot answer call: no pending caller number")
+            self.set_state(ModemState.IDLE)
+            self.ring_count = 0
+            return
+
+        logging.info(f"Answering call from {caller_number} after {self.ring_count} rings")
 
         # Answer the call
         with self.serial_lock:
@@ -718,6 +769,10 @@ class ModemStateMachine:
         if self.enable_audio_routing and not audio_routing_success:
             status_msg += " (audio routing failed)"
         logging.info(status_msg)
+
+        # Reset ring tracking
+        self.ring_count = 0
+        self.pending_caller_number = None
 
         # Notify any registered callbacks about incoming call
         self._notify_incoming_call(caller_number)
@@ -1269,7 +1324,23 @@ def monitor_serial_port(state_machine: ModemStateMachine, tcp_server=None):
 
             # Detect incoming call
             if line == "RING":
-                logging.info("Incoming call detected (RING)")
+                current_state = state_machine.get_state()
+                if current_state == ModemState.ANSWERING_CALL:
+                    # Increment ring count
+                    state_machine.ring_count += 1
+                    logging.info(
+                        f"Incoming call ring {state_machine.ring_count} "
+                        f"(will answer after {state_machine.answer_count})"
+                    )
+
+                    # Check if we should answer now
+                    if state_machine.ring_count >= state_machine.answer_count:
+                        logging.info(
+                            f"Ring count {state_machine.ring_count} reached, answering call"
+                        )
+                        state_machine.answer_incoming_call()
+                else:
+                    logging.info("Incoming call detected (RING)")
 
             # Detect caller ID
             if line.startswith("+CLIP:"):
@@ -1460,12 +1531,12 @@ def main():
             normalized = num if num.startswith("+") else f"+1{num}"
             whitelist_dict[normalized] = True
         logging.info(f"Whitelist: {list(whitelist_dict.keys())}")
-        # Still load audio routing setting from config
-        _, enable_audio_routing = load_config(args.config_file)
+        # Still load audio routing setting and answer count from config
+        _, enable_audio_routing, answer_count = load_config(args.config_file)
     else:
         # Load from config file
         logging.info(f"Loading configuration from: {args.config_file}")
-        whitelist_dict, enable_audio_routing = load_config(args.config_file)
+        whitelist_dict, enable_audio_routing, answer_count = load_config(args.config_file)
         logging.info(
             f"[AUDIO_DEBUG] After load_config: "
             f"enable_audio_routing={enable_audio_routing}"
@@ -1506,7 +1577,7 @@ def main():
             f"enable_audio_routing={enable_audio_routing}"
         )
         state_machine = ModemStateMachine(
-            serial_connection, whitelist_dict, enable_audio_routing
+            serial_connection, whitelist_dict, enable_audio_routing, answer_count
         )
         audio_status = "ENABLED" if enable_audio_routing else "DISABLED"
         logging.info(
