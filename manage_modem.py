@@ -54,7 +54,8 @@ def load_config(config_file: str) -> tuple[Dict[str, bool], bool, int]:
         config_file: Path to K3_config_settings file
 
     Returns:
-        Tuple of (whitelist dict with phone numbers as keys, enable_audio_routing flag, answer_count)
+        Tuple of (whitelist dict with phone numbers as keys, enable_audio_routing flag,
+                  answer_count)
     """
     whitelist_dict = {}
     default_answer_count = 2
@@ -719,7 +720,9 @@ class ModemStateMachine:
             self.ring_count = 0
             return
 
-        logging.info(f"Answering call from {caller_number} after {self.ring_count} rings")
+        logging.info(
+            f"Answering call from {caller_number} after {self.ring_count} rings"
+        )
 
         # Answer the call
         with self.serial_lock:
@@ -1336,7 +1339,8 @@ def monitor_serial_port(state_machine: ModemStateMachine, tcp_server=None):
                     # Check if we should answer now
                     if state_machine.ring_count >= state_machine.answer_count:
                         logging.info(
-                            f"Ring count {state_machine.ring_count} reached, answering call"
+                            f"Ring count {state_machine.ring_count} reached, "
+                            "answering call"
                         )
                         state_machine.answer_incoming_call()
                 else:
@@ -1350,8 +1354,16 @@ def monitor_serial_port(state_machine: ModemStateMachine, tcp_server=None):
                     caller_number = parts[0].split(":")[1].strip().strip('"')
                     logging.info(f"Caller ID: {caller_number}")
 
-                    # Handle the incoming call
-                    state_machine.handle_incoming_call(caller_number)
+                    # Only handle incoming call if we're not already processing one
+                    # (subsequent RINGs will have +CLIP but we should ignore them)
+                    current_state = state_machine.get_state()
+                    if current_state == ModemState.ANSWERING_CALL:
+                        logging.debug(
+                            f"Ignoring +CLIP for existing call from {caller_number}"
+                        )
+                    else:
+                        # Handle the incoming call
+                        state_machine.handle_incoming_call(caller_number)
 
             # Detect DTMF events
             if line.startswith("#DTMFEV:"):
@@ -1536,7 +1548,9 @@ def main():
     else:
         # Load from config file
         logging.info(f"Loading configuration from: {args.config_file}")
-        whitelist_dict, enable_audio_routing, answer_count = load_config(args.config_file)
+        whitelist_dict, enable_audio_routing, answer_count = load_config(
+            args.config_file
+        )
         logging.info(
             f"[AUDIO_DEBUG] After load_config: "
             f"enable_audio_routing={enable_audio_routing}"
