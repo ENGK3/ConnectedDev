@@ -1,5 +1,30 @@
 # CHANGELOG Kings III Software Changes
 
+## Version V00.03.05+ UNRELEASED.
+
+### Added
+
+
+### Changed
+
+The script manage_modem now gathers the CNUM info and stores it in the K3_config_settings file. NOTE there is a delay between unlocking and retrieving the CNUM data. This is deliberate because the CNUM would return an ERROR if CNUM was executed immediately after unlocking.
+
+Sim unlocking code now uses the TMobile PIN if the AT&T version doesn't work. No effort is made to determine what type of SIM is present.
+
+The ownership of the K3_config_settings is owned by asterisk because of the need to have asterisk edit the file.  Also the sticky bit on the /mnt/data directory was set so the ownership doesn't change to the last writer for the K3_config_settings file.
+
+### Removed
+
+
+### Fixed
+
+Issue #11, "Need to update "CID" field in K3_config_settings dynamically"
+Issue #10, "Need to add ability to use T-Mobile SIMs after 00.03.04 update"
+
+### Known Issues
+
+
+
 ## Version V00.03.05
 
 ### Added

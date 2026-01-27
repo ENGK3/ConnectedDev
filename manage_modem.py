@@ -1490,8 +1490,9 @@ def main():
         logging.error("Failed to manage SIM")
         sys.exit(1)
 
-    logging.info("Waiting 5 seconds for SIM to settle...")
-    time.sleep(5)
+    sim_settle_wait_sec = 2
+    logging.info(f"Waiting {sim_settle_wait_sec} seconds for SIM to settle...")
+    time.sleep(sim_settle_wait_sec)
     logging.info("Continuing modem management...")
 
     # After SIM is unlocked, retrieve MSISDN and update CID if necessary
