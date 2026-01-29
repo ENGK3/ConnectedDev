@@ -89,4 +89,5 @@ save: release
 
 
 clean:
-     rm -rf *.pdf *.zip *.tgz cksum_dir GW-Setup-*.tar
+     rm -rf *.pdf *.zip *.tgz cksum_dir GW-Setup-*.tar ./modem_test.log \
+       ./edc_test.log ./tests/pytest.log
