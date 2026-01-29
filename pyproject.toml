@@ -68,7 +68,7 @@ addopts = [
     # Increase verbosity for failures
     "--tb=short",
     "--cov=.",
-    "--cov-report=term-missing",
+    # "--cov-report=term-missing",
 ]
 
 # Test markers
