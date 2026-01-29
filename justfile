@@ -33,7 +33,7 @@ part-pkg: k3_config
        sounds/* *.dtbo microcom.alias daemon.conf  dtmf_collector.py \
        led_blue.sh led_green.sh led_red.sh audio_routing.py update_uid.sh \
        events_monitor.py events_monitor.service update_from_SD_card.py \
-       VERSION_INFO \
+       VERSION_INFO programming \
        -C VOIP \
        voip_call_monitor_tcp.py voip_call_monitor.service ep.sh \
        voip_ari_conference.service interfaces \
@@ -47,6 +47,8 @@ part-pkg: k3_config
        site_store.py site.pub site_info edit_config.sh \
        RSRP_LUT.csv RSRQ_LUT.csv RSSI_LUT.csv \
        dial_code_utils.py
+
+
 
 pkg: part-pkg
     rm -rf cksum_dir

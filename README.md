@@ -33,6 +33,10 @@ This repository contains scripts, configurations, and documentation for the King
 ├── POC_NOTE.md
 ├── Pool/
 │   └── GW-Pool-V00.03.02.tgz
+├── programming/
+│   ├── menu_modem_stats.py
+│   ├── menu_sensor_update.py
+│   └── programming.sh
 ├── README.md
 ├── tests/
 │   └── test_edit_phone_numbers.sh
@@ -117,6 +121,16 @@ This repository contains scripts, configurations, and documentation for the King
 ```
 
 ## Project Files
+
+### Programming
+
+The `programming/` directory contains interactive utilities for field configuration and diagnostics of the King3 system.
+
+| Filename | Description |
+|----------|-------------|
+| `programming.sh` | Interactive menu-driven programming utility for configuring phone numbers, zone numbers, customer account codes, whitelist settings, and audio settings; provides system information including hardware sensor readings and cellular modem statistics |
+| `menu_modem_stats.py` | Helper script that retrieves cellular modem statistics (ICCID, IMEI, IMSI, RSRQ, RSRP, signal quality) via AT commands; uses lookup tables (RSRQ_LUT.csv, RSRP_LUT.csv, RSSI_LUT.csv) to convert raw values to readable signal strength indicators; outputs data as shell export statements for use by programming.sh |
+| `menu_sensor_update.py` | Helper script that retrieves hardware sensor data (system voltage, CPU temperature) using the `sensors` command and JSON parsing; outputs data as shell export statements for display in programming.sh system information menu |
 
 ### Shell Scripts
 
