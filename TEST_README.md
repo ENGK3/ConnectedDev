@@ -129,6 +129,30 @@ Example:
 
 Default target (if not specified): `root@GWorks2`
 
+
+## Operational Test Table
+
+|Status|Rem:Loc|Name|
+|----|-----|--------|
+|W|L|tests/test_dial_code_utils.py|
+|X|R|tests/test_dtmf_translate.py|
+|F|L|tests/test_edc_dial_codes.py|
+|F|R|tests/test_edit_phone_numbers.sh|
+|F|L|tests/test_manage_modem.py|
+|P|L|tests/test_modem_utils.py|
+|P|L|tests/test_msisdn_cid_update.py|
+|F|R|tests/test_restore_factory_defaults.py|
+|F|R|tests/test_restore_factory_defaults.sh|
+
+|KEY | Meaning |
+|----|---------|
+|P | Pass|
+|W | Warnings.|
+|F | Failure|
+|X | Doesn't Run|
+|L | Local|
+|R | Remote|
+
 ## Test Coverage
 
 ### test_modem_utils.py::TestManageSim

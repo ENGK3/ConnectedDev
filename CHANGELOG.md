@@ -25,6 +25,25 @@ Tweaked the ./kings3_install.sh verify function. Also added a restart of Asteris
 
 Refactored the kings3_install.sh script to be more maintainable.
 
+Added handling of speical phone number prefixes :
+
+#### Special Dial Codes
+
+| Prefix | Behavior | Example |
+|--------|----------|---------|
+| `*50` | **No EDC packet** - Dials the number without sending any EDC packet | `*509723105316` dials `9723105316` (no packet) |
+| `*54` | **DC Code** - Sends EDC packet with "DC" diagnostic code, then dials | `*548881237777` sends DC packet, dials `8881237777` |
+| `*55` | **Normal Code** - Sends EDC packet with normal "01" code, then dials | `*555551234567` sends packet, dials `5551234567` |
+| None | **Default** - Sends EDC packet with normal code (backward compatible) | `9723105316` sends packet, dials `9723105316` |
+
+Note the sending for the packet to the EDC moved from manage_modem, to the scripts that initiate the dialing.
+namely ari-mon-conf.py in the elevator configuration and place_call.py in the pool configuration.
+
+Removed the phone number from the voip_call_monitor.service.
+
+The script voip_call_monitory_tcp.py now reads from the K3_config_settings to get it's phone numbers and
+now has the ability to cycle through numbers if call are not connected.
+
 ### Removed
 
 NA.
@@ -35,6 +54,9 @@ Issue #11, "Need to update "CID" field in K3_config_settings dynamically"
 Issue #10, "Need to add ability to use T-Mobile SIMs after 00.03.04 update"
 
 ### Known Issues
+
+Sending of the EDC packet is dictated by the FIRST_PHONE variable in the K3_config_settings file.
+If the SECOND and THIRD number have different setting as far as the prefix ("*5x") is concerned they are not obeyed.
 
 ## Version V00.03.05
 
