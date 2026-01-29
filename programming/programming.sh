@@ -183,7 +183,7 @@ zone_number_submenu() {
 
     echo ""
     echo "======================================"
-    echo "           Zone Config Menu           "
+    echo "          Zone Number(s) Menu         "
     echo "======================================"
     echo ""
 
@@ -224,7 +224,7 @@ zone_number_submenu() {
         REPLY=  # This line forces the menu to redraw on the next loop
         echo ""
         echo "======================================"
-        echo "           Zone Config Menu           "
+        echo "          Zone Number(s) Menu         "
         echo "======================================"
         echo ""
     done
@@ -362,7 +362,7 @@ audio_submenu() {
 
     echo ""
     echo "======================================"
-    echo "          Audio Config Menu           "
+    echo "         Audio Settings Menu          "
     echo "======================================"
     echo ""
 
@@ -424,7 +424,7 @@ audio_submenu() {
         REPLY=  # This line forces the menu to redraw on the next loop
         echo ""
         echo "======================================"
-        echo "          Audio Config Menu           "
+        echo "         Audio Settings Menu          "
         echo "======================================"
         echo ""
     done
