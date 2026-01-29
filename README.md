@@ -219,7 +219,7 @@ This project implements an embedded communication system with the following key 
 ## Hardware Platforms
 
 - **Gateworks Venice GW7200** - Primary embedded platform
-- **Telit LE910C1-NF** - 4G LTE modem module
+- **Telit LE910C4-NF** - 4G LTE modem module
 
 ## Key Technologies
 
