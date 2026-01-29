@@ -96,7 +96,8 @@ timeout = 300
 timeout_method = "thread"
 
 [tool.coverage.run]
-source = ["tests"]
+source = [ "manage_modem.py", "common/dial_code_utils.py",
+          "modem_utils.py"]
 omit = [
     "*/test_*.py",
     "*/conftest.py",
@@ -111,4 +112,8 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
     "@abstractmethod",
+]
+
+omit = [
+  "*/tests/*"
 ]
