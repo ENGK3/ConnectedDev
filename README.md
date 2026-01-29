@@ -12,6 +12,7 @@ This repository contains scripts, configurations, and documentation for the King
 │   ├── confbridge.conf
 │   └── extensions.conf
 ├── common/
+│   ├── dial_code_utils.py
 │   ├── edit_config.sh
 │   ├── encrypt_site_store.sh
 │   ├── RSRP_LUT.csv
@@ -32,6 +33,10 @@ This repository contains scripts, configurations, and documentation for the King
 ├── POC_NOTE.md
 ├── Pool/
 │   └── GW-Pool-V00.03.02.tgz
+├── programming/
+│   ├── menu_modem_stats.py
+│   ├── menu_sensor_update.py
+│   └── programming.sh
 ├── README.md
 ├── tests/
 │   └── test_edit_phone_numbers.sh
@@ -117,6 +122,16 @@ This repository contains scripts, configurations, and documentation for the King
 
 ## Project Files
 
+### Programming
+
+The `programming/` directory contains interactive utilities for field configuration and diagnostics of the King3 system.
+
+| Filename | Description |
+|----------|-------------|
+| `programming.sh` | Interactive menu-driven programming utility for configuring phone numbers, zone numbers, customer account codes, whitelist settings, and audio settings; provides system information including hardware sensor readings and cellular modem statistics |
+| `menu_modem_stats.py` | Helper script that retrieves cellular modem statistics (ICCID, IMEI, IMSI, RSRQ, RSRP, signal quality) via AT commands; uses lookup tables (RSRQ_LUT.csv, RSRP_LUT.csv, RSSI_LUT.csv) to convert raw values to readable signal strength indicators; outputs data as shell export statements for use by programming.sh |
+| `menu_sensor_update.py` | Helper script that retrieves hardware sensor data (system voltage, CPU temperature) using the `sensors` command and JSON parsing; outputs data as shell export statements for display in programming.sh system information menu |
+
 ### Shell Scripts
 
 | Filename | Directory | Description |
@@ -150,7 +165,7 @@ This repository contains scripts, configurations, and documentation for the King
 | `modem_manager_client.py` | `.` | TCP client library for communicating with manage_modem.py server; provides programmatic interface to modem operations |
 | `modem_state.py` | `.` | Diagnostic script that queries and displays current Telit modem audio and call configuration settings via AT commands (not in git) |
 | `modem_utils.py` | `.` | Shared module for Telit LE910C1 modem communication providing AT command functions, network registration checking, modem configuration, TCP socket operations, and SIM management (PIN/PUK status, lock/unlock, password changes) |
-| `place_call.py` | `.` | Initiates VoIP calls using baresip, handles audio routing, and logs call events; refactored to use shared modem_utils module |
+| `place_call.py` | `.` | Initiates VoIP calls using modem manager TCP interface; reads phone numbers from config, parses dial code prefixes (*50/*54/*55) to control EDC packet behavior, sends EDC packets (respecting prefix) before dialing, and monitors call status with automatic fallback to alternate numbers |
 | `send_EDC_info.py` | `.` | Sends EDC (Emergency Dispatch Center) information packets to remote servers via the cellular modem using TCP; reports extension number, site information, and modem details |
 | `audio_routing.py` | `.` | Python-based audio routing management for PulseAudio loopback configuration |
 | `dtmf_collector.py` | `.` | Collects and processes DTMF tones from cellular calls; implements action dispatch based on DTMF configuration |
@@ -158,6 +173,7 @@ This repository contains scripts, configurations, and documentation for the King
 | `get_sensor_data.py` | `.` | Collects sensor data (temperature, voltage, signal strength) periodically via systemd timer; logs to file for monitoring |
 | `update_from_SD_card.py` | `.` | Automates system updates from SD card; checks for update packages and installs them |
 | `site_store.py` | `common/` | Decrypts site configuration data using RSA public key verification; provides `decrypt_site_store()` function to retrieve encrypted site information (PIN codes, credentials) stored in site_info file |
+| `dial_code_utils.py` | `common/` | Shared utility module for parsing special dial code prefixes (*50/*54/*55) that control EDC (Event Data Collection) packet behavior; used by both manage_modem.py and ari-mon-conf.py to provide unified EDC control across elevator and outgoing call events |
 | `ari-mon-conf.py` | `VOIP/asterisk/` | ARI-based conference monitor that automatically calls admin extension when first participant joins a ConfBridge conference. Implements intelligent fallback: tries extension 201 first (15-second timeout), then falls back to extension 200 (LTE) if unanswered. Captures calling extension for EDC reporting |
 | `voip_call_monitor_tcp.py` | `VOIP/` | Monitors baresip via TCP socket interface, handles incoming calls, launches place_call.py for audio routing, and triggers EDC info packet transmission when calls are established |
 | `voip_call_rerouting.py` | `VOIP/` | Monitors baresip output and automatically reroutes audio when calls are established by detecting call state changes |
@@ -217,7 +233,7 @@ This project implements an embedded communication system with the following key 
 ## Hardware Platforms
 
 - **Gateworks Venice GW7200** - Primary embedded platform
-- **Telit LE910C1-NF** - 4G LTE modem module
+- **Telit LE910C4-NF** - 4G LTE modem module
 
 ## Key Technologies
 

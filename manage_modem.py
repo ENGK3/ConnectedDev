@@ -29,7 +29,12 @@ from site_store import decrypt_site_store
 from audio_routing import start_audio_bridge, terminate_pids
 
 # Import shared modem utilities
-from modem_utils import manage_sim, sbc_cmd, sbc_connect, sbc_disconnect
+from modem_utils import get_msisdn, manage_sim, sbc_cmd, sbc_connect, sbc_disconnect
+
+# Import shared dial code parsing utilities
+# Add common directory to path (for local dev), on target all files are in same dir
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "common"))
+from dial_code_utils import parse_special_dial_code
 
 # Configuration defaults
 DEFAULT_SERIAL_PORT = "/dev/ttyUSB2"
@@ -46,7 +51,7 @@ AT_HANGUP = "AT+CHUP\r"
 AT_CLIP_ENABLE = "AT+CLIP=1\r"
 
 
-def load_config(config_file: str) -> tuple[Dict[str, bool], bool]:
+def load_config(config_file: str) -> tuple[Dict[str, bool], bool, int]:
     """
     Load configuration from config file.
 
@@ -54,13 +59,15 @@ def load_config(config_file: str) -> tuple[Dict[str, bool], bool]:
         config_file: Path to K3_config_settings file
 
     Returns:
-        Tuple of (whitelist dict with phone numbers as keys, enable_audio_routing flag)
+        Tuple of (whitelist dict with phone numbers as keys, enable_audio_routing flag,
+                  answer_count)
     """
     whitelist_dict = {}
+    default_answer_count = 2
 
     if not os.path.exists(config_file):
         logging.warning(f"Config file not found: {config_file}")
-        return whitelist_dict, DEFAULT_ENABLE_AUDIO_ROUTING
+        return whitelist_dict, DEFAULT_ENABLE_AUDIO_ROUTING, default_answer_count
 
     try:
         # Load config file using dotenv
@@ -69,10 +76,11 @@ def load_config(config_file: str) -> tuple[Dict[str, bool], bool]:
         whitelist_str = config.get("WHITELIST", "")
         if not whitelist_str:
             logging.warning("WHITELIST not found in config file")
-            # Still load audio routing setting
+            # Still load audio routing setting and answer count
             enable_audio = config.get("ENABLE_AUDIO_ROUTING", "true").lower()
             enable_audio_routing = enable_audio in ["true", "1", "yes", "on"]
-            return whitelist_dict, enable_audio_routing
+            answer_count = default_answer_count
+            return whitelist_dict, enable_audio_routing, answer_count
 
         # Parse comma-separated numbers
         numbers = [num.strip() for num in whitelist_str.split(",")]
@@ -100,11 +108,96 @@ def load_config(config_file: str) -> tuple[Dict[str, bool], bool]:
         )
         logging.info(f"Audio routing enabled: {enable_audio_routing}")
 
+        # Load and validate ANSWER_COUNT
+        answer_count_str = config.get("ANSWER_COUNT", str(default_answer_count))
+        try:
+            answer_count = int(answer_count_str)
+            if answer_count < 2 or answer_count > 20:
+                logging.warning(
+                    f"ANSWER_COUNT value {answer_count} is outside valid range (2-20). "
+                    f"Using default value of 2."
+                )
+                answer_count = 2
+            else:
+                logging.info(f"ANSWER_COUNT set to {answer_count}")
+        except ValueError:
+            logging.warning(
+                f"Invalid ANSWER_COUNT value '{answer_count_str}'. "
+                f"Using default value of 2."
+            )
+            answer_count = 2
+
     except Exception as e:
         logging.error(f"Error loading config: {e}", exc_info=True)
         enable_audio_routing = DEFAULT_ENABLE_AUDIO_ROUTING
+        answer_count = default_answer_count
 
-    return whitelist_dict, enable_audio_routing
+    return whitelist_dict, enable_audio_routing, answer_count
+
+
+def update_cid_from_sim(serial_connection: serial.Serial, config_file: str) -> None:
+    """Retrieve MSISDN from SIM and update CID in config file if needed.
+
+    Args:
+        serial_connection: Active serial connection to the modem
+        config_file: Path to K3_config_settings file
+    """
+    logging.info("Retrieving MSISDN from SIM card...")
+    success, msisdn = get_msisdn(serial_connection, verbose=True)
+
+    if not success or not msisdn:
+        logging.warning(
+            "Could not retrieve MSISDN from SIM - CID in config file will not be"
+            " updated. This may occur if the carrier has not provisioned the phone"
+            " number on the SIM card."
+        )
+        return
+
+    # If the MSISDN has a leading "1", drop it before saving to the config file
+    if msisdn.startswith("1"):
+        msisdn = msisdn[1:]
+
+    # Read current CID from config file
+    config = dotenv_values(config_file)
+    current_cid = config.get("CID", "")
+
+    if current_cid == msisdn:
+        logging.info(f"CID matches SIM MSISDN: {msisdn}")
+        return
+
+    # CID mismatch - update config file
+    logging.info("CID mismatch detected - updating config file")
+    logging.info(f"Previous CID: {current_cid}")
+    logging.info(f"New CID (from SIM): {msisdn}")
+
+    try:
+        # Read all lines from config file
+        with open(config_file) as f:
+            lines = f.readlines()
+
+        # Update or add CID line
+        cid_found = False
+        updated_lines = []
+        for line in lines:
+            if line.startswith("CID="):
+                updated_lines.append(f'CID="{msisdn}"\n')
+                cid_found = True
+            else:
+                updated_lines.append(line)
+
+        # If CID wasn't in file, append it
+        if not cid_found:
+            updated_lines.append(f'CID="{msisdn}"\n')
+
+        # Write back to file
+        # Note: This works with group write permissions, unlike set_key()
+        # which tries to preserve permissions via chmod
+        with open(config_file, "w") as f:
+            f.writelines(updated_lines)
+
+        logging.info(f"Successfully updated CID to {msisdn} in {config_file}")
+    except Exception as e:
+        logging.error(f"Failed to update CID in config file: {e}")
 
 
 class ModemState(enum.Enum):
@@ -161,11 +254,13 @@ class ModemStateMachine:
         serial_connection: serial.Serial,
         whitelist: Dict[str, bool],
         enable_audio_routing: bool = True,
+        answer_count: int = 2,
     ):
         self.serial = serial_connection
         self.whitelist = whitelist  # Dictionary of allowed numbers
         # Enable audio loopback for POOL, disable for elevator
         self.enable_audio_routing = enable_audio_routing
+        self.answer_count = answer_count  # Number of rings before answering
         self.state = ModemState.IDLE
         self.call_info = CallInfo()
         self.state_lock = threading.Lock()
@@ -174,6 +269,9 @@ class ModemStateMachine:
         self.pending_requests = {}  # request_id -> CommandRequest
         self.shutdown_flag = threading.Event()
         self.incoming_call_callbacks = []  # Callbacks for incoming call notifications
+        # Track incoming call rings
+        self.ring_count = 0
+        self.pending_caller_number = None
 
     def get_state(self) -> ModemState:
         """Thread-safe state getter."""
@@ -243,10 +341,14 @@ class ModemStateMachine:
                 request_id=request.request_id,
             )
 
-        logging.info(f"Placing call to {number}")
+        # Parse special dial codes to strip prefix (EDC control now handled externally)
+        actual_number, _, _ = parse_special_dial_code(number)
+
+        logging.info(f"Placing call to {actual_number}")
+
         self.set_state(ModemState.PLACING_CALL)
         self.call_info = CallInfo(
-            number=number,
+            number=actual_number,
             direction="outgoing",
             start_time=datetime.now(),
             request_id=request.request_id,
@@ -258,7 +360,7 @@ class ModemStateMachine:
         # Start call in background thread
         thread = threading.Thread(
             target=self._place_call_worker,
-            args=(number, no_audio_routing, request.request_id),
+            args=(actual_number, no_audio_routing, request.request_id),
             daemon=True,
             name="PlaceCall",
         )
@@ -297,7 +399,13 @@ class ModemStateMachine:
         return False
 
     def _place_call_worker(self, number: str, no_audio_routing: bool, request_id: str):
-        """Worker thread for placing calls."""
+        """Worker thread for placing calls.
+
+        Args:
+            number: Phone number to dial (with special codes already stripped)
+            no_audio_routing: If True, don't set up audio routing
+            request_id: Request ID for async response
+        """
         logging.info(
             f"[AUDIO_DEBUG] _place_call_worker started: number={number}, "
             f"no_audio_routing={no_audio_routing}"
@@ -586,9 +694,15 @@ class ModemStateMachine:
             # Send hangup to reject the incoming call
             with self.serial_lock:
                 sbc_cmd(AT_HANGUP, self.serial, verbose=True)
+            # Reset ring tracking
+            self.ring_count = 0
+            self.pending_caller_number = None
             return
 
         logging.info(f"Incoming call from {caller_number}")
+        # Store caller number for ring tracking
+        self.pending_caller_number = caller_number
+        self.ring_count = 0
         self.set_state(ModemState.ANSWERING_CALL)
 
         # Check whitelist (dictionary lookup)
@@ -603,7 +717,27 @@ class ModemStateMachine:
             self.set_state(ModemState.IDLE)
             return
 
-        logging.info(f"Number {caller_number} is whitelisted, answering call")
+        logging.info(
+            f"Number {caller_number} is whitelisted, will answer after "
+            f"{self.answer_count} rings"
+        )
+
+        # Note: Actual answering is now handled in monitor_serial_port
+        # based on ring_count reaching answer_count
+        return
+
+    def answer_incoming_call(self):
+        """Actually answer the incoming call after required number of rings."""
+        caller_number = self.pending_caller_number
+        if not caller_number:
+            logging.error("Cannot answer call: no pending caller number")
+            self.set_state(ModemState.IDLE)
+            self.ring_count = 0
+            return
+
+        logging.info(
+            f"Answering call from {caller_number} after {self.ring_count} rings"
+        )
 
         # Answer the call
         with self.serial_lock:
@@ -653,6 +787,10 @@ class ModemStateMachine:
         if self.enable_audio_routing and not audio_routing_success:
             status_msg += " (audio routing failed)"
         logging.info(status_msg)
+
+        # Reset ring tracking
+        self.ring_count = 0
+        self.pending_caller_number = None
 
         # Notify any registered callbacks about incoming call
         self._notify_incoming_call(caller_number)
@@ -1204,7 +1342,24 @@ def monitor_serial_port(state_machine: ModemStateMachine, tcp_server=None):
 
             # Detect incoming call
             if line == "RING":
-                logging.info("Incoming call detected (RING)")
+                current_state = state_machine.get_state()
+                if current_state == ModemState.ANSWERING_CALL:
+                    # Increment ring count
+                    state_machine.ring_count += 1
+                    logging.info(
+                        f"Incoming call ring {state_machine.ring_count} "
+                        f"(will answer after {state_machine.answer_count})"
+                    )
+
+                    # Check if we should answer now
+                    if state_machine.ring_count >= state_machine.answer_count:
+                        logging.info(
+                            f"Ring count {state_machine.ring_count} reached, "
+                            f"answering call"
+                        )
+                        state_machine.answer_incoming_call()
+                else:
+                    logging.info("Incoming call detected (RING)")
 
             # Detect caller ID
             if line.startswith("+CLIP:"):
@@ -1214,8 +1369,16 @@ def monitor_serial_port(state_machine: ModemStateMachine, tcp_server=None):
                     caller_number = parts[0].split(":")[1].strip().strip('"')
                     logging.info(f"Caller ID: {caller_number}")
 
-                    # Handle the incoming call
-                    state_machine.handle_incoming_call(caller_number)
+                    # Only handle incoming call if we're not already processing one
+                    # (subsequent RINGs will have +CLIP but we should ignore them)
+                    current_state = state_machine.get_state()
+                    if current_state == ModemState.ANSWERING_CALL:
+                        logging.debug(
+                            f"Ignoring +CLIP for existing call from {caller_number}"
+                        )
+                    else:
+                        # Handle the incoming call
+                        state_machine.handle_incoming_call(caller_number)
 
             # Detect DTMF events
             if line.startswith("#DTMFEV:"):
@@ -1395,12 +1558,14 @@ def main():
             normalized = num if num.startswith("+") else f"+1{num}"
             whitelist_dict[normalized] = True
         logging.info(f"Whitelist: {list(whitelist_dict.keys())}")
-        # Still load audio routing setting from config
-        _, enable_audio_routing = load_config(args.config_file)
+        # Still load audio routing setting and answer count from config
+        _, enable_audio_routing, answer_count = load_config(args.config_file)
     else:
         # Load from config file
         logging.info(f"Loading configuration from: {args.config_file}")
-        whitelist_dict, enable_audio_routing = load_config(args.config_file)
+        whitelist_dict, enable_audio_routing, answer_count = load_config(
+            args.config_file
+        )
         logging.info(
             f"[AUDIO_DEBUG] After load_config: "
             f"enable_audio_routing={enable_audio_routing}"
@@ -1425,6 +1590,15 @@ def main():
         logging.error("Failed to manage SIM")
         sys.exit(1)
 
+    sim_settle_wait_sec = 2
+    logging.info(f"Waiting {sim_settle_wait_sec} seconds for SIM to settle...")
+    time.sleep(sim_settle_wait_sec)
+    logging.info("Continuing modem management...")
+
+    # After SIM is unlocked, retrieve MSISDN and update CID if necessary
+    config_file = "/mnt/data/K3_config_settings"
+    update_cid_from_sim(serial_connection, config_file)
+
     try:
         # Create state machine
         logging.info(
@@ -1432,7 +1606,7 @@ def main():
             f"enable_audio_routing={enable_audio_routing}"
         )
         state_machine = ModemStateMachine(
-            serial_connection, whitelist_dict, enable_audio_routing
+            serial_connection, whitelist_dict, enable_audio_routing, answer_count
         )
         audio_status = "ENABLED" if enable_audio_routing else "DISABLED"
         logging.info(

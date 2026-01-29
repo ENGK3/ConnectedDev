@@ -8,18 +8,19 @@
 #   03# - Edit THIRD_NUMBER
 #
 # Prerequisites:
-#   - SSH access to root@GWorks2
+#   - SSH access to target host
 #   - baresip client available on the target
 #   - Asterisk running with the new configuration
 #   - Admin extension (200 or 201) configured
 #
-# Usage: ./test_edit_phone_numbers.sh
+# Usage: ./test_edit_phone_numbers.sh [TARGET_HOST]
+#   TARGET_HOST: SSH target (e.g., root@GWorks2) [default: root@GWorks2]
 ##############################################################################
 
 set -e
 
-# Configuration
-TARGET_HOST="root@GWorks2"
+# Parse command line arguments
+TARGET_HOST="${1:-root@GWorks2}"
 CONFIG_FILE="/mnt/data/K3_config_settings"
 TEST_PHONE_NUMBER_1="5551234567"
 TEST_PHONE_NUMBER_2="5552345678"
@@ -252,39 +253,39 @@ print_manual_test_instructions() {
     echo "=========================================================================="
     echo ""
     echo "1. SSH into the target system:"
-    echo "   ${YELLOW}ssh $TARGET_HOST${NC}"
+    echo -e "   ${YELLOW}ssh $TARGET_HOST${NC}"
     echo ""
     echo "2. Start baresip as admin extension 201:"
-    echo "   ${YELLOW}baresip sip:201@localhost${NC}"
+    echo -e "   ${YELLOW}baresip sip:201@localhost${NC}"
     echo ""
     echo "3. From baresip, dial the conference:"
-    echo "   ${YELLOW}/dial 9877${NC}"
+    echo -e "   ${YELLOW}/dial 9877${NC}"
     echo "   (This joins as admin with menu access)"
     echo ""
     echo "4. Test DTMF sequences:"
     echo ""
     echo "   FIRST_NUMBER (01#):"
-    echo "   - Press: ${YELLOW}01#${NC}"
-    echo "   - Enter test number: ${YELLOW}5551234567${NC}"
-    echo "   - Verify: ${YELLOW}ssh $TARGET_HOST 'grep FIRST_NUMBER $CONFIG_FILE'${NC}"
+    echo -e "   - Press: ${YELLOW}01#${NC}"
+    echo -e "   - Enter test number: ${YELLOW}5551234567${NC}"
+    echo -e "   - Verify: ${YELLOW}ssh $TARGET_HOST 'grep FIRST_NUMBER $CONFIG_FILE'${NC}"
     echo ""
     echo "   SECOND_NUMBER (02#):"
-    echo "   - Press: ${YELLOW}02#${NC}"
-    echo "   - Enter test number: ${YELLOW}5552345678${NC}"
-    echo "   - Verify: ${YELLOW}ssh $TARGET_HOST 'grep SECOND_NUMBER $CONFIG_FILE'${NC}"
+    echo -e "   - Press: ${YELLOW}02#${NC}"
+    echo -e "   - Enter test number: ${YELLOW}5552345678${NC}"
+    echo -e "   - Verify: ${YELLOW}ssh $TARGET_HOST 'grep SECOND_NUMBER $CONFIG_FILE'${NC}"
     echo ""
     echo "   THIRD_NUMBER (03#):"
-    echo "   - Press: ${YELLOW}03#${NC}"
-    echo "   - Enter test number: ${YELLOW}5553456789${NC}"
-    echo "   - Verify: ${YELLOW}ssh $TARGET_HOST 'grep THIRD_NUMBER $CONFIG_FILE'${NC}"
+    echo -e "   - Press: ${YELLOW}03#${NC}"
+    echo -e "   - Enter test number: ${YELLOW}5553456789${NC}"
+    echo -e "   - Verify: ${YELLOW}ssh $TARGET_HOST 'grep THIRD_NUMBER $CONFIG_FILE'${NC}"
     echo ""
     echo "5. Test playback (01*, 02*, 03*):"
-    echo "   - Press ${YELLOW}01*${NC} to hear FIRST_NUMBER read digit-by-digit"
-    echo "   - Press ${YELLOW}02*${NC} to hear SECOND_NUMBER read digit-by-digit"
-    echo "   - Press ${YELLOW}03*${NC} to hear THIRD_NUMBER read digit-by-digit"
+    echo -e "   - Press ${YELLOW}01*${NC} to hear FIRST_NUMBER read digit-by-digit"
+    echo -e "   - Press ${YELLOW}02*${NC} to hear SECOND_NUMBER read digit-by-digit"
+    echo -e "   - Press ${YELLOW}03*${NC} to hear THIRD_NUMBER read digit-by-digit"
     echo ""
     echo "6. Exit baresip:"
-    echo "   ${YELLOW}/quit${NC}"
+    echo -e "   ${YELLOW}/quit${NC}"
     echo ""
     echo "=========================================================================="
     echo ""

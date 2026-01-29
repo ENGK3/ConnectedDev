@@ -18,6 +18,8 @@ import sys
 import threading
 import time
 
+from dotenv import dotenv_values
+
 # Import modem manager client
 from modem_manager_client import ModemManagerClient
 
@@ -346,7 +348,7 @@ def monitor_modem_notifications(
 
 def monitor_baresip_socket(
     sock,
-    phone_number,
+    phone_numbers,
     skip_rerouting=False,
     stop_event=None,
     modem_manager_host=MODEM_MANAGER_HOST,
@@ -356,7 +358,7 @@ def monitor_baresip_socket(
 
     Args:
         sock: Socket connection to baresip
-        phone_number: Phone number to dial for audio routing
+        phone_numbers: List of phone numbers to dial for audio routing (tries in order)
         skip_rerouting: If True, skip audio re-routing
         stop_event: Threading event to signal when to stop monitoring
         modem_manager_host: Modem manager server host
@@ -581,75 +583,102 @@ def monitor_baresip_socket(
                                 current_call_id = None
                                 continue
 
-                            # Place the call
-                            logging.info(
-                                f"Requesting modem manager to place call to "
-                                f"{phone_number}"
-                            )
-                            response = client.place_call(phone_number, skip_rerouting)
+                            # Try each phone number until one succeeds
+                            call_success = False
 
-                            logging.info(
-                                f"Modem manager response: {response.get('status')} - "
-                                f"{response.get('message')}"
-                            )
-
-                            # Handle response based on status
-                            if response.get("status") == "error":
-                                # Modem is busy or error occurred
-                                logging.warning(
-                                    f"Call placement failed: {response.get('message')}"
+                            for number in phone_numbers:
+                                logging.info(
+                                    f"Requesting modem manager to place call"
+                                    f" to {number}"
                                 )
-                                # Terminate baresip call since we can't route audio
+                                response = client.place_call(number, skip_rerouting)
+
+                                logging.info(
+                                    f"Modem manager response: {response.get('status')}"
+                                    f" - {response.get('message')}"
+                                )
+
+                                # Handle response based on status
+                                if response.get("status") == "error":
+                                    # Modem is busy or error occurred
+                                    logging.warning(
+                                        f"Call placement to {number} failed: "
+                                        f"{response.get('message')}"
+                                    )
+                                    # Try next number if available
+                                    if number != phone_numbers[-1]:
+                                        logging.info(
+                                            "Waiting 2.5 seconds before trying next"
+                                            " number..."
+                                        )
+                                        time.sleep(2.5)
+                                        continue
+                                    else:
+                                        # Last number failed, give up
+                                        logging.error("All call attempts failed")
+                                        # Terminate baresip call since we can't
+                                        # route audio
+                                        send_baresip_command(
+                                            sock, "hangup", current_call_id
+                                        )
+                                        call_in_progress = False
+                                        current_call_id = None
+                                        client.disconnect()
+                                        break
+
+                                # Wait for final response if pending or success
+                                if response.get("status") == "pending":
+                                    logging.info(
+                                        "Call placement pending, waiting for"
+                                        " completion..."
+                                    )
+                                    # The response will come asynchronously
+                                    if client.socket:
+                                        final_response = json.loads(
+                                            client.socket.recv(4096).decode().strip()
+                                        )
+                                        status = final_response.get("status")
+                                        msg = final_response.get("message")
+                                        logging.info(
+                                            f"Final response: {status} - {msg}"
+                                        )
+
+                                        if final_response.get("status") == "success":
+                                            logging.info(
+                                                "Audio routing call completed "
+                                                "successfully"
+                                            )
+                                            call_success = True
+                                            break
+                                        else:
+                                            logging.warning(
+                                                f"Audio routing call to {number} "
+                                                f"failed: "
+                                                f"{final_response.get('message')}"
+                                            )
+
+                                elif response.get("status") == "success":
+                                    logging.info(
+                                        f"Audio routing call to {number} completed"
+                                        " successfully"
+                                    )
+                                    call_success = True
+                                    break  # Success, exit the retry loop
+
+                            # If no call succeeded after trying all numbers
+                            if not call_success:
+                                logging.error(
+                                    "Failed to establish call with any"
+                                    " configured number"
+                                )
                                 send_baresip_command(sock, "hangup", current_call_id)
                                 call_in_progress = False
                                 current_call_id = None
                                 client.disconnect()
                                 continue
 
-                            # Wait for final response if pending
-                            call_success = False
-                            if response.get("status") == "pending":
-                                logging.info(
-                                    "Call placement pending, waiting for completion..."
-                                )
-                                # The response will come asynchronously
-                                if client.socket:
-                                    final_response = json.loads(
-                                        client.socket.recv(4096).decode().strip()
-                                    )
-                                    status = final_response.get("status")
-                                    msg = final_response.get("message")
-                                    logging.info(f"Final response: {status} - {msg}")
-
-                                    if final_response.get("status") == "success":
-                                        logging.info(
-                                            "Audio routing call completed successfully"
-                                        )
-                                        call_success = True
-                                    else:
-                                        logging.warning(
-                                            f"Audio routing call failed: "
-                                            f"{final_response.get('message')}"
-                                        )
-
-                            elif response.get("status") == "success":
-                                logging.info(
-                                    "Audio routing call completed successfully"
-                                )
-                                call_success = True
-
                             # Disconnect the call placement client
                             client.disconnect()
-
-                            # Only start monitoring if call was successful
-                            if not call_success:
-                                logging.warning(
-                                    "Call not successful, skipping monitoring"
-                                )
-                                send_baresip_command(sock, "hangup", current_call_id)
-                                call_in_progress = False
-                                current_call_id = None
-                                continue
 
                             logging.info(
                                 "Both calls are now active. "
@@ -805,8 +834,8 @@ def main():
     parser.add_argument(
         "-n",
         "--number",
-        default="9723507770",
-        help="Phone number to dial (default: 9723507770)",
+        default=None,
+        help="Phone number to dial (overrides config file)",
     )
     parser.add_argument(
         "-r",
@@ -833,8 +862,22 @@ def main():
     )
     args = parser.parse_args()
 
+    # Load phone numbers from config file
+    phone_numbers = []
+    if args.number:
+        # Command line overrides config file
+        phone_numbers.append(args.number)
+        logging.info("Using phone number from command line")
+    else:
+        # Load from config file
+        config = dotenv_values("/mnt/data/K3_config_settings")
+        phone_numbers.append(config.get("FIRST_NUMBER", "9723507770"))
+        phone_numbers.append(config.get("SECOND_NUMBER", "9727459072"))
+        phone_numbers.append(config.get("THIRD_NUMBER", "9723507770"))
+        logging.info("Using phone numbers from config file")
+
     logging.info("Starting Baresip call monitor (using Modem Manager)")
-    logging.info(f"Will dial number: {args.number}")
+    logging.info(f"Will dial numbers: {', '.join(phone_numbers)}")
     logging.info(f"Modem Manager: {args.modem_host}:{args.modem_port}")
     if args.skip_rerouting:
         logging.info("Audio re-routing will be skipped")
@@ -870,7 +913,7 @@ def main():
         # Start monitoring in main thread
         monitor_baresip_socket(
             sock,
-            args.number,
+            phone_numbers,
             args.skip_rerouting,
             stop_event,
             args.modem_host,

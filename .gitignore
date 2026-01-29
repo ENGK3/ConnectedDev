@@ -12,3 +12,12 @@ logs
 cksum_dir/
 common/site.priv
 save_sounds/
+tests/.coverage
+tests/__pycache__/
+.coverage
+__pycache__/
+common/__pycache__/
+modem_test.log
+./modem_test.log
+./edc_test.log
+./tests/pytest.log

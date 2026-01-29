@@ -1,5 +1,66 @@
 # CHANGELOG Kings III Software Changes
 
+## Version V00.03.06
+
+### Added
+
+Created a tests directory and added a TEST_README.md to describe the different tests.
+New tests, tests/test_dtmf_translate.py and test_manage_modem.py to test functionality.
+Added ability to enter the letters 'A' - 'F' and '*' and '#' as part of the dtmf data entry.
+
+Added menu entries for the manual tests, for the following commands:
+05 (Implemented as 75#) for "My Number" and 07 (Implemented as 77#) for the Prompt version which
+is interpreted as the Software version.
+
+Added implementation of answering only after "ANSWER_COUNT" rings.
+
+### Changed
+
+The script manage_modem now gathers the CNUM info and stores it in the K3_config_settings file. NOTE there is a delay between unlocking and retrieving the CNUM data. This is deliberate because the CNUM would return an ERROR if CNUM was executed immediately after unlocking.
+
+Sim unlocking code now uses the TMobile PIN if the AT&T version doesn't work. No effort is made to determine what type of SIM is present.
+
+The ownership of the K3_config_settings is owned by asterisk because of the need to have asterisk edit the file.  Also the sticky bit on the /mnt/data directory was set so the ownership doesn't change to the last writer for the K3_config_settings file.
+
+Tweaked the ./kings3_install.sh verify function. Also added a restart of Asterisk as part of the update to pick up Asterisk config file changes.
+
+Refactored the kings3_install.sh script to be more maintainable.
+
+Added handling of special phone number prefixes :
+
+#### Special Dial Codes
+
+| Prefix | Behavior | Example |
+|--------|----------|---------|
+| `*50` | **No EDC packet** - Dials the number without sending any EDC packet | `*509723105316` dials `9723105316` (no packet) |
+| `*54` | **DC Code** - Sends EDC packet with "DC" diagnostic code, then dials | `*548881237777` sends DC packet, dials `8881237777` |
+| `*55` | **Normal Code** - Sends EDC packet with normal "01" code, then dials | `*555551234567` sends packet, dials `5551234567` |
+| None | **Default** - Sends EDC packet with normal code (backward compatible) | `9723105316` sends packet, dials `9723105316` |
+
+Note the sending for the packet to the EDC moved from manage_modem, to the scripts that initiate the dialing.
+namely ari-mon-conf.py in the elevator configuration and place_call.py in the pool configuration.
+
+Removed the phone number from the voip_call_monitor.service.
+
+The script voip_call_monitory_tcp.py now reads from the K3_config_settings to get it's phone numbers and
+now has the ability to cycle through numbers if call are not connected.
+
+Merged in the cli_programming branch from this sha dcb854c.
+
+### Removed
+
+NA.
+
+### Fixed
+
+Issue #11, "Need to update "CID" field in K3_config_settings dynamically"
+Issue #10, "Need to add ability to use T-Mobile SIMs after 00.03.04 update"
+
+### Known Issues
+
+Sending of the EDC packet is dictated by the FIRST_PHONE variable in the K3_config_settings file.
+If the SECOND and THIRD number have different setting as far as the prefix ("*5x") is concerned they are not obeyed.
+
 ## Version V00.03.05
 
 ### Added
