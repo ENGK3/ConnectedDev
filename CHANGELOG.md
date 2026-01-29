@@ -8,8 +8,9 @@ Created a tests directory and added a TEST_README.md to describe the different t
 New tests, tests/test_dtmf_translate.py and test_manage_modem.py to test functionality.
 Added ability to enter the letters 'A' - 'F' and '*' and '#' as part of the dtmf data entry.
 
-Added the sub-menu for the manual tests, for the following commands:
-05 and 07.
+Added menu entries for the manual tests, for the following commands:
+05 (Implemented as 75#) for "My Number" and 07 (Implemented as 77#) for the Prompt version which
+is interpreted as the Software version.
 
 Added implementation of answering only after "ANSWER_COUNT" rings.
 
@@ -25,7 +26,7 @@ Tweaked the ./kings3_install.sh verify function. Also added a restart of Asteris
 
 Refactored the kings3_install.sh script to be more maintainable.
 
-Added handling of speical phone number prefixes :
+Added handling of special phone number prefixes :
 
 #### Special Dial Codes
 
