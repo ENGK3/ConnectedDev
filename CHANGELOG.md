@@ -1,6 +1,6 @@
 # CHANGELOG Kings III Software Changes
 
-## Version V00.03.05+ UNRELEASED
+## Version V00.03.06
 
 ### Added
 
@@ -44,6 +44,8 @@ Removed the phone number from the voip_call_monitor.service.
 
 The script voip_call_monitory_tcp.py now reads from the K3_config_settings to get it's phone numbers and
 now has the ability to cycle through numbers if call are not connected.
+
+Merged in the cli_programming branch from this sha dcb854c.
 
 ### Removed
 
