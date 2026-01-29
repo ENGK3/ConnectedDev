@@ -61,15 +61,20 @@ For the integration tests (shell scripts):
 
 ## Available Tests
 
-| Test Name | Type | Description |
-|-----------|------|-------------|
-| `test_dial_code_utils.py` | Python/pytest | Unit tests for `parse_special_dial_code()` function that parses special dial code prefixes (*50, *54, *55) |
-| `test_edc_dial_codes.py` | Python/pytest | Integration tests verifying special dial code prefix stripping and call placement behavior in `manage_modem` |
-| `test_manage_modem.py` | Python/pytest | Integration tests for modem state machine, TCP server, call placement, incoming calls with ring count/answer count logic, using fake serial modem |
-| `test_modem_utils.py` | Python/pytest | Unit tests for SIM management (`manage_sim()`) with PIN retry logic and MSISDN extraction (`get_msisdn()`) from SIM cards |
-| `test_msisdn_cid_update.py` | Python/pytest | Unit tests for automatic CID update logic that synchronizes config file with MSISDN from SIM card |
-| `test_dtmf_translate.py` | Python/unittest | Integration tests for Asterisk DTMF escape sequence translation (*1→A, *2→B, etc.). Requires SSH access to target device |
-| `test_edit_phone_numbers.sh` | Bash/Integration | Integration test for DTMF phone number editing features (01#, 02#, 03#). Requires SSH access to target device |
+| Test Name | Type | Status | Loc | Description |
+|-----------|------|--------|-----|-------------|
+| `test_dial_code_utils.py` | Python/pytest | P | L | Unit tests for `parse_special_dial_code()` function that parses special dial code prefixes (*50, *54, *55) |
+| `test_edc_dial_codes.py` | Python/pytest | P | L | Integration tests verifying special dial code prefix stripping and call placement behavior in `manage_modem` |
+| `test_manage_modem.py` | Python/pytest | P | L | Integration tests for modem state machine, TCP server, call placement, incoming calls with ring count/answer count logic, using fake serial modem |
+| `test_modem_utils.py` | Python/pytest | P | L | Unit tests for SIM management (`manage_sim()`) with PIN retry logic and MSISDN extraction (`get_msisdn()`) from SIM cards |
+| `test_msisdn_cid_update.py` | Python/pytest | P | L | Unit tests for automatic CID update logic that synchronizes config file with MSISDN from SIM card |
+| `test_dtmf_translate.py` | Python/unittest | X | R | Integration tests for Asterisk DTMF escape sequence translation (*1→A, *2→B, etc.). Requires SSH access to target device |
+| `test_edit_phone_numbers.sh` | Bash/Integration | F | R | Integration test for DTMF phone number editing features (01#, 02#, 03#). Requires SSH access to target device |
+| `test_restore_factory_defaults.py` | Python/pytest | F | R | Integration test for factory defaults restoration |
+| `test_restore_factory_defaults.sh` | Bash/Integration | F | R | Integration test for factory defaults restoration |
+
+**Status Key:** P=Pass | W=Warnings | F=Failure | X=Not Ready/Incomplete
+**Location Key:** L=Local | R=Remote
 
 ## Running the Tests
 
@@ -129,32 +134,6 @@ Example:
 ```
 
 Default target (if not specified): `root@GWorks2`
-
-
-## Operational Test Table
-
-The following is a table showing which tests currently run, if they run locally or on the remote system.
-
-|Status|Rem:Loc|Name|
-|----|-----|--------|
-|P|L|tests/test_dial_code_utils.py|
-|X|R|tests/test_dtmf_translate.py|
-|P|L|tests/test_edc_dial_codes.py|
-|F|R|tests/test_edit_phone_numbers.sh|
-|P|L|tests/test_manage_modem.py|
-|P|L|tests/test_modem_utils.py|
-|P|L|tests/test_msisdn_cid_update.py|
-|F|R|tests/test_restore_factory_defaults.py|
-|F|R|tests/test_restore_factory_defaults.sh|
-
-|KEY | Meaning |
-|----|---------|
-|P | Pass|
-|W | Warnings.|
-|F | Failure|
-|X | NOT READY - Incomplete |
-|L | Local|
-|R | Remote|
 
 ## Test Descriptions
 
