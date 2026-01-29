@@ -1,6 +1,9 @@
 import argparse
 import logging
 import logging.handlers
+import os
+import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -9,8 +12,47 @@ from dotenv import dotenv_values
 # Import modem manager client
 from modem_manager_client import ModemManagerClient
 
+# Import shared dial code parsing utilities
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "common"))
+from dial_code_utils import parse_special_dial_code
+
 # Call timeout constant (seconds to wait for call to connect)
 CALL_TIMEOUT_SECONDS = 20
+
+
+def send_edc_packet(edc_code=None):
+    """Send EDC packet by calling send_EDC_info.py script.
+
+    Args:
+        edc_code: EDC code to use ("DC" for diagnostic, None for default "01")
+    """
+    # Use "DC" for diagnostic or "01" as default
+    code = edc_code if edc_code else "01"
+    logging.info(f"Sending EDC packet with code: {code}")
+
+    try:
+        # Call send_EDC_info.py script
+        result = subprocess.run(
+            ["python3", "/mnt/data/send_EDC_info.py", "-e", code],
+            capture_output=True,
+            text=True,
+            timeout=60,  # 60 second timeout for EDC packet sending
+        )
+
+        if result.returncode == 0:
+            logging.info(f"EDC packet sent successfully (code: {code})")
+            if result.stdout:
+                logging.debug(f"EDC output: {result.stdout}")
+        else:
+            logging.error(
+                f"Failed to send EDC packet (code: {code}), "
+                f"return code: {result.returncode}"
+            )
+            if result.stderr:
+                logging.error(f"EDC error: {result.stderr}")
+
+    except subprocess.TimeoutExpired:
+        logging.error("EDC packet sending timed out after 60 seconds")
 
 
 def place_call_with_client(
@@ -199,6 +241,21 @@ if __name__ == "__main__":
     # Try each number until one succeeds
     for number in phone_numbers:
         logging.info(f"Attempting to dial number: {number}")
+
+        # Parse dial code prefix to determine EDC behavior
+        actual_number, send_edc, edc_code = parse_special_dial_code(number)
+
+        if send_edc:
+            if edc_code == "DC":
+                logging.info("Sending EDC packet with 'DC' code (*54 prefix)")
+            else:
+                logging.info(
+                    "Sending EDC packet with normal code (*55 prefix or default)"
+                )
+            send_edc_packet(edc_code)
+        else:
+            logging.info("EDC packet sending disabled for this call (*50 prefix)")
+
         call_success = place_call_with_client(
             number,
             verbose=args.verbose,

@@ -44,7 +44,8 @@ part-pkg: k3_config
        -C ../pulseaudio default.pa \
        -C ../../common \
        site_store.py site.pub site_info edit_config.sh \
-       RSRP_LUT.csv RSRQ_LUT.csv RSSI_LUT.csv
+       RSRP_LUT.csv RSRQ_LUT.csv RSSI_LUT.csv \
+       dial_code_utils.py
 
 pkg: part-pkg
     rm -rf cksum_dir

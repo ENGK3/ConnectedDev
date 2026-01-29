@@ -8,10 +8,24 @@ as an admin when the first participant joins.
 import argparse
 import asyncio
 import logging
+
+# Import shared dial code parsing utilities
+import os
 import sys
 
 import aiohttp
 from dotenv import dotenv_values
+
+# Add paths to import dial_code_utils (in common/ locally, same dir on target)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(
+    0,
+    os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "common",
+    ),
+)
+from dial_code_utils import parse_special_dial_code
 
 # Configuration
 ARI_HOST = "127.0.0.1"
@@ -35,9 +49,21 @@ logger = logging.getLogger(__name__)
 ADMIN_EXT_MASTER = "201"
 ADMIN_EXT_EDC = "200"
 
-# Load MASTER_ANSWER_TO from K3_config_settings file
+# Load configuration from K3_config_settings file
 config = dotenv_values("/mnt/data/K3_config_settings")
 ADMIN_TIMEOUT_SECONDS = int(config.get("MASTER_ANSWER_TO", 15))
+
+# Parse FIRST_NUMBER for EDC control prefix
+FIRST_NUMBER = config.get("FIRST_NUMBER", "")
+if FIRST_NUMBER:
+    _, SEND_EDC, EDC_CODE = parse_special_dial_code(FIRST_NUMBER)
+    logger.info(f"Loaded FIRST_NUMBER from config: {FIRST_NUMBER}")
+    logger.info(f"EDC control: send_edc={SEND_EDC}, edc_code={EDC_CODE}")
+else:
+    # Default behavior if no FIRST_NUMBER configured
+    SEND_EDC = True
+    EDC_CODE = None
+    logger.warning("No FIRST_NUMBER in config - using default EDC behavior (send=True)")
 
 
 class ARIConfMonitor:
@@ -343,10 +369,19 @@ class ARIConfMonitor:
     async def send_elevator_edc_packet(self, channel_name):
         """
         Send EDC info packet for an elevator extension.
+        Respects EDC control flags from FIRST_NUMBER config prefix.
 
         Args:
             channel_name: The channel name to extract elevator number from
         """
+        # Check if EDC sending is disabled via *50 prefix in FIRST_NUMBER
+        if not SEND_EDC:
+            logger.info(
+                f"EDC packet sending disabled (FIRST_NUMBER has *50 prefix) - "
+                f"skipping elevator EDC for {channel_name}"
+            )
+            return
+
         # extract the elevator number from the calling extension.
         elevator_number = self.extract_elevator_number(channel_name)
 
@@ -356,15 +391,28 @@ class ARIConfMonitor:
                 f"{channel_name}"
             )
 
-            # Invoke the script "python3 send_EDC_info.py -e <elevator_number>"
-            # and capture its return code. Log success or failure.
-            # Also wait for this script to complete before proceeding
+            # Add EDC code argument if specified (*54 = DC code)
+            if EDC_CODE:
+                elevator_number = EDC_CODE
+                logger.info(f"Sending elevator EDC with custom code: {EDC_CODE}")
+            else:
+                logger.info(f"Sending elevator EDC with {elevator_number}")
 
-            result = await asyncio.create_subprocess_exec(
+            # Build command args based on EDC_CODE
+            cmd_args = [
                 "python3",
                 "/mnt/data/send_EDC_info.py",
                 "-e",
                 elevator_number,
+            ]
+
+            # Invoke the script
+            # "python3 send_EDC_info.py -e <elevator_number>"
+            # and capture its return code. Log success or failure.
+            # Also wait for this script to complete before proceeding
+
+            result = await asyncio.create_subprocess_exec(
+                *cmd_args,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )

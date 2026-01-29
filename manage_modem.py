@@ -31,6 +31,11 @@ from audio_routing import start_audio_bridge, terminate_pids
 # Import shared modem utilities
 from modem_utils import get_msisdn, manage_sim, sbc_cmd, sbc_connect, sbc_disconnect
 
+# Import shared dial code parsing utilities
+# Add common directory to path (for local dev), on target all files are in same dir
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "common"))
+from dial_code_utils import parse_special_dial_code
+
 # Configuration defaults
 DEFAULT_SERIAL_PORT = "/dev/ttyUSB2"
 DEFAULT_BAUD_RATE = 115200
@@ -336,10 +341,14 @@ class ModemStateMachine:
                 request_id=request.request_id,
             )
 
-        logging.info(f"Placing call to {number}")
+        # Parse special dial codes to strip prefix (EDC control now handled externally)
+        actual_number, _, _ = parse_special_dial_code(number)
+
+        logging.info(f"Placing call to {actual_number}")
+
         self.set_state(ModemState.PLACING_CALL)
         self.call_info = CallInfo(
-            number=number,
+            number=actual_number,
             direction="outgoing",
             start_time=datetime.now(),
             request_id=request.request_id,
@@ -351,7 +360,7 @@ class ModemStateMachine:
         # Start call in background thread
         thread = threading.Thread(
             target=self._place_call_worker,
-            args=(number, no_audio_routing, request.request_id),
+            args=(actual_number, no_audio_routing, request.request_id),
             daemon=True,
             name="PlaceCall",
         )
@@ -390,7 +399,13 @@ class ModemStateMachine:
         return False
 
     def _place_call_worker(self, number: str, no_audio_routing: bool, request_id: str):
-        """Worker thread for placing calls."""
+        """Worker thread for placing calls.
+
+        Args:
+            number: Phone number to dial (with special codes already stripped)
+            no_audio_routing: If True, don't set up audio routing
+            request_id: Request ID for async response
+        """
         logging.info(
             f"[AUDIO_DEBUG] _place_call_worker started: number={number}, "
             f"no_audio_routing={no_audio_routing}"
