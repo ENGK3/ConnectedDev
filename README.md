@@ -115,7 +115,6 @@ This repository contains scripts, configurations, and documentation for the King
 ├── set-governor.service
 ├── show_version.sh
 ├── sounds/
-│   ├── ENU/ (custom sound files)
 │   └── (system sound files)
 ├── sstat.sh
 ├── start_ss.sh
@@ -129,6 +128,14 @@ This repository contains scripts, configurations, and documentation for the King
 ```
 
 ## Project Files
+
+### Documentation & Changelog
+
+| Filename | Directory | Description |
+|----------|-----------|-------------|
+| `README.md` | `.` | Main project documentation, directory structure, and usage guide |
+| `CHANGELOG.md` | `.` | Changelog of all software changes, features, fixes, and known issues |
+
 
 ### Programming
 
@@ -145,6 +152,7 @@ The `programming/` directory contains interactive utilities for field configurat
 | Filename | Directory | Description |
 |----------|-----------|-------------|
 | `kings3_install.sh` | `.` | Unified installation script for Pool and Elevator configurations with package installation, service management, and verification |
+| `justfile` | `.` | Build/package automation file for generating, packaging, and releasing project artifacts |
 | `generate_version.sh` | `.` | Generates version information file with git commit hash, branch, and timestamp |
 | `led_blue.sh` | `.` | Controls the blue LED on/off (GPIO control for status indication) |
 | `led_green.sh` | `.` | Controls the green LED on/off on GPIO 9 (Gateworks GW7200 board) |
@@ -199,6 +207,7 @@ The `programming/` directory contains interactive utilities for field configurat
 | `get_sensor_data.timer` | `.` | Systemd timer for periodic sensor data collection (temperature, voltage, cellular signal strength) |
 | `send_edc_checkin.service` | `.` | Systemd service for EDC check-in reporting, executes send_EDC_info.sh with E2 extension parameter, triggered by send_edc_checkin.timer |
 | `send_edc_checkin.timer` | `.` | Systemd timer for periodic EDC check-in based on CHECKIN_INTERVAL_DAYS configuration; uses OnBootSec and OnUnitActiveSec to reset cycle after reboot |
+| `k3-config-reboot.service` | `.` | Systemd oneshot service that runs update_checkin_timer.sh and reboots the system; allows privileged reboot via PolicyKit for asterisk user |
 | `set-governor.service` | `.` | Systemd service to set CPU governor policy on boot for power management |
 | `voip_ari_conference.service` | `VOIP/` | Systemd service for ARI conference monitoring, depends on Asterisk service, runs ari-mon-conf.py |
 | `voip_call_monitor.service` | `VOIP/` | Systemd service for VoIP call monitoring over TCP, depends on Asterisk service and ttyUSB2 device, runs voip_call_monitor_tcp.py |
@@ -208,6 +217,7 @@ The `programming/` directory contains interactive utilities for field configurat
 | Filename | Directory | Description |
 |----------|-----------|-------------|
 | `daemon.conf` | `.` | PulseAudio daemon configuration file with settings for audio processing and system behavior |
+| `50-k3-config-reboot.rules` | `.` | PolicyKit rule granting asterisk user permission to start k3-config-reboot.service for secure system reboot |
 || `K3_config_settings.in` | `.` | **Template file**: Version-controlled template for build process; populated with APP version during package generation |
 | `markdown-pdf.css` | `.` | CSS stylesheet for generating PDF documentation from Markdown files, provides VS Code compatible formatting |
 | `microcom.alias` | `.` | Bash aliases for microcom serial terminal commands for easier modem interaction |
@@ -228,6 +238,14 @@ The `programming/` directory contains interactive utilities for field configurat
 | `config` | `VOIP/baresip/` | Baresip SIP client configuration with audio (PulseAudio), video, and network settings |
 | `interfaces` | `VOIP/` | Network interfaces configuration file for Debian-based network setup |
 | `default.pa` | `VOIP/pulseaudio/` | PulseAudio default configuration script for audio device initialization and routing |
+
+### Test Scripts & Documentation
+
+| Filename | Directory | Description |
+|----------|-----------|-------------|
+| `check-in-test.md` | `tests/` | Testing guide for EDC check-in timer functionality, including quick-cycle and verification steps |
+| `install_quick_cycle.sh` | `tests/` | Test helper script to install a 2-minute quick cycle override for send_edc_checkin.timer; requires root privileges |
+| `remove_quick_cycle.sh` | `tests/` | Test helper script to remove quick cycle override and restore configured timer interval; requires root privileges |
 
 ## System Overview
 
@@ -282,15 +300,27 @@ When an elevator extension (101-104) initiates a conference call:
 
 #### Configuration File (`K3_config_settings.in`)
 
-Contains site-specific settings:
+Contains site-specific settings the current defaults are:
 
 ```bash
-CID="5822460189"         # Customer ID
-AC="C12345"              # Account Code
-MDL="Q01"                # Model designation
-APN="broadband"          # Cellular APN
-UTM="02EBA09E"           # Modem UTM (auto-retrieved if available)
-bat_voltage="1323"       # Battery voltage reading
+MDL="Q01"
+APN="broadband"
+UTM="02EBA09E"  # Should come from the modem.
+bat_voltage="1323"  # Should come from the latest reading of the system.
+ZLST="01"
+ANSWER_COUNT="2"
+PROGRAM_CODE="1234"
+
+WHITELIST="9723256826,9724620611,8668073545,9729560535,9729560536"
+MASTER_ANSWER_TO="15"
+ENABLE_AUDIO_ROUTING="OFF"
+
+FIRST_NUMBER="9723507770"
+SECOND_NUMBER="9727459072"
+THIRD_NUMBER="9723507770"
+
+EVT_MON_PERIOD_SECS="600" # event reporting update time in secs
+CHECKIN_INTERVAL_DAYS=1
 ```
 
 ## Ignore the following directories
