@@ -2,7 +2,7 @@
 
 This repository contains scripts, configurations, and documentation for the King3 embedded system project, which includes VoIP functionality, cellular modem integration, and audio routing on Gateworks hardware platforms.
 
-## Directory Tree (as of Jan 23, 2026)
+## Directory Tree (as of Feb 02, 2026)
 
 ```bash
 ./

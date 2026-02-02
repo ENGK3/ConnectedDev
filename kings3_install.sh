@@ -726,7 +726,7 @@ if [ "$CONFIG" == "pool" ]; then
 
     # Configure EDC check-in timer based on K3_config_settings
     echo "Configuring EDC check-in timer..."
-    /mnt/data/common/update_checkin_timer.sh
+    /mnt/data/update_checkin_timer.sh
 
     echo "Pool configuration complete!"
     echo "Note: You must run 'systemctl --user enable pulseaudio.service' as kuser"
