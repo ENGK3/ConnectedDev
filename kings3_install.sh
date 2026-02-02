@@ -500,8 +500,12 @@ update_config_settings() {
         fi
     done < "$default_file"
 
+
     # Build the updated config file
     > "$temp_file"  # Clear temp file
+
+    # Track which variables have been written
+    declare -A written_vars
 
     # Process all settings from default file (to maintain order)
     while IFS= read -r line || [ -n "$line" ]; do
@@ -516,17 +520,23 @@ update_config_settings() {
             local var_name="${BASH_REMATCH[1]}"
 
             # Special case: Always use APP version from default config.
-            # The APP variable must be updated to reflect the new version being installed.
             if [ "$var_name" = "APP" ]; then
                 echo "$line" >> "$temp_file"
                 echo "  - Updated APP to new version: ${default_settings[$var_name]}"
+                written_vars["$var_name"]=1
+            # Always preserve CHECKIN_INTERVAL_DAYS from existing config if present
+            elif [ "$var_name" = "CHECKIN_INTERVAL_DAYS" ] && [ -n "${existing_settings[$var_name]+isset}" ]; then
+                echo "${var_name}=\"${existing_settings[$var_name]}\"${existing_comments[$var_name]}" >> "$temp_file"
+                written_vars["$var_name"]=1
             # If setting exists in current config, use the existing value
             elif [ -n "${existing_settings[$var_name]+isset}" ]; then
                 echo "${var_name}=\"${existing_settings[$var_name]}\"${existing_comments[$var_name]}" >> "$temp_file"
+                written_vars["$var_name"]=1
             # If setting doesn't exist in current config, add it from default
             else
                 echo "$line" >> "$temp_file"
                 echo "  + Added new setting: $var_name=\"${default_settings[$var_name]}\""
+                written_vars["$var_name"]=1
             fi
         else
             # Keep comments and other lines as-is
@@ -538,7 +548,7 @@ update_config_settings() {
     # (These should be preserved at the end of the file)
     local added_extra=false
     for var_name in "${!existing_settings[@]}"; do
-        if [ -z "${default_settings[$var_name]+isset}" ]; then
+        if [ -z "${default_settings[$var_name]+isset}" ] && [ -z "${written_vars[$var_name]+isset}" ]; then
             if [ "$added_extra" = false ]; then
                 echo "" >> "$temp_file"
                 echo "# Additional settings from previous configuration" >> "$temp_file"
