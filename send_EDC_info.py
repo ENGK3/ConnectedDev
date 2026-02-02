@@ -4,21 +4,10 @@ import json
 import logging
 import subprocess
 import time
-from typing import Tuple
+from typing import TYPE_CHECKING, Tuple
 
-import serial
-from dotenv import dotenv_values
-
-# Import shared modem utilities
-from modem_utils import (
-    check_network_status,
-    configure_modem_tcp,
-    get_modem_info,
-    get_software_package_version,
-    sbc_cmd_with_timeout,
-    sbc_connect,
-    sbc_disconnect,
-)
+if TYPE_CHECKING:
+    import serial
 
 # Timeout constants
 DEFAULT_RESPONSE_TIMEOUT = 30  # seconds
@@ -50,7 +39,7 @@ def send_tcp_packet(
     hostname: str,
     port: int,
     data: str,
-    serial_connection: serial.Serial,
+    serial_connection: "serial.Serial",
     timeout: float = DEFAULT_RESPONSE_TIMEOUT,
     verbose: bool = False,
 ) -> Tuple[int, str]:
@@ -325,25 +314,7 @@ def send_tcp_packet(
 
 
 if __name__ == "__main__":
-    # Set up logging to syslog with milliseconds in timestamp
-
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(asctime)s.%(msecs)03d %(levelname)-8s [TCP] %(message)s",
-        datefmt="%m-%d %H:%M:%S",
-        filename="/mnt/data/calls.log",
-        filemode="a+",
-    )
-
-    console = logging.StreamHandler()
-    console.setLevel(logging.INFO)
-    formatter = logging.Formatter(
-        "%(asctime)s.%(msecs)03d:%(levelname)-8s [TCP] %(message)s", datefmt="%H:%M:%S"
-    )
-    formatter.default_msec_format = "%s.%03d"
-    console.setFormatter(formatter)
-    logging.getLogger("").addHandler(console)
-
+    # Parse arguments first to allow --help to work even if dependencies are missing
     parser = argparse.ArgumentParser(
         description="Send INFO TCP packet via modem to EDC server"
     )
@@ -370,6 +341,39 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
+
+    # Now import the dependencies that might not be installed yet
+    import serial
+    from dotenv import dotenv_values
+
+    # Import shared modem utilities
+    from modem_utils import (
+        check_network_status,
+        configure_modem_tcp,
+        get_modem_info,
+        get_software_package_version,
+        sbc_cmd_with_timeout,
+        sbc_connect,
+        sbc_disconnect,
+    )
+
+    # Set up logging to syslog with milliseconds in timestamp
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s.%(msecs)03d %(levelname)-8s [TCP] %(message)s",
+        datefmt="%m-%d %H:%M:%S",
+        filename="/mnt/data/calls.log",
+        filemode="a+",
+    )
+
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    formatter = logging.Formatter(
+        "%(asctime)s.%(msecs)03d:%(levelname)-8s [TCP] %(message)s", datefmt="%H:%M:%S"
+    )
+    formatter.default_msec_format = "%s.%03d"
+    console.setFormatter(formatter)
+    logging.getLogger("").addHandler(console)
 
     config = dotenv_values(
         "/mnt/data/K3_config_settings"

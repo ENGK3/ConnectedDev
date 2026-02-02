@@ -1,5 +1,23 @@
 # CHANGELOG Kings III Software Changes
 
+## Version V00.03.06+ UNRELEASED
+
+### Added
+
+Implemented the DTMF programming for 07, the "Check-In Interval".
+
+### Changed
+
+Small refactoring of send_EDC_info.py to clean up imports and add -h,--help argument.
+
+### Fixed
+
+None.
+
+### Known Issues
+
+None.
+
 ## Version V00.03.06
 
 ### Added
