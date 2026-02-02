@@ -20,7 +20,8 @@ This repository contains scripts, configurations, and documentation for the King
 │   ├── RSSI_LUT.csv
 │   ├── site_info (encrypted)
 │   ├── site_store.py
-│   └── site.pub
+│   ├── site.pub
+│   └── update_checkin_timer.sh
 ├── Digi/
 │   ├── TF-config
 │   └── digi-config
@@ -39,6 +40,9 @@ This repository contains scripts, configurations, and documentation for the King
 │   └── programming.sh
 ├── README.md
 ├── tests/
+│   ├── check-in-test.md
+│   ├── install_quick_cycle.sh
+│   ├── remove_quick_cycle.sh
 │   └── test_edit_phone_numbers.sh
 ├── VERSION_INFO
 ├── VOIP/
@@ -104,6 +108,8 @@ This repository contains scripts, configurations, and documentation for the King
 ├── pulseaudio.service
 ├── pyproject.toml
 ├── send_EDC_info.py
+├── send_edc_checkin.service
+├── send_edc_checkin.timer
 ├── set-governor.service
 ├── show_version.sh
 ├── sounds/
@@ -149,6 +155,7 @@ The `programming/` directory contains interactive utilities for field configurat
 | `stop_ss.sh` | `.` | Stops all King3 systemd services (get_sensor_data, voip_call_monitor, voip_ari_conference, manage_modem); requires root privileges |
 | `encrypt_site_store.sh` | `common/` | Encrypts site configuration files using RSA private key signing; supports both rsautl and pkeyutl methods for OpenSSL compatibility; outputs encrypted binary to site_store file |
 | `edit_config.sh` | `common/` | Edits K3_config_settings file with validation; called from Asterisk dialplan for remote configuration updates |
+| `update_checkin_timer.sh` | `common/` | Updates send_edc_checkin.timer systemd timer based on CHECKIN_INTERVAL_DAYS from K3_config_settings; supports --install flag for initial setup; reloads systemd daemon and restarts timer when changes are made |
 | `setup_audio_routing.sh` | `VOIP/` | Sets up PulseAudio loopback modules for routing audio between USB headset and SGTL5000 sound card |
 | `setup_telit_routing.sh` | `VOIP/` | Configures PulseAudio loopback modules for routing audio between Telit LE910C1 modem and SGTL5000 sound card |
 | `switch_detect.sh` | `.` | Emergency switch press handler that plays audio alert and initiates emergency call |
@@ -188,6 +195,8 @@ The `programming/` directory contains interactive utilities for field configurat
 | `events_monitor.service` | `.` | Systemd service for system events monitoring, runs events_monitor.py to track and log system events |
 | `get_sensor_data.service` | `.` | Systemd service for sensor data collection, triggered by get_sensor_data.timer |
 | `get_sensor_data.timer` | `.` | Systemd timer for periodic sensor data collection (temperature, voltage, cellular signal strength) |
+| `send_edc_checkin.service` | `.` | Systemd service for EDC check-in reporting, executes send_EDC_info.sh with E2 extension parameter, triggered by send_edc_checkin.timer |
+| `send_edc_checkin.timer` | `.` | Systemd timer for periodic EDC check-in based on CHECKIN_INTERVAL_DAYS configuration; uses OnBootSec and OnUnitActiveSec to reset cycle after reboot |
 | `set-governor.service` | `.` | Systemd service to set CPU governor policy on boot for power management |
 | `voip_ari_conference.service` | `VOIP/` | Systemd service for ARI conference monitoring, depends on Asterisk service, runs ari-mon-conf.py |
 | `voip_call_monitor.service` | `VOIP/` | Systemd service for VoIP call monitoring over TCP, depends on Asterisk service and ttyUSB2 device, runs voip_call_monitor_tcp.py |

@@ -1,0 +1,13 @@
+[Unit]
+Description=Run EDC Check-in based on CHECKIN_INTERVAL_DAYS
+Requires=send_edc_checkin.service
+
+[Timer]
+# Start 1CHECKIN_INTERVAL_DAYS day(s) after boot (or configured interval)
+OnBootSec=1d
+# Repeat every 1 day (or configured interval)
+OnUnitActiveSec=1d
+Unit=send_edc_checkin.service
+
+[Install]
+WantedBy=timers.target

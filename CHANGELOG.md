@@ -6,9 +6,22 @@
 
 Implemented the DTMF programming for 07, the "Check-In Interval".
 
+**EDC Check-in Timer System**: Implemented systemd-based periodic check-in functionality that sends EDC information at configurable day intervals. The system includes:
+- [send_edc_checkin.service](send_edc_checkin.service) - Systemd service that executes send_EDC_info.py with E2 extension parameter; includes dependency on /dev/ttyUSB3 device availability
+- [send_edc_checkin.timer](send_edc_checkin.timer) - Systemd timer that schedules check-ins based on CHECKIN_INTERVAL_DAYS configuration; uses OnBootSec and OnUnitActiveSec to reset cycle after each reboot
+- [common/update_checkin_timer.sh](common/update_checkin_timer.sh) - Helper script to dynamically update timer intervals from K3_config_settings; supports --install flag for initial setup
+- [tests/check-in-test.md](tests/check-in-test.md) - Comprehensive testing documentation with strategies for validating timer functionality without waiting multiple days
+- [tests/install_quick_cycle.sh](tests/install_quick_cycle.sh) - Test helper script to install 2-minute quick cycle timer override for rapid testing; requires root privileges
+- [tests/remove_quick_cycle.sh](tests/remove_quick_cycle.sh) - Test helper script to remove quick cycle override and restore configured timer interval; requires root privileges
+
 ### Changed
 
 Small refactoring of send_EDC_info.py to clean up imports and add -h,--help argument.
+
+Updated [kings3_install.sh](kings3_install.sh) to install and configure the EDC check-in timer system:
+- Added send_edc_checkin.service to setup_common_files function
+- Added send_edc_checkin.timer to both pool and elevator mode service installations
+- Automatically runs update_checkin_timer.sh during installation to configure timer intervals from K3_config_settings
 
 ### Fixed
 

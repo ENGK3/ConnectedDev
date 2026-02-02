@@ -664,6 +664,9 @@ setup_common_files() {
 
     # Sensor data service (used by timer)
     cp /mnt/data/get_sensor_data.service /etc/systemd/system/
+
+    # EDC check-in service (used by timer)
+    cp /mnt/data/send_edc_checkin.service /etc/systemd/system/
 }
 
 # Function to setup calls log with appropriate ownership
@@ -718,7 +721,12 @@ if [ "$CONFIG" == "pool" ]; then
     install_or_update_services switch_mon.service \
         manage_modem.service \
         events_monitor.service \
-        get_sensor_data.timer
+        get_sensor_data.timer \
+        send_edc_checkin.timer
+
+    # Configure EDC check-in timer based on K3_config_settings
+    echo "Configuring EDC check-in timer..."
+    /mnt/data/common/update_checkin_timer.sh
 
     echo "Pool configuration complete!"
     echo "Note: You must run 'systemctl --user enable pulseaudio.service' as kuser"
@@ -776,7 +784,12 @@ elif [ "$CONFIG" == "elevator" ]; then
         manage_modem.service \
         events_monitor.service \
         get_sensor_data.timer \
+        send_edc_checkin.timer \
         set-governor.service
+
+    # Configure EDC check-in timer based on K3_config_settings
+    echo "Configuring EDC check-in timer..."
+    /mnt/data/common/update_checkin_timer.sh
 
     #systemctl status get_sensor_data.timer
     #systemctl list-timers get_sensor_data.timer

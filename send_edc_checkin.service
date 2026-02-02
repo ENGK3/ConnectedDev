@@ -1,0 +1,14 @@
+[Unit]
+Description=Send EDC Check-in Information
+After=network.target dev-ttyUSB3.device
+Requires=dev-ttyUSB3.device
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /mnt/data/send_EDC_info.py -e E2
+WorkingDirectory=/mnt/data
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

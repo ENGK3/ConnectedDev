@@ -28,6 +28,7 @@ part-pkg: k3_config
        daemon.conf pulseaudio.service K3_config_settings.default modem_state.py \
        99-ignore-modemmanager.rules CHANGELOG.md \
        get_sensor_data.py get_sensor_data.service get_sensor_data.timer \
+       send_edc_checkin.service send_edc_checkin.timer \
        sstat.sh stop_ss.sh start_ss.sh switch_detect.sh \
        set-governor.service kings3_install.sh switch_mon.service switch_mon.sh \
        sounds/* *.dtbo microcom.alias daemon.conf  dtmf_collector.py \
@@ -46,7 +47,7 @@ part-pkg: k3_config
        -C ../../common \
        site_store.py site.pub site_info edit_config.sh \
        RSRP_LUT.csv RSRQ_LUT.csv RSSI_LUT.csv \
-       dial_code_utils.py
+       dial_code_utils.py update_checkin_timer.sh
 
 
 
