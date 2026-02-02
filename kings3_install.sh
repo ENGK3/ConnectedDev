@@ -667,6 +667,13 @@ setup_common_files() {
 
     # EDC check-in service (used by timer)
     cp /mnt/data/send_edc_checkin.service /etc/systemd/system/
+
+    # K3 configuration reboot service (triggered by DTMF 99#)
+    cp /mnt/data/k3-config-reboot.service /etc/systemd/system/
+
+    # PolicyKit rule for asterisk user to trigger reboot service
+    cp /mnt/data/50-k3-config-reboot.rules /etc/polkit-1/rules.d/
+    chmod 644 /etc/polkit-1/rules.d/50-k3-config-reboot.rules
 }
 
 # Function to setup calls log with appropriate ownership

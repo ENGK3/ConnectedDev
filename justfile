@@ -26,9 +26,9 @@ part-pkg: k3_config
        place_call.py check_reg.py modem_utils.py send_EDC_info.py \
        manage_modem.py manage_modem.service modem_manager_client.py \
        daemon.conf pulseaudio.service K3_config_settings.default modem_state.py \
-       99-ignore-modemmanager.rules CHANGELOG.md \
+       99-ignore-modemmanager.rules 50-k3-config-reboot.rules CHANGELOG.md \
        get_sensor_data.py get_sensor_data.service get_sensor_data.timer \
-       send_edc_checkin.service send_edc_checkin.timer \
+       send_edc_checkin.service send_edc_checkin.timer k3-config-reboot.service \
        sstat.sh stop_ss.sh start_ss.sh switch_detect.sh \
        set-governor.service kings3_install.sh switch_mon.service switch_mon.sh \
        sounds/* *.dtbo microcom.alias daemon.conf  dtmf_collector.py \

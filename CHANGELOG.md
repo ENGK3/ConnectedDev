@@ -14,6 +14,12 @@ Implemented the DTMF programming for 07, the "Check-In Interval".
 - [tests/install_quick_cycle.sh](tests/install_quick_cycle.sh) - Test helper script to install 2-minute quick cycle timer override for rapid testing; requires root privileges
 - [tests/remove_quick_cycle.sh](tests/remove_quick_cycle.sh) - Test helper script to remove quick cycle override and restore configured timer interval; requires root privileges
 
+**System Reboot via DTMF**: Implemented secure system reboot functionality accessible through Asterisk conference menu (99#) using PolicyKit authorization:
+- [k3-config-reboot.service](k3-config-reboot.service) - Systemd oneshot service that runs update_checkin_timer.sh and executes system reboot; allows asterisk user to trigger privileged operations without sudo
+- [50-k3-config-reboot.rules](50-k3-config-reboot.rules) - PolicyKit rule granting asterisk user permission to start k3-config-reboot.service via systemctl; installed to /etc/polkit-1/rules.d/
+- Updated [VOIP/asterisk/confbridge.conf](VOIP/asterisk/confbridge.conf) - Added 99# menu entry to trigger reboot_system extension
+- Updated [VOIP/asterisk/extensions.conf](VOIP/asterisk/extensions.conf) - Added reboot_system extension in addcallers context to execute systemctl command
+
 ### Changed
 
 Small refactoring of send_EDC_info.py to clean up imports and add -h,--help argument.

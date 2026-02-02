@@ -6,6 +6,7 @@ This repository contains scripts, configurations, and documentation for the King
 
 ```bash
 ./
+├── 50-k3-config-reboot.rules
 ├── 99-ignore-modemmanager.rules
 ├── CHANGELOG.md
 ├── CONF_ADDING/
@@ -94,6 +95,7 @@ This repository contains scripts, configurations, and documentation for the King
 ├── gw-venice-gpio-overlay.dts
 ├── imx8mm-venice-gw7xxx-0x-gpio.dtbo
 ├── justfile
+├── k3-config-reboot.service
 ├── led_blue.sh
 ├── led_green.sh
 ├── led_red.sh

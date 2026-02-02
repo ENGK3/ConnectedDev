@@ -1,0 +1,17 @@
+[Unit]
+Description=K3 Configuration Update and System Reboot
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/mnt/data/update_checkin_timer.sh
+ExecStartPost=/bin/sleep 2
+ExecStartPost=/sbin/systemctl reboot
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=30
+
+[Install]
+WantedBy=multi-user.target
+
+# /etc/systemd/system/k3-config-reboot.service this will be the location of this file.
