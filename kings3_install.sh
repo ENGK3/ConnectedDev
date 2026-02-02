@@ -789,7 +789,7 @@ elif [ "$CONFIG" == "elevator" ]; then
 
     # Configure EDC check-in timer based on K3_config_settings
     echo "Configuring EDC check-in timer..."
-    /mnt/data/common/update_checkin_timer.sh
+    /mnt/data/update_checkin_timer.sh
 
     #systemctl status get_sensor_data.timer
     #systemctl list-timers get_sensor_data.timer
