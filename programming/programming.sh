@@ -1,5 +1,6 @@
 #!/bin/bash
 
+echo ""
 echo "======================================"
 echo "Kings III Q-Series Programming Utility"
 echo "======================================"
