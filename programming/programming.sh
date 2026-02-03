@@ -560,7 +560,6 @@ while true; do
                 echo ""
                 echo "Exiting..."
                 echo ""
-                logout
                 exit
                 ;;
             *)
