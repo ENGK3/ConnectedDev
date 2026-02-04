@@ -47,7 +47,7 @@ part-pkg: k3_config
        -C ../../common \
        site_store.py site.pub site_info edit_config.sh \
        RSRP_LUT.csv RSRQ_LUT.csv RSSI_LUT.csv \
-       dial_code_utils.py update_checkin_timer.sh
+       dial_code_utils.py update_checkin_timer.sh edc_callback.py
 
 
 
