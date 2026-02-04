@@ -500,10 +500,10 @@ power_submenu() {
     do
         case $opt in
             "Reboot module")
-                reboot
+                sudo reboot
                 ;;
             "Power off module")
-                poweroff
+                sudo poweroff
                 ;;
             "Exit to Main Menu")
                 echo ""
