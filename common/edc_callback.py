@@ -240,7 +240,9 @@ def initiate_callback(number: str) -> bool:
         logging.info(f"Initiating callback to: {number}")
 
         # Send place_call command (EDC packet already sent separately)
-        response = send_modem_command("place_call", params={"number": number})
+        response = send_modem_command(
+            "place_call", params={"number": number, "no_audio_routing": True}
+        )
 
         if response.get("status") in ["success", "pending"]:
             logging.info("Callback initiated successfully")
