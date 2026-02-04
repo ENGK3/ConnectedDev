@@ -29,7 +29,14 @@ from site_store import decrypt_site_store
 from audio_routing import start_audio_bridge, terminate_pids
 
 # Import shared modem utilities
-from modem_utils import get_msisdn, manage_sim, sbc_cmd, sbc_connect, sbc_disconnect
+from modem_utils import (
+    get_msisdn,
+    manage_sim,
+    sbc_cmd,
+    sbc_cmd_with_timeout,
+    sbc_connect,
+    sbc_disconnect,
+)
 
 # Import shared dial code parsing utilities
 # Add common directory to path (for local dev), on target all files are in same dir
@@ -639,9 +646,12 @@ class ModemStateMachine:
         logging.info("Hanging up call")
         self.set_state(ModemState.CALL_ENDING)
 
-        # Send hangup command
+        # Send hangup command with timeout to avoid blocking indefinitely
         with self.serial_lock:
-            sbc_cmd(AT_HANGUP, self.serial, verbose=True)
+            response = sbc_cmd_with_timeout(
+                AT_HANGUP, self.serial, timeout=3.0, verbose=True
+            )
+            logging.info(f"Hangup command response: {response}")
 
         # Cleanup audio
         if self.call_info.audio_modules:

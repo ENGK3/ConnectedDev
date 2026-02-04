@@ -80,34 +80,55 @@ def send_modem_command(command: str, params: dict = None) -> dict:
 def ensure_call_hung_up() -> bool:
     """
     Check current call status and hang up if a call is active.
+    Wait for modem to return to IDLE state.
 
     Returns:
         True if no call is active (or was successfully hung up)
     """
+    max_wait = 30  # Maximum seconds to wait for IDLE state (increased for slow hangups)
+    start_time = time.time()
+
     try:
-        # Check status
-        status_response = send_modem_command("status")
-        if status_response.get("status") != "success":
-            logging.error("Failed to get modem status")
-            return False
-
-        data = status_response.get("data", {})
-        state = data.get("state")
-        logging.info(f"Current modem state: {state}")
-
-        # If not idle, hang up
-        if state not in ["IDLE", None]:
-            logging.info("Hanging up existing call")
-            hangup_response = send_modem_command("hangup")
-
-            if hangup_response.get("status") != "success":
-                logging.error("Failed to hang up call")
+        while time.time() - start_time < max_wait:
+            # Check status
+            status_response = send_modem_command("status")
+            if status_response.get("status") != "success":
+                logging.error("Failed to get modem status")
                 return False
 
-            # Give it a moment to complete
+            data = status_response.get("data", {})
+            state = data.get("state")
+            logging.info(f"Current modem state: {state}")
+
+            # If idle, we're good
+            if state in ["IDLE", None]:
+                logging.info("Modem is in IDLE state")
+                return True
+
+            # If call is active, hang it up
+            if state == "CALL_ACTIVE":
+                logging.info("Hanging up active call")
+                hangup_response = send_modem_command("hangup")
+
+                if hangup_response.get("status") != "success":
+                    logging.error("Failed to hang up call")
+                    return False
+
+            # If call is ending or placing, wait for it to finish
+            if state in ["CALL_ENDING", "PLACING_CALL", "ANSWERING_CALL"]:
+                logging.info(f"Waiting for modem to finish {state}...")
+                time.sleep(1)
+                continue
+
+            # Unknown state - wait a bit
+            logging.warning(f"Unknown state: {state}, waiting...")
             time.sleep(1)
 
-        return True
+        # Timeout waiting for IDLE
+        logging.error(
+            f"Timeout waiting for modem to reach IDLE state after {max_wait}s"
+        )
+        return False
 
     except Exception as e:
         logging.error(f"Error ensuring call hung up: {e}")
