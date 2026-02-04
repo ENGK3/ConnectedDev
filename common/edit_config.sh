@@ -66,11 +66,15 @@ log "INFO: Backed up config to: $BACKUP_FILE"
 ORIG_OWNER=$(stat -c '%U:%G' "$CONFIG_FILE")
 ORIG_PERMS=$(stat -c '%a' "$CONFIG_FILE")
 
+# Escape special characters for sed (*, #, /, &, \)
+# These characters have special meaning in sed replacement strings
+ESCAPED_PHONE_NUMBER=$(echo "$PHONE_NUMBER" | sed 's/[*#\/&]/\\&/g')
+
 # Update config variable using sed
 # This handles both quoted and unquoted values
 if grep -q "^${CONFIG_VAR}=" "$CONFIG_FILE"; then
     # Replace existing value
-    sed -i "s/^${CONFIG_VAR}=.*/${CONFIG_VAR}=\"$PHONE_NUMBER\"/" "$CONFIG_FILE"
+    sed -i "s/^${CONFIG_VAR}=.*/${CONFIG_VAR}=\"$ESCAPED_PHONE_NUMBER\"/" "$CONFIG_FILE"
     log "INFO: Updated ${CONFIG_VAR} to: $PHONE_NUMBER"
 else
     # Variable doesn't exist, append it
@@ -83,8 +87,8 @@ fi
 chown "$ORIG_OWNER" "$CONFIG_FILE" 2>/dev/null || true
 chmod "$ORIG_PERMS" "$CONFIG_FILE" 2>/dev/null || true
 
-# Verify the change was made
-if grep -q "^${CONFIG_VAR}=\"$PHONE_NUMBER\"" "$CONFIG_FILE"; then
+# Verify the change was made (use grep -F for literal string matching)
+if grep -qF "${CONFIG_VAR}=\"$PHONE_NUMBER\"" "$CONFIG_FILE"; then
     log "SUCCESS: ${CONFIG_VAR} successfully updated to $PHONE_NUMBER"
 
     # Keep only the last 10 backups
