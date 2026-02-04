@@ -15,6 +15,7 @@ Implemented the DTMF programming for 07, the "Check-In Interval".
 - [tests/remove_quick_cycle.sh](tests/remove_quick_cycle.sh) - Test helper script to remove quick cycle override and restore configured timer interval; requires root privileges
 
 **System Reboot via DTMF**: Implemented secure system reboot functionality accessible through Asterisk conference menu (99#) using PolicyKit authorization:
+
 - [k3-config-reboot.service](k3-config-reboot.service) - Systemd oneshot service that runs update_checkin_timer.sh and executes system reboot; allows asterisk user to trigger privileged operations without sudo
 - [50-k3-config-reboot.rules](50-k3-config-reboot.rules) - PolicyKit rule granting asterisk user permission to start k3-config-reboot.service via systemctl; installed to /etc/polkit-1/rules.d/
 - Updated [VOIP/asterisk/confbridge.conf](VOIP/asterisk/confbridge.conf) - Added 99# menu entry to trigger reboot_system extension
@@ -25,13 +26,29 @@ Implemented the DTMF programming for 07, the "Check-In Interval".
 Small refactoring of send_EDC_info.py to clean up imports and add -h,--help argument.
 
 Updated [kings3_install.sh](kings3_install.sh) to install and configure the EDC check-in timer system:
+
 - Added send_edc_checkin.service to setup_common_files function
 - Added send_edc_checkin.timer to both pool and elevator mode service installations
 - Automatically runs update_checkin_timer.sh during installation to configure timer intervals from K3_config_settings
 
 ### Fixed
 
-None.
+**Phone Number Editing with Special Characters** (Issue #15): Fixed [common/edit_config.sh](common/edit_config.sh) to properly handle special characters (`*` and `#`) in phone numbers:
+
+- Added escape sequence for special characters (`*`, `#`, `/`, `&`) before using them in sed replacement commands
+- Changed verification from regex matching to literal string matching using `grep -F` to avoid regex interpretation issues
+- Phone numbers like `*558881114321` and `#549128234567` now correctly stored in configuration file
+
+**DTMF Translation for Phone Numbers** (Issue #5): Updated [VOIP/asterisk/extensions.conf](VOIP/asterisk/extensions.conf) to conditionally apply DTMF translation:
+
+- DTMF sequences (`*1`=A, `*2`=B, etc.) now only translated for AC (customer account) parameter
+- Phone number parameters (FIRST_NUMBER, SECOND_NUMBER, THIRD_NUMBER) use raw DTMF input without translation
+- Preserves special characters `*` and `#` in phone numbers entered via DTMF
+
+**Test Infrastructure**: Enhanced [tests/test_edit_phone_numbers.sh](tests/test_edit_phone_numbers.sh) to support both local and remote testing:
+
+- Added local testing mode with automatic temporary test environment creation
+
 
 ### Known Issues
 
