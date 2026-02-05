@@ -8,8 +8,10 @@ enters the #25 DTMF sequence. It:
 2. Reads the FIRST_NUMBER from config
 3. Strips any *5x prefix
 4. Initiates a callback with error code EC=CB
+5. Adds extension 201 to conference bridge via ARI
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -19,6 +21,7 @@ import sys
 import time
 import uuid
 
+import aiohttp
 from dotenv import dotenv_values
 
 # Configuration
@@ -26,6 +29,15 @@ DEFAULT_CONFIG_FILE = "/mnt/data/K3_config_settings"
 MANAGE_MODEM_HOST = "127.0.0.1"
 MANAGE_MODEM_PORT = 5555
 SOCKET_TIMEOUT = 10.0
+
+# ARI Configuration
+ARI_HOST = "127.0.0.1"
+ARI_PORT = 8088
+ARI_USER = "at_user"
+ARI_PASSWORD = "asterisk"
+ARI_APP_NAME = "conf_monitor"
+CONFERENCE_NAME = "elevator_conference"
+ADMIN_EXT_MASTER = "201"
 
 # Setup logging
 logging.basicConfig(
@@ -256,6 +268,159 @@ def initiate_callback(number: str) -> bool:
         return False
 
 
+async def originate_call_to_extension_ari(extension_number: str) -> str:
+    """
+    Originate a call to a specific extension via ARI.
+
+    Args:
+        extension_number: Extension to call (e.g., "201")
+
+    Returns:
+        Channel ID if successful, None otherwise
+    """
+    endpoint = f"PJSIP/{extension_number}"
+    base_url = f"http://{ARI_HOST}:{ARI_PORT}/ari"
+    auth = aiohttp.BasicAuth(ARI_USER, ARI_PASSWORD)
+
+    originate_data = {
+        "endpoint": endpoint,
+        "app": ARI_APP_NAME,
+        "appArgs": f"conf,{CONFERENCE_NAME}",
+        "callerId": f"{extension_number}",
+        "timeout": 30,
+    }
+
+    try:
+        async with aiohttp.ClientSession(auth=auth) as session:
+            url = f"{base_url}/channels"
+            async with session.post(url, json=originate_data) as resp:
+                logging.info(f"Originating ARI call to {endpoint}...")
+                if resp.status == 200:
+                    channel_data = await resp.json()
+                    channel_id = channel_data["id"]
+                    logging.info(
+                        f"Successfully originated ARI call to {endpoint}, "
+                        f"channel: {channel_id}"
+                    )
+                    return channel_id
+                else:
+                    error_text = await resp.text()
+                    logging.error(
+                        f"Failed to originate ARI call: {resp.status} - {error_text}"
+                    )
+                    return None
+    except Exception as e:
+        logging.error(f"Error originating ARI call: {e}")
+        return None
+
+
+async def add_to_conference_ari(channel_id: str) -> bool:
+    """
+    Add a channel to the ConfBridge conference as admin via ARI.
+
+    Args:
+        channel_id: Channel ID to add to conference
+
+    Returns:
+        True if successful
+    """
+    base_url = f"http://{ARI_HOST}:{ARI_PORT}/ari"
+    auth = aiohttp.BasicAuth(ARI_USER, ARI_PASSWORD)
+
+    try:
+        async with aiohttp.ClientSession(auth=auth) as session:
+            # Answer the channel first
+            answer_url = f"{base_url}/channels/{channel_id}/answer"
+            async with session.post(answer_url) as resp:
+                if resp.status == 204:
+                    logging.info(f"Channel {channel_id} answered via ARI")
+                else:
+                    logging.warning(f"Failed to answer channel via ARI: {resp.status}")
+
+            # Wait a moment for channel to stabilize
+            await asyncio.sleep(0.5)
+
+            # Set channel variables for ConfBridge
+            var_url = f"{base_url}/channels/{channel_id}/variable"
+
+            # Set the conference name as a channel variable
+            async with session.post(
+                var_url,
+                params={
+                    "variable": "CONFBRIDGE_CONFERENCE",
+                    "value": CONFERENCE_NAME,
+                },
+            ) as resp:
+                if resp.status == 204:
+                    logging.info("Set CONFBRIDGE_CONFERENCE variable via ARI")
+
+            # Set admin profile
+            async with session.post(
+                var_url,
+                params={
+                    "variable": "CONFBRIDGE_USER_PROFILE",
+                    "value": "default_admin",
+                },
+            ) as resp:
+                if resp.status == 204:
+                    logging.info("Set ConfBridge admin profile via ARI")
+
+            # Exit Stasis and continue to dialplan extension that runs ConfBridge
+            continue_url = f"{base_url}/channels/{channel_id}/continue"
+            continue_data = {
+                "context": "from-internal",
+                "extension": "confbridge_admin_join",
+                "priority": 1,
+            }
+
+            async with session.post(continue_url, json=continue_data) as resp:
+                if resp.status == 204:
+                    logging.info(
+                        f"Successfully sent extension {ADMIN_EXT_MASTER} to join "
+                        f"conference {CONFERENCE_NAME} as admin via ARI"
+                    )
+                    return True
+                else:
+                    error_text = await resp.text()
+                    logging.error(
+                        f"Failed to continue to dialplan via ARI: {resp.status} - "
+                        f"{error_text}"
+                    )
+                    return False
+
+    except Exception as e:
+        logging.error(f"Error adding to conference via ARI: {e}")
+        return False
+
+
+async def add_admin_to_conference() -> bool:
+    """
+    Originate call to extension 201 and add to conference as admin.
+
+    Returns:
+        True if successful
+    """
+    logging.info(f"Adding extension {ADMIN_EXT_MASTER} to conference via ARI")
+
+    # Originate call to extension 201
+    channel_id = await originate_call_to_extension_ari(ADMIN_EXT_MASTER)
+    if not channel_id:
+        logging.error(f"Failed to originate call to extension {ADMIN_EXT_MASTER}")
+        return False
+
+    # Wait a moment for channel to be ready
+    await asyncio.sleep(1)
+
+    # Add to conference
+    success = await add_to_conference_ari(channel_id)
+    if not success:
+        logging.error(f"Failed to add extension {ADMIN_EXT_MASTER} to conference")
+        return False
+
+    logging.info(f"Successfully added extension {ADMIN_EXT_MASTER} to conference")
+    return True
+
+
 def main():
     """Main entry point."""
     logging.info("=" * 60)
@@ -292,6 +457,17 @@ def main():
     logging.info("Step 5: Initiating callback")
     if not initiate_callback(number):
         logging.error("Failed to initiate callback")
+        sys.exit(1)
+
+    # Step 6: Add extension 201 to conference via ARI
+    logging.info("Step 6: Adding extension 201 to conference via ARI")
+    try:
+        success = asyncio.run(add_admin_to_conference())
+        if not success:
+            logging.error("Failed to add admin to conference")
+            sys.exit(1)
+    except Exception as e:
+        logging.error(f"Error adding admin to conference: {e}")
         sys.exit(1)
 
     logging.info("=" * 60)
