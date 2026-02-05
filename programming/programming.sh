@@ -7,14 +7,14 @@ echo "======================================"
 echo ""
 
 # Define the menu options
-options=("First Telephone Number" "Second Telephone Number" "Third Telephone Number" "Zone Number(s)" "Customer Account Code" "Whitelist Settings" "Audio Settings" "System Info" "Poweroff & Reset Options" "Exit")
+options=("First Telephone Number" "Second Telephone Number" "Third Telephone Number" "Zone Number(s)" "Customer Account Code" "Whitelist Settings" "Audio Settings" "System Info" "Reboot System" "Exit")
 telephone_number_options=("Program Telephone Number" "Read Existing Telephone Number" "Exit to Main Menu")
 zone_list_options=("Program Zone Number(s)" "Read Existing Zone(s)" "Exit to Main Menu")
 account_number_options=("Program Customer Account Number" "Read Existing Customer Account Number" "Exit to Main Menu")
 whitelist_options=("Program Whitelist Number(s)" "Read Existing Whitelist Number(s)" "Exit to Main Menu")
 audio_submenu_options=("Enable / Disable Speaker Audio" "Adjust Main Volume" "Adjust AVC Max Gain" "Adjust PCM Level" "Play Test Sound" "Exit to Main Menu")
 sys_info_options=("Hardware Sensor Readings" "Cellular Info" "Exit to Main Menu")
-pwr_options=("Reboot module" "Power off module" "Exit to Main Menu")
+pwr_options=("Confirm Module Reboot" "Exit to Main Menu")
 
 first_number_submenu() {
 
@@ -492,18 +492,15 @@ power_submenu() {
 
     echo ""
     echo "======================================"
-    echo "          Power Options Menu          "
+    echo "             Reboot Menu              "
     echo "======================================"
     echo ""
 
     select opt in "${pwr_options[@]}"
     do
         case $opt in
-            "Reboot module")
+            "Confirm Module Reboot")
                 sudo reboot
-                ;;
-            "Power off module")
-                sudo poweroff
                 ;;
             "Exit to Main Menu")
                 echo ""
@@ -514,7 +511,7 @@ power_submenu() {
         REPLY=  # This line forces the menu to redraw on the next loop
         echo ""
         echo "======================================"
-        echo "          Power Options Menu          "
+        echo "             Reboot Menu              "
         echo "======================================"
         echo ""
     done
@@ -554,7 +551,7 @@ while true; do
             "System Info")
                 sys_info_submenu
                 ;;
-            "Poweroff & Reset Options")
+            "Reboot System")
                 power_submenu
                 ;;
             "Exit")
