@@ -66,7 +66,7 @@ log "INFO: Backed up config to: $BACKUP_FILE"
 ORIG_OWNER=$(stat -c '%U:%G' "$CONFIG_FILE")
 ORIG_PERMS=$(stat -c '%a' "$CONFIG_FILE")
 
-# Escape special characters for sed (*, #, /, &, \)
+# Escape special characters for sed (*, #, /, &)
 # These characters have special meaning in sed replacement strings
 ESCAPED_PHONE_NUMBER=$(echo "$PHONE_NUMBER" | sed 's/[*#\/&]/\\&/g')
 
