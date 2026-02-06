@@ -1,18 +1,20 @@
 #!/bin/bash
 
+echo ""
 echo "======================================"
 echo "Kings III Q-Series Programming Utility"
 echo "======================================"
 echo ""
 
 # Define the menu options
-options=("First Telephone Number" "Second Telephone Number" "Third Telephone Number" "Zone Number(s)" "Customer Account Code" "Whitelist Settings" "Audio Settings" "System Info" "Exit")
+options=("First Telephone Number" "Second Telephone Number" "Third Telephone Number" "Zone Number(s)" "Customer Account Code" "Whitelist Settings" "Audio Settings" "System Info" "Reboot System" "Exit")
 telephone_number_options=("Program Telephone Number" "Read Existing Telephone Number" "Exit to Main Menu")
 zone_list_options=("Program Zone Number(s)" "Read Existing Zone(s)" "Exit to Main Menu")
 account_number_options=("Program Customer Account Number" "Read Existing Customer Account Number" "Exit to Main Menu")
 whitelist_options=("Program Whitelist Number(s)" "Read Existing Whitelist Number(s)" "Exit to Main Menu")
 audio_submenu_options=("Enable / Disable Speaker Audio" "Adjust Main Volume" "Adjust AVC Max Gain" "Adjust PCM Level" "Play Test Sound" "Exit to Main Menu")
 sys_info_options=("Hardware Sensor Readings" "Cellular Info" "Exit to Main Menu")
+pwr_options=("Confirm Module Reboot" "Exit to Main Menu")
 
 first_number_submenu() {
 
@@ -483,6 +485,38 @@ sys_info_submenu() {
     done
 }
 
+power_submenu() {
+
+    # cfg_file="/mnt/data/K3_config_settings"
+    # key="CID"
+
+    echo ""
+    echo "======================================"
+    echo "             Reboot Menu              "
+    echo "======================================"
+    echo ""
+
+    select opt in "${pwr_options[@]}"
+    do
+        case $opt in
+            "Confirm Module Reboot")
+                sudo reboot
+                ;;
+            "Exit to Main Menu")
+                echo ""
+                echo "Exiting to main menu..."
+                return
+                ;;
+        esac
+        REPLY=  # This line forces the menu to redraw on the next loop
+        echo ""
+        echo "======================================"
+        echo "             Reboot Menu              "
+        echo "======================================"
+        echo ""
+    done
+}
+
 while true; do
     # Start the select loop to display the menu
     echo ""
@@ -516,6 +550,9 @@ while true; do
                 ;;
             "System Info")
                 sys_info_submenu
+                ;;
+            "Reboot System")
+                power_submenu
                 ;;
             "Exit")
                 echo ""
