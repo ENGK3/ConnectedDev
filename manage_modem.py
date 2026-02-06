@@ -433,19 +433,46 @@ class ModemStateMachine:
                 logging.info(f"Worker for {number} cancelled before dialing")
                 return
 
+            logging.debug(
+                "[LOCK_DEBUG] _place_call_worker: Attempting to acquire "
+                "serial_lock for dialing"
+            )
+            lock_start = time.time()
             with self.serial_lock:
+                lock_acquired = time.time() - lock_start
+                logging.debug(
+                    f"[LOCK_DEBUG] _place_call_worker: Serial_lock acquired "
+                    f"after {lock_acquired:.3f}s, dialing {number}"
+                )
                 # Flush any pending data
                 self.serial.reset_input_buffer()
 
                 # Place the call
-                logging.info(f"Acquiring serial lock to dial {number}")
                 dial_response = sbc_cmd(f"ATD{number};\r", self.serial, verbose=True)
+                logging.debug(
+                    "[LOCK_DEBUG] _place_call_worker: Dial command sent, "
+                    "releasing serial_lock"
+                )
 
             # Check if dial command failed immediately
             if "ERROR" in dial_response or "+CME ERROR" in dial_response:
                 logging.error(f"Dial command failed: {dial_response}")
+                logging.debug(
+                    "[LOCK_DEBUG] _place_call_worker: Attempting to acquire "
+                    "serial_lock for hangup after dial error"
+                )
+                lock_start = time.time()
                 with self.serial_lock:
+                    lock_acquired = time.time() - lock_start
+                    logging.debug(
+                        f"[LOCK_DEBUG] _place_call_worker: Serial_lock acquired "
+                        f"after {lock_acquired:.3f}s for hangup"
+                    )
                     sbc_cmd(AT_HANGUP, self.serial, verbose=True)
+                    logging.debug(
+                        "[LOCK_DEBUG] _place_call_worker: Releasing serial_lock "
+                        "after hangup"
+                    )
                 self.set_state(ModemState.IDLE)
                 self.call_info = CallInfo()
 
@@ -466,8 +493,23 @@ class ModemStateMachine:
             call_connected = False
 
             # Set shorter timeout for responsive reading
-            original_timeout = self.serial.timeout
-            self.serial.timeout = 0.5
+            logging.debug(
+                "[LOCK_DEBUG] _place_call_worker: Attempting to acquire "
+                "serial_lock for timeout configuration"
+            )
+            lock_start = time.time()
+            with self.serial_lock:
+                lock_acquired = time.time() - lock_start
+                logging.debug(
+                    f"[LOCK_DEBUG] _place_call_worker: Serial_lock acquired "
+                    f"after {lock_acquired:.3f}s for timeout configuration"
+                )
+                original_timeout = self.serial.timeout
+                self.serial.timeout = 0.5
+                logging.debug(
+                    "[LOCK_DEBUG] _place_call_worker: Releasing serial_lock "
+                    "after timeout configuration"
+                )
 
             call_termination_reason = None
 
@@ -484,10 +526,24 @@ class ModemStateMachine:
                         call_termination_reason = "timeout"
                         break
 
+                    logging.debug(
+                        "[LOCK_DEBUG] _place_call_worker: Acquiring "
+                        "serial_lock for readline"
+                    )
+                    lock_start = time.time()
                     with self.serial_lock:
+                        lock_acquired = time.time() - lock_start
+                        logging.debug(
+                            f"[LOCK_DEBUG] _place_call_worker: Serial_lock acquired"
+                            f" after {lock_acquired:.3f}s for readline"
+                        )
                         response = (
                             self.serial.readline().decode(errors="ignore").strip()
                         )
+                    logging.debug(
+                        "[LOCK_DEBUG] _place_call_worker: Released "
+                        "serial_lock after readline"
+                    )
 
                     if response:
                         logging.info(f"Call response: {response}")
@@ -564,7 +620,22 @@ class ModemStateMachine:
                         break
 
             finally:
-                self.serial.timeout = original_timeout
+                logging.debug(
+                    "[LOCK_DEBUG] _place_call_worker: Attempting to acquire "
+                    "serial_lock for timeout restoration"
+                )
+                lock_start = time.time()
+                with self.serial_lock:
+                    lock_acquired = time.time() - lock_start
+                    logging.debug(
+                        "[LOCK_DEBUG] _place_call_worker: Serial_lock acquired after "
+                        f"{lock_acquired:.3f}s for timeout restoration"
+                    )
+                    self.serial.timeout = original_timeout
+                    logging.debug(
+                        "[LOCK_DEBUG] _place_call_worker: Releasing serial_lock "
+                        "after timeout restoration"
+                    )
 
             # Check if we were cancelled - if so, don't do any cleanup
             if self._is_worker_cancelled(request_id):
@@ -584,8 +655,22 @@ class ModemStateMachine:
                 # the same modules
 
                 # Send hangup to ensure modem is clean
+                logging.debug(
+                    "[LOCK_DEBUG] _place_call_worker: Attempting to acquire "
+                    "serial_lock for cleanup hangup"
+                )
+                lock_start = time.time()
                 with self.serial_lock:
+                    lock_acquired = time.time() - lock_start
+                    logging.debug(
+                        f"[LOCK_DEBUG] _place_call_worker: Serial_lock acquired "
+                        f"after {lock_acquired:.3f}s for cleanup hangup"
+                    )
                     sbc_cmd(AT_HANGUP, self.serial, verbose=True)
+                    logging.debug(
+                        "[LOCK_DEBUG] _place_call_worker: Releasing serial_lock "
+                        "after cleanup hangup"
+                    )
 
                 # Reset state
                 self.set_state(ModemState.IDLE)
@@ -597,8 +682,22 @@ class ModemStateMachine:
             elif not call_connected:
                 # Call never connected
                 logging.info("Call failed to connect, cleaning up")
+                logging.debug(
+                    "[LOCK_DEBUG] _place_call_worker: Attempting to acquire "
+                    "serial_lock for hangup after connection failure"
+                )
+                lock_start = time.time()
                 with self.serial_lock:
+                    lock_acquired = time.time() - lock_start
+                    logging.debug(
+                        f"[LOCK_DEBUG] _place_call_worker: Serial_lock acquired "
+                        f"after {lock_acquired:.3f}s for hangup"
+                    )
                     sbc_cmd(AT_HANGUP, self.serial, verbose=True)
+                    logging.debug(
+                        "[LOCK_DEBUG] _place_call_worker: Releasing serial_lock "
+                        "after hangup"
+                    )
                 self.set_state(ModemState.IDLE)
                 self.call_info = CallInfo()
 
@@ -647,11 +746,21 @@ class ModemStateMachine:
         self.set_state(ModemState.CALL_ENDING)
 
         # Send hangup command with timeout to avoid blocking indefinitely
+        logging.debug(
+            "[LOCK_DEBUG] handle_hangup: Attempting to acquire serial_lock..."
+        )
+        lock_start = time.time()
         with self.serial_lock:
+            lock_acquired = time.time() - lock_start
+            logging.debug(
+                f"[LOCK_DEBUG] handle_hangup: Serial_lock acquired after "
+                f"{lock_acquired:.3f}s"
+            )
             response = sbc_cmd_with_timeout(
                 AT_HANGUP, self.serial, timeout=3.0, verbose=True
             )
             logging.info(f"Hangup command response: {response}")
+            logging.debug("[LOCK_DEBUG] handle_hangup: Releasing serial_lock")
 
         # Cleanup audio
         if self.call_info.audio_modules:
@@ -702,8 +811,22 @@ class ModemStateMachine:
                 f"modem busy (state: {current_state.value})"
             )
             # Send hangup to reject the incoming call
+            logging.debug(
+                "[LOCK_DEBUG] handle_incoming_call: Attempting to acquire "
+                "serial_lock for busy rejection"
+            )
+            lock_start = time.time()
             with self.serial_lock:
+                lock_acquired = time.time() - lock_start
+                logging.debug(
+                    f"[LOCK_DEBUG] handle_incoming_call: Serial_lock acquired"
+                    f" after {lock_acquired:.3f}s for busy rejection"
+                )
                 sbc_cmd(AT_HANGUP, self.serial, verbose=True)
+                logging.debug(
+                    "[LOCK_DEBUG] handle_incoming_call: Releasing serial_lock"
+                    " for busy rejection"
+                )
             # Reset ring tracking
             self.ring_count = 0
             self.pending_caller_number = None
@@ -722,8 +845,22 @@ class ModemStateMachine:
                 f"entries), rejecting call"
             )
             # Send hangup command to terminate the call
+            logging.debug(
+                "[LOCK_DEBUG] handle_incoming_call: Attempting to acquire "
+                "serial_lock for whitelist rejection"
+            )
+            lock_start = time.time()
             with self.serial_lock:
+                lock_acquired = time.time() - lock_start
+                logging.debug(
+                    "[LOCK_DEBUG] handle_incoming_call: Serial_lock acquired after "
+                    f"{lock_acquired:.3f}s for whitelist rejection"
+                )
                 sbc_cmd(AT_HANGUP, self.serial, verbose=True)
+                logging.debug(
+                    "[LOCK_DEBUG] handle_incoming_call: Releasing serial_lock "
+                    "after whitelist rejection"
+                )
             self.set_state(ModemState.IDLE)
             return
 
@@ -750,8 +887,22 @@ class ModemStateMachine:
         )
 
         # Answer the call
+        logging.debug(
+            "[LOCK_DEBUG] answer_incoming_call: Attempting to acquire "
+            "serial_lock for answer"
+        )
+        lock_start = time.time()
         with self.serial_lock:
+            lock_acquired = time.time() - lock_start
+            logging.debug(
+                f"[LOCK_DEBUG] answer_incoming_call: Serial_lock acquired "
+                f"after {lock_acquired:.3f}s for answer"
+            )
             sbc_cmd(AT_ANSWER, self.serial, verbose=True)
+            logging.debug(
+                "[LOCK_DEBUG] answer_incoming_call: Releasing serial_lock "
+                "after answer"
+            )
 
         # Wait a moment for call to establish
         time.sleep(1)
@@ -833,11 +984,25 @@ class ModemStateMachine:
             "AT+CIND=0,0,1,0,1,1,1,1,0,1,1\r",  # Configure indicators
         ]
 
+        logging.debug(
+            "[LOCK_DEBUG] _subscribe_to_events: Attempting to acquire "
+            "serial_lock for AT commands"
+        )
+        lock_start = time.time()
         with self.serial_lock:
+            lock_acquired = time.time() - lock_start
+            logging.debug(
+                f"[LOCK_DEBUG] _subscribe_to_events: Serial_lock acquired "
+                f"after {lock_acquired:.3f}s for AT commands"
+            )
             for cmd in at_cmd_set:
                 response = sbc_cmd(cmd, self.serial, verbose=True)
                 if response:
                     logging.debug(f"Response to {cmd.strip()}: {response}")
+            logging.debug(
+                "[LOCK_DEBUG] _subscribe_to_events: Releasing serial_lock "
+                "after AT commands"
+            )
 
         logging.info("Modem configured for incoming calls")
 
@@ -859,9 +1024,23 @@ class ModemStateMachine:
             "AT+CIND=0,0,1,0,1,1,1,1,0,1,1\r",
         ]
 
+        logging.debug(
+            "[LOCK_DEBUG] _unsubscribe_from_events: Attempting to acquire "
+            "serial_lock for AT commands"
+        )
+        lock_start = time.time()
         with self.serial_lock:
+            lock_acquired = time.time() - lock_start
+            logging.debug(
+                f"[LOCK_DEBUG] _unsubscribe_from_events: Serial_lock acquired "
+                f"after {lock_acquired:.3f}s for AT commands"
+            )
             for cmd in at_cmd_set:
                 sbc_cmd(cmd, self.serial, verbose=False)
+            logging.debug(
+                "[LOCK_DEBUG] _unsubscribe_from_events: Releasing serial_lock "
+                "after AT commands"
+            )
 
     def _start_audio_bridge(self) -> Optional[Tuple[Optional[str], Optional[str]]]:
         """Start PulseAudio loopback modules for audio routing."""
@@ -1340,9 +1519,17 @@ def monitor_serial_port(state_machine: ModemStateMachine, tcp_server=None):
                 continue
 
             # Set short timeout to allow checking shutdown flag
+            logging.debug(
+                "[LOCK_DEBUG] monitor_serial_port: Acquiring serial_lock "
+                "for readline"
+            )
             with state_machine.serial_lock:
                 state_machine.serial.timeout = 0.5
                 line = state_machine.serial.readline().decode(errors="ignore").strip()
+            logging.debug(
+                "[LOCK_DEBUG] monitor_serial_port: Released serial_lock "
+                "after readline"
+            )
 
             if not line:
                 continue
