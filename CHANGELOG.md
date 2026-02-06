@@ -4,10 +4,14 @@
 
 ### Added
 
-Implemented the DTMF programming for 07, the "Check-In Interval".
+**EDC Callback Feature**: Implemented callback functionality to allow admin to initiate an outbound call back to the primary phone number with error code EC=CB send in the packet to the EDC:
 
-**EDC Check-in Timer System**: Implemented systemd-based periodic check-in functionality that sends EDC information at configurable day intervals. The system includes:
-- [send_edc_checkin.service](send_edc_checkin.service) - Systemd service that executes send_EDC_info.py with E2 extension parameter; includes dependency on /dev/ttyUSB3 device availability
+- [common/edc_callback.py](common/edc_callback.py) - Async Python script that handles EDC callback; includes comprehensive error handling and timeout management- Added #25 menu entry in elevator_admin_menu to trigger edc_callback extension
+
+
+
+**EDC Check-in Timer System**: Implemented the DTMF programming for 07, the "Check-In Interval". Implemented as a systemd-based periodic check-in functionality that sends EDC information at configurable day intervals. The system includes:
+- [send_edc_checkin.service](send_edc_checkin.service) - Systemd service that executes send_EDC_info.py with E2 extension parameter
 - [send_edc_checkin.timer](send_edc_checkin.timer) - Systemd timer that schedules check-ins based on CHECKIN_INTERVAL_DAYS configuration; uses OnBootSec and OnUnitActiveSec to reset cycle after each reboot
 - [common/update_checkin_timer.sh](common/update_checkin_timer.sh) - Helper script to dynamically update timer intervals from K3_config_settings; supports --install flag for initial setup
 - [tests/check-in-test.md](tests/check-in-test.md) - Comprehensive testing documentation with strategies for validating timer functionality without waiting multiple days
@@ -21,6 +25,7 @@ Implemented the DTMF programming for 07, the "Check-In Interval".
 - Updated [VOIP/asterisk/confbridge.conf](VOIP/asterisk/confbridge.conf) - Added 99# menu entry to trigger reboot_system extension
 - Updated [VOIP/asterisk/extensions.conf](VOIP/asterisk/extensions.conf) - Added reboot_system extension in addcallers context to execute systemctl command
 
+
 ### Changed
 
 Small refactoring of send_EDC_info.py to clean up imports and add -h,--help argument.
@@ -29,7 +34,16 @@ Updated [kings3_install.sh](kings3_install.sh) to install and configure the EDC 
 
 - Added send_edc_checkin.service to setup_common_files function
 - Added send_edc_checkin.timer to both pool and elevator mode service installations
+- Added edc_callback.py to install.
 - Automatically runs update_checkin_timer.sh during installation to configure timer intervals from K3_config_settings
+
+- Updated [VOIP/asterisk/extensions.conf](VOIP/asterisk/extensions.conf) - Change the enter_ext extension dialplan to use "extension" prompt file
+
+**Enhanced Lock Debugging in manage_modem.py**: Added extensive lock acquisition timing and debug logging throughout the call placement workflow to diagnose potential deadlock issues:
+
+- Updated [manage_modem.py](manage_modem.py) - Added [LOCK_DEBUG] logging statements in `_place_call_worker()` to track serial_lock acquisition and release for determining when lock is
+being held for long periods of time.
+
 
 ### Fixed
 
@@ -48,11 +62,15 @@ Updated [kings3_install.sh](kings3_install.sh) to install and configure the EDC 
 **Test Infrastructure**: Enhanced [tests/test_edit_phone_numbers.sh](tests/test_edit_phone_numbers.sh) to support both local and remote testing:
 
 - Added local testing mode with automatic temporary test environment creation
+### Fixed
+
+
 
 
 ### Known Issues
 
-None.
+There is an inexplicable delay in the hangup function when being executed by the manage_modem code.
+Debugging has been added but it is disabled by default. This needs further investigation.
 
 ## Version V00.03.06
 

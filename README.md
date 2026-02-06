@@ -14,6 +14,7 @@ This repository contains scripts, configurations, and documentation for the King
 │   └── extensions.conf
 ├── common/
 │   ├── dial_code_utils.py
+│   ├── edc_callback.py
 │   ├── edit_config.sh
 │   ├── encrypt_site_store.sh
 │   ├── RSRP_LUT.csv
@@ -191,6 +192,7 @@ The `programming/` directory contains interactive utilities for field configurat
 | `update_from_SD_card.py` | `.` | Automates system updates from SD card; checks for update packages and installs them |
 | `site_store.py` | `common/` | Decrypts site configuration data using RSA public key verification; provides `decrypt_site_store()` function to retrieve encrypted site information (PIN codes, credentials) stored in site_info file |
 | `dial_code_utils.py` | `common/` | Shared utility module for parsing special dial code prefixes (*50/*54/*55) that control EDC (Event Data Collection) packet behavior; used by both manage_modem.py and ari-mon-conf.py to provide unified EDC control across elevator and outgoing call events |
+| `edc_callback.py` | `common/` | Async script for EDC callback functionality; ensures existing call is hung up, reads FIRST_NUMBER from config (strips any *5x prefix), initiates callback with EC=CB error code, and adds extension 200 to conference bridge via ARI; invoked from Asterisk dialplan when admin enters #25 DTMF sequence |
 | `ari-mon-conf.py` | `VOIP/asterisk/` | ARI-based conference monitor that automatically calls admin extension when first participant joins a ConfBridge conference. Implements intelligent fallback: tries extension 201 first (15-second timeout), then falls back to extension 200 (LTE) if unanswered. Captures calling extension for EDC reporting |
 | `voip_call_monitor_tcp.py` | `VOIP/` | Monitors baresip via TCP socket interface, handles incoming calls, launches place_call.py for audio routing, and triggers EDC info packet transmission when calls are established |
 | `voip_call_rerouting.py` | `VOIP/` | Monitors baresip output and automatically reroutes audio when calls are established by detecting call state changes |
