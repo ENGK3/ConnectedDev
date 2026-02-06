@@ -31,12 +31,21 @@ fi
 
 # Read the interval from config file
 if [[ -f "$CONFIG_FILE" ]]; then
-    # Source the config file to get CHECKIN_INTERVAL_DAYS
-    source "$CONFIG_FILE"
-    INTERVAL_DAYS="${CHECKIN_INTERVAL_DAYS:-$DEFAULT_INTERVAL_DAYS}"
+    # Extract CHECKIN_INTERVAL_DAYS safely from config file
+    INTERVAL_DAYS=$(grep '^CHECKIN_INTERVAL_DAYS=' "$CONFIG_FILE" | awk -F= '{print $2}' | tr -d '"')
+    # If not found, use default
+    if [[ -z "$INTERVAL_DAYS" ]]; then
+        INTERVAL_DAYS=$DEFAULT_INTERVAL_DAYS
+    fi
 else
     echo "Warning: Config file $CONFIG_FILE not found, using default interval of $DEFAULT_INTERVAL_DAYS day(s)"
     INTERVAL_DAYS=$DEFAULT_INTERVAL_DAYS
+fi
+
+# Validate: digits only, positive, non-zero
+if ! [[ "$INTERVAL_DAYS" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Error: CHECKIN_INTERVAL_DAYS must be a positive integer." >&2
+    exit 1
 fi
 
 echo "Setting check-in interval to $INTERVAL_DAYS day(s)"
