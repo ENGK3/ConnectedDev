@@ -7,10 +7,10 @@ echo "======================================"
 echo ""
 
 # Define the menu options
-options=("First Telephone Number" "Second Telephone Number" "Third Telephone Number" "Zone Number(s)" "Customer Account Code" "Whitelist Settings" "Audio Settings" "System Info" "Reboot System" "Exit")
+options=("First Telephone Number" "Second Telephone Number" "Third Telephone Number" "Zone Number(s)" "Dialer Number" "Whitelist Settings" "Audio Settings" "System Info" "Reboot System" "Exit")
 telephone_number_options=("Program Telephone Number" "Read Existing Telephone Number" "Exit to Main Menu")
 zone_list_options=("Program Zone Number(s)" "Read Existing Zone(s)" "Exit to Main Menu")
-account_number_options=("Program Customer Account Number" "Read Existing Customer Account Number" "Exit to Main Menu")
+dialer_number_options=("Program Dialer Number" "Read Existing Dialer Number" "Exit to Main Menu")
 whitelist_options=("Program Whitelist Number(s)" "Read Existing Whitelist Number(s)" "Exit to Main Menu")
 audio_submenu_options=("Enable / Disable Speaker Audio" "Adjust Main Volume" "Adjust AVC Max Gain" "Adjust PCM Level" "Play Test Sound" "Exit to Main Menu")
 sys_info_options=("Hardware Sensor Readings" "Cellular Info" "Exit to Main Menu")
@@ -243,10 +243,10 @@ account_number_submenu() {
     echo "======================================"
     echo ""
 
-    select opt in "${account_number_options[@]}"
+    select opt in "${dialer_number_options[@]}"
     do
         case $opt in
-            "Program Customer Account Number")
+            "Program Dialer Number")
                 echo ""
                 echo "Please input new Customer Account Number:"
                 read account_number
@@ -263,7 +263,7 @@ account_number_submenu() {
                 echo "done"
 
                 ;;
-            "Read Existing Customer Account Number")
+            "Read Existing Dialer Number")
                 VALUE=$(grep "^$key=" $cfg_file | cut -d '=' -f2)
                 echo ""
                 echo "Listed Customer Account Number: $VALUE"
@@ -500,7 +500,8 @@ power_submenu() {
     do
         case $opt in
             "Confirm Module Reboot")
-                sudo reboot
+                # sudo reboot
+                /bin/systemctl start k3-config-reboot.service
                 ;;
             "Exit to Main Menu")
                 echo ""
@@ -539,7 +540,7 @@ while true; do
             "Zone Number(s)")
                 zone_number_submenu
                 ;;
-            "Customer Account Code")
+            "Dialer Number")
                 account_number_submenu
                 ;;
             "Whitelist Settings")
