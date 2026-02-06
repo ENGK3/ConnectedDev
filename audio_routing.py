@@ -155,12 +155,13 @@ def terminate_pids(module_ids: Tuple[Optional[str], Optional[str]]) -> None:
             continue
 
         try:
-            # Get the module list first
+            # Get the module list first - with timeout to prevent blocking
             result = subprocess.run(
                 ["pactl", "list", "modules", "short"],
                 capture_output=True,
                 text=True,
                 check=True,
+                timeout=2.0,  # 2 second timeout for listing modules
                 env=os.environ.copy(),
             )
 
@@ -174,6 +175,7 @@ def terminate_pids(module_ids: Tuple[Optional[str], Optional[str]]) -> None:
                 subprocess.run(
                     ["pactl", "unload-module", str(module_id)],
                     check=True,
+                    timeout=2.0,  # 2 second timeout for unloading
                     env=os.environ.copy(),
                 )
                 logging.info(f"Unloaded PulseAudio loopback module {module_id}")
@@ -181,6 +183,8 @@ def terminate_pids(module_ids: Tuple[Optional[str], Optional[str]]) -> None:
                 logging.info(
                     f"Loopback module {module_id} not found or already unloaded"
                 )
+        except subprocess.TimeoutExpired:
+            logging.error(f"Timeout unloading loopback module {module_id} - pactl hung")
         except subprocess.CalledProcessError as e:
             logging.error(f"Failed to unload loopback module {module_id}: {e}")
         except Exception as e:
