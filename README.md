@@ -207,7 +207,7 @@ The `programming/` directory contains interactive utilities for field configurat
 | `events_monitor.service` | `.` | Systemd service for system events monitoring, runs events_monitor.py to track and log system events |
 | `get_sensor_data.service` | `.` | Systemd service for sensor data collection, triggered by get_sensor_data.timer |
 | `get_sensor_data.timer` | `.` | Systemd timer for periodic sensor data collection (temperature, voltage, cellular signal strength) |
-| `send_edc_checkin.service` | `.` | Systemd service for EDC check-in reporting, executes send_EDC_info.sh with E2 extension parameter, triggered by send_edc_checkin.timer |
+| `send_edc_checkin.service` | `.` | Systemd service for EDC check-in reporting, executes send_EDC_info.py with E2 extension parameter, triggered by send_edc_checkin.timer |
 | `send_edc_checkin.timer` | `.` | Systemd timer for periodic EDC check-in based on CHECKIN_INTERVAL_DAYS configuration; uses OnBootSec and OnUnitActiveSec to reset cycle after reboot |
 | `k3-config-reboot.service` | `.` | Systemd oneshot service that runs update_checkin_timer.sh and reboots the system; allows privileged reboot via PolicyKit for asterisk user |
 | `set-governor.service` | `.` | Systemd service to set CPU governor policy on boot for power management |
