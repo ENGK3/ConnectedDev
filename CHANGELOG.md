@@ -44,7 +44,6 @@ Updated [kings3_install.sh](kings3_install.sh) to install and configure the EDC 
 - Updated [manage_modem.py](manage_modem.py) - Added [LOCK_DEBUG] logging statements in `_place_call_worker()` to track serial_lock acquisition and release for determining when lock is
 being held for long periods of time.
 
-
 ### Fixed
 
 **Phone Number Editing with Special Characters** (Issue #15): Fixed [common/edit_config.sh](common/edit_config.sh) to properly handle special characters (`*` and `#`) in phone numbers:
@@ -62,10 +61,6 @@ being held for long periods of time.
 **Test Infrastructure**: Enhanced [tests/test_edit_phone_numbers.sh](tests/test_edit_phone_numbers.sh) to support both local and remote testing:
 
 - Added local testing mode with automatic temporary test environment creation
-### Fixed
-
-
-
 
 ### Known Issues
 
