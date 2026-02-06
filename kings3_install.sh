@@ -688,15 +688,9 @@ setup_common_files() {
 
 # Function to setup calls log with appropriate ownership
 setup_calls_log() {
-    local owner="$1"  # "kuser:kuser" or "ugo+w"
-
     touch /mnt/data/calls.log
-
-    if [ "$owner" = "ugo+w" ]; then
-        chmod ugo+w /mnt/data/calls.log
-    else
-        chown "$owner" /mnt/data/calls.log
-    fi
+    chown kuser:kuser /mnt/data/calls.log
+    chmod ugo+w /mnt/data/calls.log
 }
 
 # In both types of configurations, ensure the following packages are installed.
@@ -730,7 +724,7 @@ if [ "$CONFIG" == "pool" ]; then
 
     setup_common_files
     setup_pulseaudio_user_service
-    setup_calls_log "ugo+w"
+    setup_calls_log
     set_config_permissions
 
     loginctl enable-linger kuser
@@ -776,7 +770,7 @@ elif [ "$CONFIG" == "elevator" ]; then
     systemctl restart asterisk
     echo "Asterisk restarted successfully"
 
-    setup_calls_log "kuser:kuser"
+    setup_calls_log
     set_config_permissions
 
     # Baresip setup
